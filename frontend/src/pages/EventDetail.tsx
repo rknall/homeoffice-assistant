@@ -94,6 +94,11 @@ export function EventDetail() {
   const [documentPreviewUrl, setDocumentPreviewUrl] = useState<string | null>(null)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
   const [isCreatingFromDoc, setIsCreatingFromDoc] = useState(false)
+  const [isEditExpenseModalOpen, setIsEditExpenseModalOpen] = useState(false)
+  const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null)
+  const [editExpensePreviewUrl, setEditExpensePreviewUrl] = useState<string | null>(null)
+  const [isLoadingEditPreview, setIsLoadingEditPreview] = useState(false)
+  const [isUpdatingExpense, setIsUpdatingExpense] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isEditSaving, setIsEditSaving] = useState(false)
@@ -134,6 +139,24 @@ export function EventDetail() {
       category: 'other',
     },
   })
+
+  const {
+    register: registerEditExpense,
+    handleSubmit: handleEditExpenseSubmit,
+    reset: resetEditExpense,
+    formState: { errors: editExpenseErrors },
+  } = useForm<ExpenseForm>({
+    resolver: zodResolver(expenseSchema),
+    defaultValues: {
+      currency: 'EUR',
+      payment_type: 'cash',
+      category: 'other',
+    },
+  })
+
+  // Filter documents to exclude those already linked to expenses
+  const linkedDocIds = new Set(expenses.filter(e => e.paperless_doc_id).map(e => e.paperless_doc_id))
+  const availableDocuments = documents.filter(doc => !linkedDocIds.has(doc.id))
 
   const fetchDocuments = async () => {
     if (!id) return
@@ -353,6 +376,69 @@ export function EventDetail() {
     }
   }
 
+  const openEditExpenseModal = async (expense: Expense) => {
+    setExpenseToEdit(expense)
+    setIsEditExpenseModalOpen(true)
+
+    // Pre-fill form with expense data
+    resetEditExpense({
+      date: expense.date,
+      amount: String(expense.amount),
+      currency: expense.currency,
+      payment_type: expense.payment_type,
+      category: expense.category,
+      description: expense.description || '',
+    })
+
+    // Load document preview if expense has a linked document
+    if (expense.paperless_doc_id) {
+      setIsLoadingEditPreview(true)
+      try {
+        const response = await fetch(`/api/v1/events/${id}/documents/${expense.paperless_doc_id}/preview`, {
+          credentials: 'include',
+        })
+        if (response.ok) {
+          const blob = await response.blob()
+          const url = URL.createObjectURL(blob)
+          setEditExpensePreviewUrl(url)
+        }
+      } catch {
+        // Preview failed, continue without it
+      } finally {
+        setIsLoadingEditPreview(false)
+      }
+    }
+  }
+
+  const closeEditExpenseModal = () => {
+    setIsEditExpenseModalOpen(false)
+    setExpenseToEdit(null)
+    if (editExpensePreviewUrl) {
+      URL.revokeObjectURL(editExpensePreviewUrl)
+      setEditExpensePreviewUrl(null)
+    }
+    resetEditExpense()
+  }
+
+  const onEditExpenseSubmit = async (data: ExpenseForm) => {
+    if (!id || !expenseToEdit) return
+    setIsUpdatingExpense(true)
+    setError(null)
+    try {
+      await api.put(`/events/${id}/expenses/${expenseToEdit.id}`, {
+        ...data,
+        amount: parseFloat(data.amount),
+        description: data.description || null,
+      })
+      await fetchData()
+      closeEditExpenseModal()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update expense')
+    } finally {
+      setIsUpdatingExpense(false)
+    }
+  }
+
   const sendEmailReport = async () => {
     if (!id) return
     setIsSendingEmail(true)
@@ -508,12 +594,22 @@ export function EventDetail() {
                         {Number(expense.amount).toFixed(2)} {expense.currency}
                       </td>
                       <td className="py-3 px-4">
-                        <button
-                          onClick={() => deleteExpense(expense.id)}
-                          className="text-gray-400 hover:text-red-600"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => openEditExpenseModal(expense)}
+                            className="text-gray-400 hover:text-blue-600"
+                            title="Edit expense"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => deleteExpense(expense.id)}
+                            className="text-gray-400 hover:text-red-600"
+                            title="Delete expense"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -545,9 +641,11 @@ export function EventDetail() {
             <div className="flex justify-center py-8">
               <Spinner />
             </div>
-          ) : documents.length === 0 ? (
+          ) : availableDocuments.length === 0 ? (
             <p className="text-gray-500 text-center py-8">
-              No documents found for this event. Documents are matched by the company's storage path and the event's custom field value in Paperless.
+              {documents.length === 0
+                ? 'No documents found for this event. Documents are matched by the company\'s storage path and the event\'s custom field value in Paperless.'
+                : 'All documents have been added as expenses.'}
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -562,7 +660,7 @@ export function EventDetail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {documents.map((doc) => (
+                  {availableDocuments.map((doc) => (
                     <tr key={doc.id} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="py-3 px-4 font-medium">{doc.title}</td>
                       <td className="py-3 px-4 text-gray-500 text-sm">{doc.original_file_name}</td>
@@ -909,6 +1007,102 @@ export function EventDetail() {
                 <Button type="submit" isLoading={isCreatingFromDoc}>
                   <Receipt className="h-4 w-4 mr-2" />
                   Add Expense
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isEditExpenseModalOpen}
+        onClose={closeEditExpenseModal}
+        title="Edit Expense"
+        size={expenseToEdit?.paperless_doc_id ? '4xl' : 'md'}
+      >
+        <div className={expenseToEdit?.paperless_doc_id ? 'flex gap-6' : ''} style={expenseToEdit?.paperless_doc_id ? { minHeight: '500px' } : undefined}>
+          {/* Document Preview - Left Side (only if expense has linked document) */}
+          {expenseToEdit?.paperless_doc_id && (
+            <div className="flex-1 border rounded-lg overflow-hidden bg-gray-100">
+              {isLoadingEditPreview ? (
+                <div className="flex items-center justify-center h-full">
+                  <Spinner />
+                </div>
+              ) : editExpensePreviewUrl ? (
+                <iframe
+                  src={editExpensePreviewUrl}
+                  className="w-full h-full"
+                  title="Document Preview"
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  <div className="text-center">
+                    <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>Preview not available</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Expense Form - Right Side (or full width if no document) */}
+          <div className={expenseToEdit?.paperless_doc_id ? 'w-80 flex-shrink-0' : ''}>
+            {expenseToEdit?.original_filename && (
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm font-medium text-gray-900">Linked Document</p>
+                <p className="text-xs text-gray-500 truncate" title={expenseToEdit.original_filename}>
+                  {expenseToEdit.original_filename}
+                </p>
+              </div>
+            )}
+            <form onSubmit={handleEditExpenseSubmit(onEditExpenseSubmit)} className="space-y-4">
+              <Input
+                label="Date"
+                type="date"
+                {...registerEditExpense('date')}
+                error={editExpenseErrors.date?.message}
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label="Amount"
+                  type="number"
+                  step="0.01"
+                  {...registerEditExpense('amount')}
+                  error={editExpenseErrors.amount?.message}
+                />
+                <Input
+                  label="Currency"
+                  {...registerEditExpense('currency')}
+                  error={editExpenseErrors.currency?.message}
+                />
+              </div>
+              <Select
+                label="Payment Type"
+                options={paymentTypeOptions}
+                {...registerEditExpense('payment_type')}
+                error={editExpenseErrors.payment_type?.message}
+              />
+              <Select
+                label="Category"
+                options={categoryOptions}
+                {...registerEditExpense('category')}
+                error={editExpenseErrors.category?.message}
+              />
+              <Input
+                label="Description"
+                {...registerEditExpense('description')}
+                error={editExpenseErrors.description?.message}
+              />
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={closeEditExpenseModal}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" isLoading={isUpdatingExpense}>
+                  Save Changes
                 </Button>
               </div>
             </form>

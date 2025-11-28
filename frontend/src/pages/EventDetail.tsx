@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Download, Plus, Trash2, Pencil, Mail, FileText, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Download, Plus, Trash2, Pencil, Mail, FileText, RefreshCw, Receipt } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -89,6 +89,11 @@ export function EventDetail() {
   const [isDeleteDocModalOpen, setIsDeleteDocModalOpen] = useState(false)
   const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null)
   const [isDeletingDocument, setIsDeletingDocument] = useState(false)
+  const [isDocExpenseModalOpen, setIsDocExpenseModalOpen] = useState(false)
+  const [documentForExpense, setDocumentForExpense] = useState<Document | null>(null)
+  const [documentPreviewUrl, setDocumentPreviewUrl] = useState<string | null>(null)
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false)
+  const [isCreatingFromDoc, setIsCreatingFromDoc] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isEditSaving, setIsEditSaving] = useState(false)
@@ -114,6 +119,20 @@ export function EventDetail() {
     formState: { errors: eventErrors },
   } = useForm<EventForm>({
     resolver: zodResolver(eventSchema),
+  })
+
+  const {
+    register: registerDocExpense,
+    handleSubmit: handleDocExpenseSubmit,
+    reset: resetDocExpense,
+    formState: { errors: docExpenseErrors },
+  } = useForm<ExpenseForm>({
+    resolver: zodResolver(expenseSchema),
+    defaultValues: {
+      currency: 'EUR',
+      payment_type: 'cash',
+      category: 'other',
+    },
   })
 
   const fetchDocuments = async () => {
@@ -271,6 +290,69 @@ export function EventDetail() {
     }
   }
 
+  const openDocExpenseModal = async (doc: Document) => {
+    setDocumentForExpense(doc)
+    setIsDocExpenseModalOpen(true)
+    setIsLoadingPreview(true)
+
+    // Pre-fill form with document data
+    resetDocExpense({
+      date: doc.created ? doc.created.split('T')[0] : new Date().toISOString().split('T')[0],
+      amount: '',
+      currency: 'EUR',
+      payment_type: 'cash',
+      category: 'other',
+      description: doc.title,
+    })
+
+    // Load document preview
+    try {
+      const response = await fetch(`/api/v1/events/${id}/documents/${doc.id}/preview`, {
+        credentials: 'include',
+      })
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = URL.createObjectURL(blob)
+        setDocumentPreviewUrl(url)
+      }
+    } catch {
+      // Preview failed, continue without it
+    } finally {
+      setIsLoadingPreview(false)
+    }
+  }
+
+  const closeDocExpenseModal = () => {
+    setIsDocExpenseModalOpen(false)
+    setDocumentForExpense(null)
+    if (documentPreviewUrl) {
+      URL.revokeObjectURL(documentPreviewUrl)
+      setDocumentPreviewUrl(null)
+    }
+    resetDocExpense()
+  }
+
+  const onDocExpenseSubmit = async (data: ExpenseForm) => {
+    if (!id || !documentForExpense) return
+    setIsCreatingFromDoc(true)
+    setError(null)
+    try {
+      await api.post(`/events/${id}/expenses`, {
+        ...data,
+        amount: parseFloat(data.amount),
+        description: data.description || null,
+        paperless_doc_id: documentForExpense.id,
+        original_filename: documentForExpense.original_file_name,
+      })
+      await fetchData()
+      closeDocExpenseModal()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create expense')
+    } finally {
+      setIsCreatingFromDoc(false)
+    }
+  }
+
   const sendEmailReport = async () => {
     if (!id) return
     setIsSendingEmail(true)
@@ -423,7 +505,7 @@ export function EventDetail() {
                       </td>
                       <td className="py-3 px-4">{expense.payment_type}</td>
                       <td className="py-3 px-4 text-right font-medium">
-                        {expense.amount.toFixed(2)} {expense.currency}
+                        {Number(expense.amount).toFixed(2)} {expense.currency}
                       </td>
                       <td className="py-3 px-4">
                         <button
@@ -491,13 +573,22 @@ export function EventDetail() {
                         {doc.archive_serial_number || '-'}
                       </td>
                       <td className="py-3 px-4">
-                        <button
-                          onClick={() => openDeleteDocModal(doc)}
-                          className="text-gray-400 hover:text-red-600"
-                          title="Delete from Paperless"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => openDocExpenseModal(doc)}
+                            className="text-gray-400 hover:text-blue-600"
+                            title="Add as Expense"
+                          >
+                            <Receipt className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => openDeleteDocModal(doc)}
+                            className="text-gray-400 hover:text-red-600"
+                            title="Delete from Paperless"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -724,6 +815,103 @@ export function EventDetail() {
               <Trash2 className="h-4 w-4 mr-2" />
               Delete Document
             </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isDocExpenseModalOpen}
+        onClose={closeDocExpenseModal}
+        title="Add Document as Expense"
+        size="4xl"
+      >
+        <div className="flex gap-6" style={{ minHeight: '500px' }}>
+          {/* Document Preview - Left Side */}
+          <div className="flex-1 border rounded-lg overflow-hidden bg-gray-100">
+            {isLoadingPreview ? (
+              <div className="flex items-center justify-center h-full">
+                <Spinner />
+              </div>
+            ) : documentPreviewUrl ? (
+              <iframe
+                src={documentPreviewUrl}
+                className="w-full h-full"
+                title="Document Preview"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-500">
+                <div className="text-center">
+                  <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>Preview not available</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Expense Form - Right Side */}
+          <div className="w-80 flex-shrink-0">
+            {documentForExpense && (
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm font-medium text-gray-900 truncate" title={documentForExpense.title}>
+                  {documentForExpense.title}
+                </p>
+                <p className="text-xs text-gray-500 truncate" title={documentForExpense.original_file_name}>
+                  {documentForExpense.original_file_name}
+                </p>
+              </div>
+            )}
+            <form onSubmit={handleDocExpenseSubmit(onDocExpenseSubmit)} className="space-y-4">
+              <Input
+                label="Date"
+                type="date"
+                {...registerDocExpense('date')}
+                error={docExpenseErrors.date?.message}
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label="Amount"
+                  type="number"
+                  step="0.01"
+                  {...registerDocExpense('amount')}
+                  error={docExpenseErrors.amount?.message}
+                />
+                <Input
+                  label="Currency"
+                  {...registerDocExpense('currency')}
+                  error={docExpenseErrors.currency?.message}
+                />
+              </div>
+              <Select
+                label="Payment Type"
+                options={paymentTypeOptions}
+                {...registerDocExpense('payment_type')}
+                error={docExpenseErrors.payment_type?.message}
+              />
+              <Select
+                label="Category"
+                options={categoryOptions}
+                {...registerDocExpense('category')}
+                error={docExpenseErrors.category?.message}
+              />
+              <Input
+                label="Description"
+                {...registerDocExpense('description')}
+                error={docExpenseErrors.description?.message}
+              />
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={closeDocExpenseModal}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" isLoading={isCreatingFromDoc}>
+                  <Receipt className="h-4 w-4 mr-2" />
+                  Add Expense
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       </Modal>

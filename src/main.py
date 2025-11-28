@@ -1,8 +1,9 @@
 """FastAPI application entry point."""
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(
@@ -35,4 +36,20 @@ app.include_router(api_router, prefix="/api/v1")
 # Mount static files for production frontend (if directory exists)
 static_path = Path("static")
 if static_path.exists():
-    app.mount("/", StaticFiles(directory="static", html=True), name="static")
+    # Mount static assets (JS, CSS, images)
+    app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
+
+    # Serve index.html for root
+    @app.get("/")
+    async def serve_root():
+        return FileResponse("static/index.html")
+
+    # Catch-all route for SPA - must be last
+    @app.get("/{full_path:path}")
+    async def serve_spa(request: Request, full_path: str):
+        # Serve static files if they exist
+        file_path = static_path / full_path
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(file_path)
+        # Otherwise serve index.html for client-side routing
+        return FileResponse("static/index.html")

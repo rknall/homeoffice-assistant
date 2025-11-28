@@ -2,6 +2,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user, get_db
@@ -248,5 +249,53 @@ async def delete_event_document(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to delete document from Paperless",
             )
+    finally:
+        await provider.close()
+
+
+@router.get("/{event_id}/documents/{document_id}/preview")
+async def get_document_preview(
+    event_id: str,
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    """Get document content for preview from Paperless."""
+    event = event_service.get_event_for_user(db, event_id, current_user.id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    # Get active Paperless integration
+    paperless_config = integration_service.get_active_document_provider(db)
+    if not paperless_config:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No Paperless integration configured",
+        )
+
+    provider = integration_service.create_provider_instance(paperless_config)
+    if not provider or not isinstance(provider, DocumentProvider):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create Paperless provider",
+        )
+
+    try:
+        content, filename, content_type = await provider.download_document(document_id)
+        return Response(
+            content=content,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'inline; filename="{filename}"',
+            },
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to download document: {str(e)}",
+        )
     finally:
         await provider.close()

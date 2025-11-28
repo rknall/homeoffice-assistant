@@ -7,7 +7,7 @@ interface ModalProps {
   onClose: () => void
   title?: string
   children: ReactNode
-  size?: 'sm' | 'md' | 'lg' | 'xl'
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl' | '6xl'
 }
 
 export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
@@ -26,7 +26,10 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
             size === 'sm' && 'max-w-sm',
             size === 'md' && 'max-w-md',
             size === 'lg' && 'max-w-lg',
-            size === 'xl' && 'max-w-xl'
+            size === 'xl' && 'max-w-xl',
+            size === '2xl' && 'max-w-2xl',
+            size === '4xl' && 'max-w-4xl',
+            size === '6xl' && 'max-w-6xl'
           )}
           onClick={(e) => e.stopPropagation()}
         >

@@ -63,7 +63,16 @@ def update_integration_config(
     if data.name is not None:
         config.name = data.name
     if data.config is not None:
-        config.config_encrypted = encrypt_config(data.config)
+        # Merge with existing config - preserve secrets if not provided
+        existing_config = get_decrypted_config(config)
+        new_config = data.config.copy()
+        sensitive_fields = ["token", "password", "api_key", "secret"]
+        for field in sensitive_fields:
+            # If new value is empty but old value exists, keep the old value
+            if field in existing_config and existing_config[field]:
+                if field not in new_config or not new_config.get(field):
+                    new_config[field] = existing_config[field]
+        config.config_encrypted = encrypt_config(new_config)
     if data.is_active is not None:
         config.is_active = data.is_active
     db.commit()
@@ -108,3 +117,14 @@ def get_active_document_provider(db: Session) -> Optional[IntegrationConfig]:
         active_only=True,
     )
     return configs[0] if configs else None
+
+
+def get_masked_config(config: IntegrationConfig) -> dict[str, Any]:
+    """Get the decrypted configuration with sensitive fields masked."""
+    decrypted = get_decrypted_config(config)
+    # Mask password fields
+    sensitive_fields = ["token", "password", "api_key", "secret"]
+    for field in sensitive_fields:
+        if field in decrypted and decrypted[field]:
+            decrypted[field] = ""  # Empty string indicates masked
+    return decrypted

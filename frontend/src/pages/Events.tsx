@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Plus, Trash2, Pencil, ChevronDown } from 'lucide-react'
 import { api } from '@/api/client'
-import type { Company, Event, EventStatus } from '@/types'
+import type { Company, Event, EventStatus, EventCustomFieldChoices as EventCustomFieldChoicesType } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -21,6 +21,7 @@ const eventSchema = z.object({
   company_id: z.string().min(1, 'Company is required'),
   start_date: z.string().min(1, 'Start date is required'),
   end_date: z.string().min(1, 'End date is required'),
+  paperless_custom_field_value: z.string().optional(),
 })
 
 type EventForm = z.infer<typeof eventSchema>
@@ -47,6 +48,7 @@ export function Events() {
   const navigate = useNavigate()
   const [events, setEvents] = useState<Event[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
+  const [customFieldChoices, setCustomFieldChoices] = useState<EventCustomFieldChoicesType | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -77,12 +79,14 @@ export function Events() {
 
   const fetchData = async () => {
     try {
-      const [eventsData, companiesData] = await Promise.all([
+      const [eventsData, companiesData, choicesData] = await Promise.all([
         api.get<Event[]>('/events'),
         api.get<Company[]>('/companies'),
+        api.get<EventCustomFieldChoicesType>('/integrations/event-custom-field-choices'),
       ])
       setEvents(eventsData)
       setCompanies(companiesData)
+      setCustomFieldChoices(choicesData)
     } catch {
       setError('Failed to load data')
     } finally {
@@ -118,6 +122,7 @@ export function Events() {
       company_id: event.company_id,
       start_date: event.start_date,
       end_date: event.end_date,
+      paperless_custom_field_value: event.paperless_custom_field_value || '',
     })
     setIsEditModalOpen(true)
   }
@@ -130,6 +135,7 @@ export function Events() {
       await api.put(`/events/${editingEvent.id}`, {
         ...data,
         description: data.description || null,
+        paperless_custom_field_value: data.paperless_custom_field_value || null,
       })
       await fetchData()
       setIsEditModalOpen(false)
@@ -166,6 +172,7 @@ export function Events() {
       const event = await api.post<Event>('/events', {
         ...data,
         description: data.description || null,
+        paperless_custom_field_value: data.paperless_custom_field_value || null,
       })
       navigate(`/events/${event.id}`)
     } catch (e) {
@@ -178,6 +185,13 @@ export function Events() {
     { value: '', label: 'Select a company...' },
     ...companies.map((c) => ({ value: c.id, label: c.name })),
   ]
+
+  const customFieldOptions = customFieldChoices?.available
+    ? [
+        { value: '', label: `Select ${customFieldChoices.custom_field_name}...` },
+        ...customFieldChoices.choices.map((c) => ({ value: c.value, label: c.label })),
+      ]
+    : []
 
   return (
     <div className="p-6">
@@ -308,6 +322,14 @@ export function Events() {
               error={errors.end_date?.message}
             />
           </div>
+          {customFieldChoices?.available && (
+            <Select
+              label={`Paperless ${customFieldChoices.custom_field_name}`}
+              options={customFieldOptions}
+              {...register('paperless_custom_field_value')}
+              error={errors.paperless_custom_field_value?.message}
+            />
+          )}
           <div className="flex justify-end gap-3 pt-4">
             <Button
               type="button"
@@ -367,6 +389,14 @@ export function Events() {
               error={editErrors.end_date?.message}
             />
           </div>
+          {customFieldChoices?.available && (
+            <Select
+              label={`Paperless ${customFieldChoices.custom_field_name}`}
+              options={customFieldOptions}
+              {...registerEdit('paperless_custom_field_value')}
+              error={editErrors.paperless_custom_field_value?.message}
+            />
+          )}
           <div className="flex justify-end gap-3 pt-4">
             <Button
               type="button"

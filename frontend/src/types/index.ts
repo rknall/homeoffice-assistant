@@ -56,6 +56,7 @@ export interface Event {
   end_date: string
   status: EventStatus
   external_tag: string | null
+  paperless_custom_field_value: string | null
   created_at: string
   updated_at: string
   company_name?: string
@@ -68,6 +69,7 @@ export interface EventCreate {
   start_date: string
   end_date: string
   status?: EventStatus
+  paperless_custom_field_value?: string | null
 }
 
 // Expense types
@@ -132,6 +134,28 @@ export interface StoragePath {
   id: number
   name: string
   path: string
+}
+
+export interface Document {
+  id: number
+  title: string
+  created: string | null
+  added: string | null
+  original_file_name: string
+  correspondent: number | null
+  document_type: number | null
+  archive_serial_number: number | null
+}
+
+export interface CustomFieldChoice {
+  label: string
+  value: string
+}
+
+export interface EventCustomFieldChoices {
+  available: boolean
+  custom_field_name: string
+  choices: CustomFieldChoice[]
 }
 
 // Report types

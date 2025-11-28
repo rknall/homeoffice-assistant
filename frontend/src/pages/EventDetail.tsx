@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Download, Plus, Trash2, Pencil, Mail } from 'lucide-react'
+import { ArrowLeft, Download, Plus, Trash2, Pencil, Mail, FileText, RefreshCw } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { api, downloadFile } from '@/api/client'
-import type { Company, Event, EventStatus, Expense, ExpenseReportPreview } from '@/types'
+import type { Company, Document, Event, EventStatus, Expense, ExpenseReportPreview, EventCustomFieldChoices } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -32,6 +32,7 @@ const eventSchema = z.object({
   company_id: z.string().min(1, 'Company is required'),
   start_date: z.string().min(1, 'Start date is required'),
   end_date: z.string().min(1, 'End date is required'),
+  paperless_custom_field_value: z.string().optional(),
 })
 
 type EventForm = z.infer<typeof eventSchema>
@@ -72,9 +73,12 @@ export function EventDetail() {
   const navigate = useNavigate()
   const [event, setEvent] = useState<Event | null>(null)
   const [expenses, setExpenses] = useState<Expense[]>([])
+  const [documents, setDocuments] = useState<Document[]>([])
   const [preview, setPreview] = useState<ExpenseReportPreview | null>(null)
   const [companies, setCompanies] = useState<Company[]>([])
+  const [customFieldChoices, setCustomFieldChoices] = useState<EventCustomFieldChoices | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -82,6 +86,9 @@ export function EventDetail() {
   const [isSendingEmail, setIsSendingEmail] = useState(false)
   const [emailAddress, setEmailAddress] = useState('')
   const [emailResult, setEmailResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [isDeleteDocModalOpen, setIsDeleteDocModalOpen] = useState(false)
+  const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null)
+  const [isDeletingDocument, setIsDeletingDocument] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isEditSaving, setIsEditSaving] = useState(false)
@@ -109,19 +116,37 @@ export function EventDetail() {
     resolver: zodResolver(eventSchema),
   })
 
+  const fetchDocuments = async () => {
+    if (!id) return
+    setIsLoadingDocuments(true)
+    try {
+      const docsData = await api.get<Document[]>(`/events/${id}/documents`)
+      setDocuments(docsData)
+    } catch {
+      // Documents may not be available if Paperless is not configured
+      setDocuments([])
+    } finally {
+      setIsLoadingDocuments(false)
+    }
+  }
+
   const fetchData = async () => {
     if (!id) return
     try {
-      const [eventData, expensesData, previewData, companiesData] = await Promise.all([
+      const [eventData, expensesData, previewData, companiesData, choicesData] = await Promise.all([
         api.get<Event>(`/events/${id}`),
         api.get<Expense[]>(`/events/${id}/expenses`),
         api.get<ExpenseReportPreview>(`/events/${id}/expense-report/preview`),
         api.get<Company[]>('/companies'),
+        api.get<EventCustomFieldChoices>('/integrations/event-custom-field-choices'),
       ])
       setEvent(eventData)
       setExpenses(expensesData)
       setPreview(previewData)
       setCompanies(companiesData)
+      setCustomFieldChoices(choicesData)
+      // Fetch documents after main data
+      fetchDocuments()
     } catch {
       setError('Failed to load event')
     } finally {
@@ -141,6 +166,7 @@ export function EventDetail() {
       company_id: event.company_id,
       start_date: event.start_date,
       end_date: event.end_date,
+      paperless_custom_field_value: event.paperless_custom_field_value || '',
     })
     setIsEditModalOpen(true)
   }
@@ -153,6 +179,7 @@ export function EventDetail() {
       await api.put(`/events/${id}`, {
         ...data,
         description: data.description || null,
+        paperless_custom_field_value: data.paperless_custom_field_value || null,
       })
       await fetchData()
       setIsEditModalOpen(false)
@@ -222,6 +249,26 @@ export function EventDetail() {
     setEmailAddress(event?.company_name ? '' : '')
     setEmailResult(null)
     setIsEmailModalOpen(true)
+  }
+
+  const openDeleteDocModal = (doc: Document) => {
+    setDocumentToDelete(doc)
+    setIsDeleteDocModalOpen(true)
+  }
+
+  const confirmDeleteDocument = async () => {
+    if (!id || !documentToDelete) return
+    setIsDeletingDocument(true)
+    try {
+      await api.delete(`/events/${id}/documents/${documentToDelete.id}`)
+      await fetchDocuments()
+      setIsDeleteDocModalOpen(false)
+      setDocumentToDelete(null)
+    } catch {
+      setError('Failed to delete document')
+    } finally {
+      setIsDeletingDocument(false)
+    }
   }
 
   const sendEmailReport = async () => {
@@ -395,6 +442,72 @@ export function EventDetail() {
         </CardContent>
       </Card>
 
+      <Card className="mb-6">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Documents from Paperless
+          </CardTitle>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={fetchDocuments}
+            isLoading={isLoadingDocuments}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {isLoadingDocuments ? (
+            <div className="flex justify-center py-8">
+              <Spinner />
+            </div>
+          ) : documents.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">
+              No documents found for this event. Documents are matched by the company's storage path and the event's custom field value in Paperless.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-4 font-medium text-gray-500">Title</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-500">Original Filename</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-500">Created</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-500">ASN</th>
+                    <th className="py-3 px-4"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {documents.map((doc) => (
+                    <tr key={doc.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 px-4 font-medium">{doc.title}</td>
+                      <td className="py-3 px-4 text-gray-500 text-sm">{doc.original_file_name}</td>
+                      <td className="py-3 px-4 text-gray-500">
+                        {doc.created ? new Date(doc.created).toLocaleDateString() : '-'}
+                      </td>
+                      <td className="py-3 px-4 text-gray-500">
+                        {doc.archive_serial_number || '-'}
+                      </td>
+                      <td className="py-3 px-4">
+                        <button
+                          onClick={() => openDeleteDocModal(doc)}
+                          className="text-gray-400 hover:text-red-600"
+                          title="Delete from Paperless"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Modal
         isOpen={isModalOpen}
         onClose={() => {
@@ -502,6 +615,17 @@ export function EventDetail() {
               error={eventErrors.end_date?.message}
             />
           </div>
+          {customFieldChoices?.available && (
+            <Select
+              label={`Paperless ${customFieldChoices.custom_field_name}`}
+              options={[
+                { value: '', label: `Select ${customFieldChoices.custom_field_name}...` },
+                ...customFieldChoices.choices.map((c) => ({ value: c.value, label: c.label })),
+              ]}
+              {...registerEvent('paperless_custom_field_value')}
+              error={eventErrors.paperless_custom_field_value?.message}
+            />
+          )}
           <div className="flex justify-end gap-3 pt-4">
             <Button
               type="button"
@@ -558,6 +682,47 @@ export function EventDetail() {
             <Button onClick={sendEmailReport} isLoading={isSendingEmail}>
               <Mail className="h-4 w-4 mr-2" />
               Send Report
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isDeleteDocModalOpen}
+        onClose={() => {
+          setIsDeleteDocModalOpen(false)
+          setDocumentToDelete(null)
+        }}
+        title="Delete Document"
+      >
+        <div className="space-y-4">
+          <Alert variant="warning">
+            This will permanently delete the document from Paperless-ngx. This action cannot be undone.
+          </Alert>
+          {documentToDelete && (
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="font-medium text-gray-900">{documentToDelete.title}</p>
+              <p className="text-sm text-gray-500">{documentToDelete.original_file_name}</p>
+            </div>
+          )}
+          <div className="flex justify-end gap-3 pt-4">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setIsDeleteDocModalOpen(false)
+                setDocumentToDelete(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={confirmDeleteDocument}
+              isLoading={isDeletingDocument}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Document
             </Button>
           </div>
         </div>

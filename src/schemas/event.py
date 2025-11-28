@@ -27,6 +27,7 @@ class EventCreate(EventBase):
 
     company_id: str
     status: EventStatus = EventStatus.PLANNING
+    paperless_custom_field_value: Optional[str] = None
 
 
 class EventUpdate(BaseModel):
@@ -38,6 +39,7 @@ class EventUpdate(BaseModel):
     start_date: Optional[datetime.date] = None
     end_date: Optional[datetime.date] = None
     status: Optional[EventStatus] = None
+    paperless_custom_field_value: Optional[str] = None
 
 
 class EventResponse(BaseModel):

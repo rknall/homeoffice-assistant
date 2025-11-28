@@ -56,7 +56,8 @@ def create_event(db: Session, data: EventCreate, user_id: str) -> Event:
         end_date=data.end_date,
         status=data.status,
         external_tag=data.name,  # Keep for backward compat
-        paperless_custom_field_value=data.name,  # Use event name as custom field value
+        # Use provided custom field value if set, otherwise default to name
+        paperless_custom_field_value=data.paperless_custom_field_value or data.name,
     )
     db.add(event)
     db.commit()
@@ -69,7 +70,6 @@ def update_event(db: Session, event: Event, data: EventUpdate) -> Event:
     if data.name is not None:
         event.name = data.name
         event.external_tag = data.name  # Keep for backward compat
-        event.paperless_custom_field_value = data.name  # Update custom field value too
     if data.description is not None:
         event.description = data.description
     if data.company_id is not None:
@@ -80,6 +80,9 @@ def update_event(db: Session, event: Event, data: EventUpdate) -> Event:
         event.end_date = data.end_date
     if data.status is not None:
         event.status = data.status
+    # Handle paperless_custom_field_value - use explicit value if provided
+    if data.paperless_custom_field_value is not None:
+        event.paperless_custom_field_value = data.paperless_custom_field_value
 
     db.commit()
     db.refresh(event)

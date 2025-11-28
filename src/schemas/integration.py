@@ -42,6 +42,12 @@ class IntegrationConfigResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class IntegrationConfigDetailResponse(IntegrationConfigResponse):
+    """Schema for integration config detail response (with masked secrets)."""
+
+    config: dict[str, Any]
+
+
 class IntegrationTypeInfo(BaseModel):
     """Schema for integration type information."""
 
@@ -87,6 +93,21 @@ class CustomFieldChoicesResponse(BaseModel):
     choices: list[str]
 
 
+class CustomFieldChoice(BaseModel):
+    """Schema for a single custom field choice with label and value."""
+
+    label: str
+    value: str
+
+
+class EventCustomFieldChoicesResponse(BaseModel):
+    """Schema for event custom field choices from Paperless."""
+
+    available: bool
+    custom_field_name: str
+    choices: list[CustomFieldChoice]
+
+
 class AddChoiceRequest(BaseModel):
     """Schema for adding a choice to a custom field."""
 
@@ -104,3 +125,22 @@ class TestEmailResponse(BaseModel):
 
     success: bool
     message: str
+
+
+class DocumentResponse(BaseModel):
+    """Schema for a Paperless document."""
+
+    id: int
+    title: str
+    created: Optional[str] = None
+    added: Optional[str] = None
+    original_file_name: str
+    correspondent: Optional[int] = None
+    document_type: Optional[int] = None
+    archive_serial_number: Optional[int] = None
+
+
+class DeleteDocumentRequest(BaseModel):
+    """Schema for deleting a document."""
+
+    document_id: int

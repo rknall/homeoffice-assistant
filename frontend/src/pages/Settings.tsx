@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Trash2, CheckCircle, XCircle, Mail } from 'lucide-react'
+import { Plus, Trash2, CheckCircle, XCircle, Mail, Pencil } from 'lucide-react'
 import { api } from '@/api/client'
 import type { IntegrationConfig, IntegrationTypeInfo } from '@/types'
 import { useAuth } from '@/stores/auth'
@@ -14,6 +14,10 @@ import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import { Alert } from '@/components/ui/Alert'
+
+interface IntegrationConfigDetail extends IntegrationConfig {
+  config: Record<string, unknown>
+}
 
 // Paperless schema
 const paperlessSchema = z.object({
@@ -52,6 +56,8 @@ export function Settings() {
   const [types, setTypes] = useState<IntegrationTypeInfo[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingIntegration, setEditingIntegration] = useState<IntegrationConfig | null>(null)
+  const [isLoadingConfig, setIsLoadingConfig] = useState(false)
   const [isTestEmailModalOpen, setIsTestEmailModalOpen] = useState(false)
   const [testEmailIntegrationId, setTestEmailIntegrationId] = useState<string | null>(null)
   const [testEmailAddress, setTestEmailAddress] = useState('')
@@ -66,6 +72,7 @@ export function Settings() {
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<IntegrationForm>({
     resolver: zodResolver(integrationSchema),
@@ -73,6 +80,42 @@ export function Settings() {
       integration_type: 'paperless',
     } as IntegrationForm,
   })
+
+  const openEditModal = async (integration: IntegrationConfig) => {
+    setEditingIntegration(integration)
+    setIsLoadingConfig(true)
+    setIsModalOpen(true)
+    setError(null)
+    try {
+      const detail = await api.get<IntegrationConfigDetail>(`/integrations/${integration.id}/config`)
+      setValue('name', detail.name)
+      setValue('integration_type', detail.integration_type as 'paperless' | 'smtp')
+      if (detail.integration_type === 'paperless') {
+        setValue('url', detail.config.url as string || '')
+        setValue('token', '')  // Leave empty, will preserve existing if not changed
+        setValue('custom_field_name', detail.config.custom_field_name as string || '')
+      } else if (detail.integration_type === 'smtp') {
+        setValue('host', detail.config.host as string || '')
+        setValue('port', String(detail.config.port || '587'))
+        setValue('username', detail.config.username as string || '')
+        setValue('password', '')  // Leave empty, will preserve existing if not changed
+        setValue('from_email', detail.config.from_email as string || '')
+        setValue('from_name', detail.config.from_name as string || '')
+        setValue('use_tls', detail.config.use_tls as boolean ?? true)
+        setValue('use_ssl', detail.config.use_ssl as boolean ?? false)
+      }
+    } catch {
+      setError('Failed to load integration configuration')
+    } finally {
+      setIsLoadingConfig(false)
+    }
+  }
+
+  const closeModal = () => {
+    setIsModalOpen(false)
+    setEditingIntegration(null)
+    reset()
+  }
 
   const watchedType = watch('integration_type')
 
@@ -110,8 +153,8 @@ export function Settings() {
         config = {
           host: data.host,
           port: parseInt(data.port, 10),
-          username: data.username,
-          password: data.password,
+          username: data.username || '',
+          password: data.password || '',
           from_email: data.from_email,
           from_name: data.from_name || '',
           use_tls: data.use_tls ?? true,
@@ -121,16 +164,24 @@ export function Settings() {
         throw new Error('Unknown integration type')
       }
 
-      await api.post('/integrations', {
-        name: data.name,
-        integration_type: data.integration_type,
-        config,
-      })
+      if (editingIntegration) {
+        // Update existing integration
+        await api.put(`/integrations/${editingIntegration.id}`, {
+          name: data.name,
+          config,
+        })
+      } else {
+        // Create new integration
+        await api.post('/integrations', {
+          name: data.name,
+          integration_type: data.integration_type,
+          config,
+        })
+      }
       await fetchData()
-      setIsModalOpen(false)
-      reset()
+      closeModal()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create integration')
+      setError(e instanceof Error ? e.message : editingIntegration ? 'Failed to update integration' : 'Failed to create integration')
     } finally {
       setIsSaving(false)
     }
@@ -290,6 +341,12 @@ export function Settings() {
                           </Button>
                         )}
                         <button
+                          onClick={() => openEditModal(integration)}
+                          className="p-1 text-gray-400 hover:text-blue-600"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
                           onClick={() => deleteIntegration(integration.id)}
                           className="p-1 text-gray-400 hover:text-red-600"
                         >
@@ -307,13 +364,15 @@ export function Settings() {
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false)
-          reset()
-        }}
-        title="Add Integration"
+        onClose={closeModal}
+        title={editingIntegration ? 'Edit Integration' : 'Add Integration'}
         size="lg"
       >
+        {isLoadingConfig ? (
+          <div className="flex justify-center py-8">
+            <Spinner />
+          </div>
+        ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <Input
             label="Name"
@@ -321,12 +380,19 @@ export function Settings() {
             error={errors.name?.message}
             description="A friendly name for this integration"
           />
+          {editingIntegration ? (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <p className="text-gray-900 capitalize">{editingIntegration.integration_type}</p>
+            </div>
+          ) : (
           <Select
             label="Type"
             options={typeOptions}
             {...register('integration_type')}
             error={errors.integration_type?.message}
           />
+          )}
 
           {watchedType === 'paperless' && (
             <>
@@ -419,18 +485,16 @@ export function Settings() {
             <Button
               type="button"
               variant="secondary"
-              onClick={() => {
-                setIsModalOpen(false)
-                reset()
-              }}
+              onClick={closeModal}
             >
               Cancel
             </Button>
             <Button type="submit" isLoading={isSaving}>
-              Add Integration
+              {editingIntegration ? 'Save Changes' : 'Add Integration'}
             </Button>
           </div>
         </form>
+        )}
       </Modal>
 
       <Modal

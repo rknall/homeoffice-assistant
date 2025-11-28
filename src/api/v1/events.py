@@ -5,10 +5,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user, get_db
+from src.integrations.base import DocumentProvider
 from src.models import User
-from src.models.enums import EventStatus
+from src.models.enums import EventStatus, IntegrationType
 from src.schemas.event import EventCreate, EventDetailResponse, EventResponse, EventUpdate
-from src.services import company_service, event_service
+from src.schemas.integration import DeleteDocumentRequest, DocumentResponse
+from src.services import company_service, event_service, integration_service
 
 router = APIRouter()
 
@@ -161,3 +163,90 @@ async def sync_event_to_paperless(
     if success:
         return {"success": True, "message": "Event synced to Paperless custom field"}
     return {"success": False, "message": "Sync failed - check Paperless integration and custom field configuration"}
+
+
+@router.get("/{event_id}/documents", response_model=list[DocumentResponse])
+async def get_event_documents(
+    event_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[DocumentResponse]:
+    """Get documents from Paperless associated with this event."""
+    event = event_service.get_event_for_user(
+        db, event_id, current_user.id, include_company=True
+    )
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    # Get active Paperless integration
+    paperless_config = integration_service.get_active_document_provider(db)
+    if not paperless_config:
+        return []  # No Paperless integration configured
+
+    provider = integration_service.create_provider_instance(paperless_config)
+    if not provider or not isinstance(provider, DocumentProvider):
+        return []
+
+    try:
+        # Get the custom field ID for filtering
+        decrypted_config = integration_service.get_decrypted_config(paperless_config)
+        custom_field_name = decrypted_config.get("custom_field_name", "Trip")
+        custom_field = await provider.get_custom_field_by_name(custom_field_name)
+        custom_field_id = custom_field["id"] if custom_field else None
+
+        # Get company storage path
+        storage_path_id = event.company.paperless_storage_path_id if event.company else None
+
+        # Get documents matching event criteria
+        documents = await provider.get_documents_for_event(
+            storage_path_id=storage_path_id,
+            custom_field_id=custom_field_id,
+            custom_field_value=event.paperless_custom_field_value,
+        )
+        return [DocumentResponse(**doc) for doc in documents]
+    finally:
+        await provider.close()
+
+
+@router.delete("/{event_id}/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_event_document(
+    event_id: str,
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Delete a document from Paperless. Warning: This permanently deletes the document!"""
+    event = event_service.get_event_for_user(db, event_id, current_user.id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    # Get active Paperless integration
+    paperless_config = integration_service.get_active_document_provider(db)
+    if not paperless_config:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No Paperless integration configured",
+        )
+
+    provider = integration_service.create_provider_instance(paperless_config)
+    if not provider or not isinstance(provider, DocumentProvider):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create Paperless provider",
+        )
+
+    try:
+        success = await provider.delete_document(document_id)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete document from Paperless",
+            )
+    finally:
+        await provider.close()

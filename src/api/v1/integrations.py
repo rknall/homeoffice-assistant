@@ -12,7 +12,9 @@ from src.schemas.integration import (
     AddChoiceRequest,
     CustomFieldChoicesResponse,
     CustomFieldResponse,
+    EventCustomFieldChoicesResponse,
     IntegrationConfigCreate,
+    IntegrationConfigDetailResponse,
     IntegrationConfigResponse,
     IntegrationConfigUpdate,
     IntegrationTestResult,
@@ -25,6 +27,55 @@ from src.schemas.integration import (
 from src.services import integration_service
 
 router = APIRouter()
+
+
+@router.get("/event-custom-field-choices", response_model=EventCustomFieldChoicesResponse)
+async def get_event_custom_field_choices(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> EventCustomFieldChoicesResponse:
+    """Get available choices for the event custom field from Paperless."""
+    # Get active Paperless integration
+    paperless_config = integration_service.get_active_document_provider(db)
+    if not paperless_config:
+        return EventCustomFieldChoicesResponse(
+            available=False,
+            custom_field_name="",
+            choices=[],
+        )
+
+    provider = integration_service.create_provider_instance(paperless_config)
+    if not provider or not isinstance(provider, DocumentProvider):
+        return EventCustomFieldChoicesResponse(
+            available=False,
+            custom_field_name="",
+            choices=[],
+        )
+
+    try:
+        # Get the configured custom field name
+        decrypted_config = integration_service.get_decrypted_config(paperless_config)
+        custom_field_name = decrypted_config.get("custom_field_name", "Trip")
+
+        # Find the custom field and get its choices
+        custom_field = await provider.get_custom_field_by_name(custom_field_name)
+        if not custom_field:
+            return EventCustomFieldChoicesResponse(
+                available=False,
+                custom_field_name=custom_field_name,
+                choices=[],
+            )
+
+        choices = await provider.get_custom_field_choices_with_values(custom_field["id"])
+        # Sort by label
+        choices_sorted = sorted(choices, key=lambda c: c["label"])
+        return EventCustomFieldChoicesResponse(
+            available=True,
+            custom_field_name=custom_field_name,
+            choices=choices_sorted,
+        )
+    finally:
+        await provider.close()
 
 
 @router.get("/types", response_model=list[IntegrationTypeInfo])
@@ -72,6 +123,32 @@ def get_integration(
             detail="Integration not found",
         )
     return IntegrationConfigResponse.model_validate(config)
+
+
+@router.get("/{config_id}/config", response_model=IntegrationConfigDetailResponse)
+def get_integration_config_detail(
+    config_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin),
+) -> IntegrationConfigDetailResponse:
+    """Get integration configuration with masked secrets for editing. Admin only."""
+    config = integration_service.get_integration_config(db, config_id)
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Integration not found",
+        )
+    masked_config = integration_service.get_masked_config(config)
+    return IntegrationConfigDetailResponse(
+        id=config.id,
+        integration_type=config.integration_type,
+        name=config.name,
+        is_active=config.is_active,
+        created_by=config.created_by,
+        created_at=config.created_at,
+        updated_at=config.updated_at,
+        config=masked_config,
+    )
 
 
 @router.put("/{config_id}", response_model=IntegrationConfigResponse)

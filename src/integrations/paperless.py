@@ -250,12 +250,20 @@ class PaperlessProvider(DocumentProvider):
         extra_data = field.get("extra_data") or {}
         current_options = extra_data.get("select_options") or []
 
+        # Helper to extract string value from option (handles both str and dict)
+        def get_option_value(opt: str | dict) -> str:
+            if isinstance(opt, str):
+                return opt
+            elif isinstance(opt, dict):
+                return opt.get("label") or opt.get("value") or ""
+            return ""
+
         # Check if choice already exists (case-insensitive)
         for opt in current_options:
-            if opt.lower() == choice.lower():
+            if get_option_value(opt).lower() == choice.lower():
                 return False  # Already exists
 
-        # Add the new choice
+        # Add the new choice (as string - Paperless accepts both formats)
         new_options = current_options + [choice]
         new_extra_data = {**extra_data, "select_options": new_options}
 
@@ -268,7 +276,17 @@ class PaperlessProvider(DocumentProvider):
         return True
 
     async def get_custom_field_choices(self, field_id: int) -> list[str]:
-        """Get the choices for a select-type custom field."""
+        """Get the choices for a select-type custom field (labels only for display)."""
+        choices_with_values = await self.get_custom_field_choices_with_values(field_id)
+        return [c["label"] for c in choices_with_values]
+
+    async def get_custom_field_choices_with_values(self, field_id: int) -> list[dict[str, str]]:
+        """
+        Get the choices for a select-type custom field with both label and value.
+
+        Returns list of {"label": "display text", "value": "internal id"}.
+        Paperless stores the value (not the label) in document custom fields.
+        """
         field = await self.get_custom_field(field_id)
         if not field:
             return []
@@ -277,9 +295,100 @@ class PaperlessProvider(DocumentProvider):
             return []
 
         extra_data = field.get("extra_data") or {}
-        return extra_data.get("select_options") or []
+        select_options = extra_data.get("select_options") or []
+
+        # Handle both string options and dict options (Paperless API format varies)
+        result = []
+        for opt in select_options:
+            if isinstance(opt, str):
+                # Old format: plain string (use as both label and value)
+                result.append({"label": opt, "value": opt})
+            elif isinstance(opt, dict):
+                # Paperless format: {"id": "internal_id", "label": "display text"}
+                # The "id" is what gets stored in document custom fields
+                label = opt.get("label", "")
+                # Try "id" first (Paperless format), then "value" as fallback
+                value = opt.get("id") or opt.get("value", "")
+                if label or value:
+                    result.append({"label": label or value, "value": value or label})
+        return result
 
     async def check_custom_field_choice_exists(self, field_id: int, choice: str) -> bool:
         """Check if a choice exists in a select-type custom field (case-insensitive)."""
         choices = await self.get_custom_field_choices(field_id)
         return any(c.lower() == choice.lower() for c in choices)
+
+    async def delete_document(self, doc_id: int) -> bool:
+        """Delete a document from Paperless-ngx."""
+        try:
+            resp = await self._client.delete(f"/api/documents/{doc_id}/")
+            return resp.status_code == 204
+        except Exception:
+            return False
+
+    async def get_documents_for_event(
+        self,
+        storage_path_id: int | None = None,
+        custom_field_id: int | None = None,
+        custom_field_value: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Get documents matching an event's criteria.
+
+        Filters by storage path and custom field value to find documents
+        associated with a specific event/trip.
+
+        IMPORTANT: If custom_field_value is not set, returns empty list to avoid
+        returning all documents from the storage path.
+        """
+        print(f"DEBUG get_documents_for_event: storage_path_id={storage_path_id}, custom_field_id={custom_field_id}, custom_field_value={custom_field_value!r}", flush=True)
+
+        # If no custom field value is set, we can't filter documents properly
+        # Return empty list to avoid returning all documents
+        if not custom_field_value:
+            print("DEBUG: No custom_field_value, returning empty", flush=True)
+            return []
+
+        # Build the query - Paperless uses a specific format for custom field queries
+        params: dict[str, Any] = {"page_size": 100}
+
+        if storage_path_id is not None:
+            params["storage_path__id"] = storage_path_id
+
+        results = []
+        url = "/api/documents/"
+        while url:
+            resp = await self._client.get(url, params=params if url == "/api/documents/" else None)
+            resp.raise_for_status()
+            data = resp.json()
+
+            # Filter by custom field value
+            for doc in data.get("results", []):
+                if custom_field_id:
+                    # Check if document has the custom field with matching value
+                    custom_fields = doc.get("custom_fields", [])
+                    matches = False
+                    for cf in custom_fields:
+                        if cf.get("field") == custom_field_id and cf.get("value") == custom_field_value:
+                            matches = True
+                            break
+                    if not matches:
+                        continue
+
+                results.append({
+                    "id": doc["id"],
+                    "title": doc.get("title", ""),
+                    "created": doc.get("created"),
+                    "added": doc.get("added"),
+                    "original_file_name": doc.get("original_file_name", ""),
+                    "correspondent": doc.get("correspondent"),
+                    "document_type": doc.get("document_type"),
+                    "archive_serial_number": doc.get("archive_serial_number"),
+                })
+
+            url = data.get("next")
+            if url:
+                url = url.replace(self.url, "")
+                params = {}  # params already in URL
+
+        return results

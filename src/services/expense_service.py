@@ -1,0 +1,128 @@
+"""Expense service."""
+from typing import Optional
+
+from sqlalchemy.orm import Session
+
+from src.models import Expense
+from src.models.enums import ExpenseStatus, PaymentType
+from src.schemas.expense import ExpenseCreate, ExpenseUpdate
+
+
+def get_expenses(
+    db: Session,
+    event_id: str,
+    status: Optional[ExpenseStatus] = None,
+) -> list[Expense]:
+    """Get expenses for an event."""
+    query = db.query(Expense).filter(Expense.event_id == event_id)
+    if status:
+        query = query.filter(Expense.status == status)
+    return query.order_by(Expense.date).all()
+
+
+def get_expense(db: Session, expense_id: str) -> Optional[Expense]:
+    """Get an expense by ID."""
+    return db.query(Expense).filter(Expense.id == expense_id).first()
+
+
+def get_expense_for_event(
+    db: Session,
+    expense_id: str,
+    event_id: str,
+) -> Optional[Expense]:
+    """Get an expense that belongs to a specific event."""
+    return (
+        db.query(Expense)
+        .filter(Expense.id == expense_id, Expense.event_id == event_id)
+        .first()
+    )
+
+
+def create_expense(db: Session, event_id: str, data: ExpenseCreate) -> Expense:
+    """Create a new expense."""
+    expense = Expense(
+        event_id=event_id,
+        paperless_doc_id=data.paperless_doc_id,
+        date=data.date,
+        amount=data.amount,
+        currency=data.currency,
+        payment_type=data.payment_type,
+        category=data.category,
+        description=data.description,
+        status=ExpenseStatus.PENDING,
+        original_filename=data.original_filename,
+    )
+    db.add(expense)
+    db.commit()
+    db.refresh(expense)
+    return expense
+
+
+def update_expense(db: Session, expense: Expense, data: ExpenseUpdate) -> Expense:
+    """Update an existing expense."""
+    if data.date is not None:
+        expense.date = data.date
+    if data.amount is not None:
+        expense.amount = data.amount
+    if data.currency is not None:
+        expense.currency = data.currency
+    if data.payment_type is not None:
+        expense.payment_type = data.payment_type
+    if data.category is not None:
+        expense.category = data.category
+    if data.description is not None:
+        expense.description = data.description
+    if data.status is not None:
+        expense.status = data.status
+    if data.paperless_doc_id is not None:
+        expense.paperless_doc_id = data.paperless_doc_id
+    if data.original_filename is not None:
+        expense.original_filename = data.original_filename
+
+    db.commit()
+    db.refresh(expense)
+    return expense
+
+
+def delete_expense(db: Session, expense: Expense) -> None:
+    """Delete an expense."""
+    db.delete(expense)
+    db.commit()
+
+
+def bulk_update_payment_type(
+    db: Session,
+    expense_ids: list[str],
+    payment_type: PaymentType,
+) -> int:
+    """Bulk update payment type for multiple expenses. Returns count updated."""
+    count = (
+        db.query(Expense)
+        .filter(Expense.id.in_(expense_ids))
+        .update({"payment_type": payment_type}, synchronize_session=False)
+    )
+    db.commit()
+    return count
+
+
+def get_expense_summary(db: Session, event_id: str) -> dict:
+    """Get expense summary for an event."""
+    expenses = get_expenses(db, event_id)
+    total = sum(e.amount for e in expenses)
+    by_category = {}
+    by_payment_type = {}
+
+    for expense in expenses:
+        cat = expense.category.value
+        by_category[cat] = by_category.get(cat, 0) + float(expense.amount)
+
+        pt = expense.payment_type.value
+        by_payment_type[pt] = by_payment_type.get(pt, 0) + float(expense.amount)
+
+    return {
+        "total": float(total),
+        "count": len(expenses),
+        "by_category": by_category,
+        "by_payment_type": by_payment_type,
+        "currency": expenses[0].currency if expenses else "EUR",
+    }

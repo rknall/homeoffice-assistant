@@ -1,0 +1,38 @@
+services:
+  travel-manager:
+    build: .
+    ports:
+      - "8123:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      # Only these two env vars are needed - everything else is configured via UI
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/travel_manager.db}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Optional: PostgreSQL for production
+  # Uncomment and set DATABASE_URL=postgresql://travel_manager:${POSTGRES_PASSWORD}@db:5432/travel_manager
+  # db:
+  #   image: postgres:16-alpine
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   environment:
+  #     POSTGRES_USER: travel_manager
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+  #     POSTGRES_DB: travel_manager
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U travel_manager"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+# volumes:
+#   postgres_data:

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -48,6 +48,7 @@ const validTransitions: Record<EventStatus, EventStatus[]> = {
 
 export function Events() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { formatDate } = useLocale()
   const { setItems: setBreadcrumb } = useBreadcrumb()
   const [events, setEvents] = useState<Event[]>([])
@@ -61,6 +62,10 @@ export function Events() {
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isEditSaving, setIsEditSaving] = useState(false)
+  const [isCreatingNewCustomField, setIsCreatingNewCustomField] = useState(false)
+  const [newCustomFieldValue, setNewCustomFieldValue] = useState('')
+  const [isEditCreatingNewCustomField, setIsEditCreatingNewCustomField] = useState(false)
+  const [editNewCustomFieldValue, setEditNewCustomFieldValue] = useState('')
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const {
@@ -106,6 +111,14 @@ export function Events() {
     fetchData()
   }, [])
 
+  // Open modal if navigated with ?new=true
+  useEffect(() => {
+    if (searchParams.get('new') === 'true' && !isLoading) {
+      setIsModalOpen(true)
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams, setSearchParams, isLoading])
+
   const deleteEvent = async (e: React.MouseEvent, eventId: string) => {
     e.preventDefault()
     e.stopPropagation()
@@ -140,14 +153,20 @@ export function Events() {
     setIsEditSaving(true)
     setError(null)
     try {
+      // Use new custom field value if creating new, otherwise use selected value
+      const customFieldValue = isEditCreatingNewCustomField
+        ? editNewCustomFieldValue
+        : data.paperless_custom_field_value
       await api.put(`/events/${editingEvent.id}`, {
         ...data,
         description: data.description || null,
-        paperless_custom_field_value: data.paperless_custom_field_value || null,
+        paperless_custom_field_value: customFieldValue || null,
       })
       await fetchData()
       setIsEditModalOpen(false)
       setEditingEvent(null)
+      setIsEditCreatingNewCustomField(false)
+      setEditNewCustomFieldValue('')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to update event')
     } finally {
@@ -177,10 +196,14 @@ export function Events() {
     setIsSaving(true)
     setError(null)
     try {
+      // Use new custom field value if creating new, otherwise use selected value
+      const customFieldValue = isCreatingNewCustomField
+        ? newCustomFieldValue
+        : data.paperless_custom_field_value
       const event = await api.post<Event>('/events', {
         ...data,
         description: data.description || null,
-        paperless_custom_field_value: data.paperless_custom_field_value || null,
+        paperless_custom_field_value: customFieldValue || null,
       })
       navigate(`/events/${event.id}`)
     } catch (e) {
@@ -198,6 +221,7 @@ export function Events() {
     ? [
         { value: '', label: `Select ${customFieldChoices.custom_field_name}...` },
         ...customFieldChoices.choices.map((c) => ({ value: c.value, label: c.label })),
+        { value: '__new__', label: '+ Add new...' },
       ]
     : []
 
@@ -294,6 +318,8 @@ export function Events() {
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false)
+          setIsCreatingNewCustomField(false)
+          setNewCustomFieldValue('')
           reset()
         }}
         title="Create New Event"
@@ -331,12 +357,32 @@ export function Events() {
             />
           </div>
           {customFieldChoices?.available && (
-            <Select
-              label={`Paperless ${customFieldChoices.custom_field_name}`}
-              options={customFieldOptions}
-              {...register('paperless_custom_field_value')}
-              error={errors.paperless_custom_field_value?.message}
-            />
+            <div>
+              <Select
+                label={`Paperless ${customFieldChoices.custom_field_name}`}
+                options={customFieldOptions}
+                {...register('paperless_custom_field_value', {
+                  onChange: (e) => {
+                    if (e.target.value === '__new__') {
+                      setIsCreatingNewCustomField(true)
+                    } else {
+                      setIsCreatingNewCustomField(false)
+                      setNewCustomFieldValue('')
+                    }
+                  },
+                })}
+                error={errors.paperless_custom_field_value?.message}
+              />
+              {isCreatingNewCustomField && (
+                <Input
+                  label={`New ${customFieldChoices.custom_field_name}`}
+                  value={newCustomFieldValue}
+                  onChange={(e) => setNewCustomFieldValue(e.target.value)}
+                  placeholder={`Enter new ${customFieldChoices.custom_field_name.toLowerCase()} name`}
+                  className="mt-2"
+                />
+              )}
+            </div>
           )}
           <div className="flex justify-end gap-3 pt-4">
             <Button
@@ -344,6 +390,8 @@ export function Events() {
               variant="secondary"
               onClick={() => {
                 setIsModalOpen(false)
+                setIsCreatingNewCustomField(false)
+                setNewCustomFieldValue('')
                 reset()
               }}
             >
@@ -361,6 +409,8 @@ export function Events() {
         onClose={() => {
           setIsEditModalOpen(false)
           setEditingEvent(null)
+          setIsEditCreatingNewCustomField(false)
+          setEditNewCustomFieldValue('')
           resetEdit()
         }}
         title="Edit Event"
@@ -398,12 +448,32 @@ export function Events() {
             />
           </div>
           {customFieldChoices?.available && (
-            <Select
-              label={`Paperless ${customFieldChoices.custom_field_name}`}
-              options={customFieldOptions}
-              {...registerEdit('paperless_custom_field_value')}
-              error={editErrors.paperless_custom_field_value?.message}
-            />
+            <div>
+              <Select
+                label={`Paperless ${customFieldChoices.custom_field_name}`}
+                options={customFieldOptions}
+                {...registerEdit('paperless_custom_field_value', {
+                  onChange: (e) => {
+                    if (e.target.value === '__new__') {
+                      setIsEditCreatingNewCustomField(true)
+                    } else {
+                      setIsEditCreatingNewCustomField(false)
+                      setEditNewCustomFieldValue('')
+                    }
+                  },
+                })}
+                error={editErrors.paperless_custom_field_value?.message}
+              />
+              {isEditCreatingNewCustomField && (
+                <Input
+                  label={`New ${customFieldChoices.custom_field_name}`}
+                  value={editNewCustomFieldValue}
+                  onChange={(e) => setEditNewCustomFieldValue(e.target.value)}
+                  placeholder={`Enter new ${customFieldChoices.custom_field_name.toLowerCase()} name`}
+                  className="mt-2"
+                />
+              )}
+            </div>
           )}
           <div className="flex justify-end gap-3 pt-4">
             <Button
@@ -412,6 +482,8 @@ export function Events() {
               onClick={() => {
                 setIsEditModalOpen(false)
                 setEditingEvent(null)
+                setIsEditCreatingNewCustomField(false)
+                setEditNewCustomFieldValue('')
                 resetEdit()
               }}
             >

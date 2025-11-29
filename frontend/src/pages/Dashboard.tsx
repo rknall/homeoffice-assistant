@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { api } from '@/api/client'
 import type { Event, EventStatus } from '@/types'
@@ -17,6 +17,7 @@ const statusColors: Record<EventStatus, 'default' | 'warning' | 'info'> = {
 }
 
 export function Dashboard() {
+  const navigate = useNavigate()
   const { formatDate } = useLocale()
   const { clear: clearBreadcrumb } = useBreadcrumb()
   const [events, setEvents] = useState<Event[]>([])
@@ -48,12 +49,10 @@ export function Dashboard() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <Link to="/events/new">
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            New Event
-          </Button>
-        </Link>
+        <Button onClick={() => navigate('/events?new=true')}>
+          <Plus className="h-4 w-4 mr-2" />
+          New Event
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

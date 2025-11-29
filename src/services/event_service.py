@@ -27,7 +27,7 @@ def get_events(
         query = query.filter(Event.company_id == company_id)
     if status:
         query = query.filter(Event.status == status)
-    return query.order_by(Event.start_date.desc()).all()
+    return query.order_by(Event.start_date.desc(), Event.end_date.desc()).all()
 
 
 def get_event(db: Session, event_id: str) -> Optional[Event]:

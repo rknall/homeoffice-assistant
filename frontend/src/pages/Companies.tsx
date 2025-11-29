@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { api } from '@/api/client'
 import type { Company, IntegrationConfig, StoragePath } from '@/types'
+import { useBreadcrumb } from '@/stores/breadcrumb'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -30,6 +31,7 @@ const typeOptions = [
 ]
 
 export function Companies() {
+  const { setItems: setBreadcrumb } = useBreadcrumb()
   const [companies, setCompanies] = useState<Company[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -74,6 +76,10 @@ export function Companies() {
       // Silently fail - storage paths are optional
     }
   }
+
+  useEffect(() => {
+    setBreadcrumb([{ label: 'Companies' }])
+  }, [setBreadcrumb])
 
   useEffect(() => {
     fetchCompanies()
@@ -147,7 +153,7 @@ export function Companies() {
   }
 
   return (
-    <div className="p-6">
+    <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Companies</h1>
         <Button onClick={() => openModal()}>

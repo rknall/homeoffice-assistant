@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react'
 import { api } from '@/api/client'
 import type { Event, EventStatus } from '@/types'
 import { useLocale } from '@/stores/locale'
+import { useBreadcrumb } from '@/stores/breadcrumb'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -17,8 +18,13 @@ const statusColors: Record<EventStatus, 'default' | 'warning' | 'info'> = {
 
 export function Dashboard() {
   const { formatDate } = useLocale()
+  const { clear: clearBreadcrumb } = useBreadcrumb()
   const [events, setEvents] = useState<Event[]>([])
   const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    clearBreadcrumb()
+  }, [clearBreadcrumb])
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -39,7 +45,7 @@ export function Dashboard() {
   const pastEvents = events.filter((e) => e.status === 'past')
 
   return (
-    <div className="p-6">
+    <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
         <Link to="/events/new">

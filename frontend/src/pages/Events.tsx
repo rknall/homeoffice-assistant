@@ -7,6 +7,7 @@ import { Plus, Trash2, Pencil, ChevronDown } from 'lucide-react'
 import { api } from '@/api/client'
 import type { Company, Event, EventStatus, EventCustomFieldChoices as EventCustomFieldChoicesType } from '@/types'
 import { useLocale } from '@/stores/locale'
+import { useBreadcrumb } from '@/stores/breadcrumb'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -48,6 +49,7 @@ const validTransitions: Record<EventStatus, EventStatus[]> = {
 export function Events() {
   const navigate = useNavigate()
   const { formatDate } = useLocale()
+  const { setItems: setBreadcrumb } = useBreadcrumb()
   const [events, setEvents] = useState<Event[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [customFieldChoices, setCustomFieldChoices] = useState<EventCustomFieldChoicesType | null>(null)
@@ -95,6 +97,10 @@ export function Events() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    setBreadcrumb([{ label: 'Events' }])
+  }, [setBreadcrumb])
 
   useEffect(() => {
     fetchData()
@@ -196,7 +202,7 @@ export function Events() {
     : []
 
   return (
-    <div className="p-6">
+    <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Events</h1>
         <Button onClick={() => setIsModalOpen(true)}>

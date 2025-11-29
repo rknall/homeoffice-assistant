@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Download, Plus, Trash2, Pencil, Mail, FileText, RefreshCw, Receipt } from 'lucide-react'
+import { Download, Plus, Trash2, Pencil, Mail, FileText, RefreshCw, Receipt } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { api, downloadFile } from '@/api/client'
 import type { Company, Document, Event, EventStatus, Expense, ExpenseReportPreview, EventCustomFieldChoices } from '@/types'
 import { useLocale } from '@/stores/locale'
+import { useBreadcrumb } from '@/stores/breadcrumb'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -73,6 +74,7 @@ export function EventDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { formatDate } = useLocale()
+  const { setItems: setBreadcrumb } = useBreadcrumb()
   const [event, setEvent] = useState<Event | null>(null)
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [documents, setDocuments] = useState<Document[]>([])
@@ -201,6 +203,20 @@ export function EventDetail() {
   useEffect(() => {
     fetchData()
   }, [id])
+
+  // Set breadcrumb when event data is loaded
+  useEffect(() => {
+    if (event) {
+      const items: { label: string; href?: string }[] = [
+        { label: 'Events', href: '/events' },
+      ]
+      if (event.company_name) {
+        items.push({ label: event.company_name, href: '/companies' })
+      }
+      items.push({ label: event.name })
+      setBreadcrumb(items)
+    }
+  }, [event, setBreadcrumb])
 
   const openEditModal = () => {
     if (!event) return
@@ -483,15 +499,8 @@ export function EventDetail() {
   }
 
   return (
-    <div className="p-6">
+    <div>
       <div className="mb-6">
-        <button
-          onClick={() => navigate('/events')}
-          className="flex items-center text-gray-500 hover:text-gray-700 mb-4"
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Back to Events
-        </button>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{event.name}</h1>

@@ -7,6 +7,7 @@ import { api } from '@/api/client'
 import type { IntegrationConfig, IntegrationTypeInfo, LocaleSettings } from '@/types'
 import { useAuth } from '@/stores/auth'
 import { useLocale } from '@/stores/locale'
+import { useBreadcrumb } from '@/stores/breadcrumb'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -83,6 +84,7 @@ const timezoneOptions = [
 export function Settings() {
   const { user } = useAuth()
   const { settings: localeSettings, fetchSettings: fetchLocaleSettings, updateSettings: updateLocaleSettings, isLoaded: localeLoaded } = useLocale()
+  const { setItems: setBreadcrumb } = useBreadcrumb()
   const [integrations, setIntegrations] = useState<IntegrationConfig[]>([])
   const [types, setTypes] = useState<IntegrationTypeInfo[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -169,6 +171,10 @@ export function Settings() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    setBreadcrumb([{ label: 'Settings' }])
+  }, [setBreadcrumb])
 
   useEffect(() => {
     fetchData()
@@ -307,7 +313,7 @@ export function Settings() {
   const typeOptions = types.map((t) => ({ value: t.type, label: t.name }))
 
   return (
-    <div className="p-6">
+    <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Settings</h1>
 
       {error && <Alert variant="error" className="mb-4">{error}</Alert>}

@@ -222,3 +222,13 @@ export interface Todo {
   created_at: string
   updated_at: string
 }
+
+// Locale settings types
+export type DateFormatType = 'YYYY-MM-DD' | 'DD.MM.YYYY' | 'DD/MM/YYYY' | 'MM/DD/YYYY'
+export type TimeFormatType = '24h' | '12h'
+
+export interface LocaleSettings {
+  date_format: DateFormatType
+  time_format: TimeFormatType
+  timezone: string
+}

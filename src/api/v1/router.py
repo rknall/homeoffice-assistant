@@ -10,6 +10,7 @@ from src.api.v1 import (
     integrations,
     notes,
     reports,
+    settings,
     todos,
 )
 
@@ -41,3 +42,6 @@ api_router.include_router(todos.router, prefix="/events", tags=["todos"])
 
 # Report routes (nested under events)
 api_router.include_router(reports.router, prefix="/events", tags=["reports"])
+
+# Settings routes
+api_router.include_router(settings.router, prefix="/settings", tags=["settings"])

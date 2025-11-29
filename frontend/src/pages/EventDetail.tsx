@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { api, downloadFile } from '@/api/client'
 import type { Company, Document, Event, EventStatus, Expense, ExpenseReportPreview, EventCustomFieldChoices } from '@/types'
+import { useLocale } from '@/stores/locale'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -71,6 +72,7 @@ const statusLabels: Record<EventStatus, string> = {
 export function EventDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { formatDate } = useLocale()
   const [event, setEvent] = useState<Event | null>(null)
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [documents, setDocuments] = useState<Document[]>([])
@@ -497,7 +499,7 @@ export function EventDetail() {
               {event.company_name && (
                 <span className="text-gray-600">{event.company_name} &middot; </span>
               )}
-              {event.start_date} to {event.end_date}
+              {formatDate(event.start_date)} to {formatDate(event.end_date)}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -584,7 +586,7 @@ export function EventDetail() {
                 <tbody>
                   {expenses.map((expense) => (
                     <tr key={expense.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4">{expense.date}</td>
+                      <td className="py-3 px-4">{formatDate(expense.date)}</td>
                       <td className="py-3 px-4">{expense.description || '-'}</td>
                       <td className="py-3 px-4">
                         <Badge variant="default">{expense.category}</Badge>
@@ -665,7 +667,7 @@ export function EventDetail() {
                       <td className="py-3 px-4 font-medium">{doc.title}</td>
                       <td className="py-3 px-4 text-gray-500 text-sm">{doc.original_file_name}</td>
                       <td className="py-3 px-4 text-gray-500">
-                        {doc.created ? new Date(doc.created).toLocaleDateString() : '-'}
+                        {doc.created ? formatDate(doc.created) : '-'}
                       </td>
                       <td className="py-3 px-4 text-gray-500">
                         {doc.archive_serial_number || '-'}

@@ -4,8 +4,9 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Plus, Trash2, CheckCircle, XCircle, Mail, Pencil } from 'lucide-react'
 import { api } from '@/api/client'
-import type { IntegrationConfig, IntegrationTypeInfo } from '@/types'
+import type { IntegrationConfig, IntegrationTypeInfo, LocaleSettings } from '@/types'
 import { useAuth } from '@/stores/auth'
+import { useLocale } from '@/stores/locale'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -50,8 +51,38 @@ const integrationSchema = z.discriminatedUnion('integration_type', [
 
 type IntegrationForm = z.infer<typeof integrationSchema>
 
+const dateFormatOptions = [
+  { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD (2025-11-29)' },
+  { value: 'DD.MM.YYYY', label: 'DD.MM.YYYY (29.11.2025)' },
+  { value: 'DD/MM/YYYY', label: 'DD/MM/YYYY (29/11/2025)' },
+  { value: 'MM/DD/YYYY', label: 'MM/DD/YYYY (11/29/2025)' },
+]
+
+const timeFormatOptions = [
+  { value: '24h', label: '24-hour (14:30)' },
+  { value: '12h', label: '12-hour (2:30 PM)' },
+]
+
+const timezoneOptions = [
+  { value: 'UTC', label: 'UTC' },
+  { value: 'Europe/London', label: 'Europe/London' },
+  { value: 'Europe/Berlin', label: 'Europe/Berlin' },
+  { value: 'Europe/Paris', label: 'Europe/Paris' },
+  { value: 'Europe/Amsterdam', label: 'Europe/Amsterdam' },
+  { value: 'Europe/Vienna', label: 'Europe/Vienna' },
+  { value: 'Europe/Zurich', label: 'Europe/Zurich' },
+  { value: 'America/New_York', label: 'America/New York' },
+  { value: 'America/Chicago', label: 'America/Chicago' },
+  { value: 'America/Denver', label: 'America/Denver' },
+  { value: 'America/Los_Angeles', label: 'America/Los Angeles' },
+  { value: 'Asia/Tokyo', label: 'Asia/Tokyo' },
+  { value: 'Asia/Shanghai', label: 'Asia/Shanghai' },
+  { value: 'Australia/Sydney', label: 'Australia/Sydney' },
+]
+
 export function Settings() {
   const { user } = useAuth()
+  const { settings: localeSettings, fetchSettings: fetchLocaleSettings, updateSettings: updateLocaleSettings, isLoaded: localeLoaded } = useLocale()
   const [integrations, setIntegrations] = useState<IntegrationConfig[]>([])
   const [types, setTypes] = useState<IntegrationTypeInfo[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -66,6 +97,11 @@ export function Settings() {
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({})
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [isSavingLocale, setIsSavingLocale] = useState(false)
+  const [localeError, setLocaleError] = useState<string | null>(null)
+  const [localeDateFormat, setLocaleDateFormat] = useState(localeSettings.date_format)
+  const [localeTimeFormat, setLocaleTimeFormat] = useState(localeSettings.time_format)
+  const [localeTimezone, setLocaleTimezone] = useState(localeSettings.timezone)
 
   const {
     register,
@@ -136,7 +172,35 @@ export function Settings() {
 
   useEffect(() => {
     fetchData()
+    if (!localeLoaded) {
+      fetchLocaleSettings()
+    }
   }, [])
+
+  // Sync local state with locale settings when they load
+  useEffect(() => {
+    if (localeLoaded) {
+      setLocaleDateFormat(localeSettings.date_format)
+      setLocaleTimeFormat(localeSettings.time_format)
+      setLocaleTimezone(localeSettings.timezone)
+    }
+  }, [localeLoaded, localeSettings])
+
+  const saveLocaleSettings = async () => {
+    setIsSavingLocale(true)
+    setLocaleError(null)
+    try {
+      await updateLocaleSettings({
+        date_format: localeDateFormat,
+        time_format: localeTimeFormat,
+        timezone: localeTimezone,
+      })
+    } catch (e) {
+      setLocaleError(e instanceof Error ? e.message : 'Failed to save locale settings')
+    } finally {
+      setIsSavingLocale(false)
+    }
+  }
 
   const onSubmit = async (data: IntegrationForm) => {
     setIsSaving(true)
@@ -274,6 +338,42 @@ export function Settings() {
             </div>
           </CardContent>
         </Card>
+
+        {user?.is_admin && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Regional Settings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {localeError && <Alert variant="error" className="mb-4">{localeError}</Alert>}
+              <div className="space-y-4">
+                <Select
+                  label="Date Format"
+                  options={dateFormatOptions}
+                  value={localeDateFormat}
+                  onChange={(e) => setLocaleDateFormat(e.target.value as LocaleSettings['date_format'])}
+                />
+                <Select
+                  label="Time Format"
+                  options={timeFormatOptions}
+                  value={localeTimeFormat}
+                  onChange={(e) => setLocaleTimeFormat(e.target.value as LocaleSettings['time_format'])}
+                />
+                <Select
+                  label="Timezone"
+                  options={timezoneOptions}
+                  value={localeTimezone}
+                  onChange={(e) => setLocaleTimezone(e.target.value)}
+                />
+                <div className="flex justify-end pt-2">
+                  <Button onClick={saveLocaleSettings} isLoading={isSavingLocale}>
+                    Save Regional Settings
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {user?.is_admin && (
           <Card>

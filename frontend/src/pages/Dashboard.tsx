@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { api } from '@/api/client'
 import type { Event, EventStatus } from '@/types'
+import { useLocale } from '@/stores/locale'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -15,6 +16,7 @@ const statusColors: Record<EventStatus, 'default' | 'warning' | 'info'> = {
 }
 
 export function Dashboard() {
+  const { formatDate } = useLocale()
   const [events, setEvents] = useState<Event[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -98,7 +100,7 @@ export function Dashboard() {
                       {event.company_name && (
                         <span className="text-gray-600">{event.company_name} &middot; </span>
                       )}
-                      {event.start_date} to {event.end_date}
+                      {formatDate(event.start_date)} to {formatDate(event.end_date)}
                     </p>
                   </div>
                   <Badge variant={statusColors[event.status]}>{event.status}</Badge>

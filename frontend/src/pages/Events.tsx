@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { Plus, Trash2, Pencil, ChevronDown } from 'lucide-react'
 import { api } from '@/api/client'
 import type { Company, Event, EventStatus, EventCustomFieldChoices as EventCustomFieldChoicesType } from '@/types'
+import { useLocale } from '@/stores/locale'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -46,6 +47,7 @@ const validTransitions: Record<EventStatus, EventStatus[]> = {
 
 export function Events() {
   const navigate = useNavigate()
+  const { formatDate } = useLocale()
   const [events, setEvents] = useState<Event[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [customFieldChoices, setCustomFieldChoices] = useState<EventCustomFieldChoicesType | null>(null)
@@ -232,7 +234,7 @@ export function Events() {
                       {event.company_name && (
                         <span className="text-gray-600">{event.company_name} &middot; </span>
                       )}
-                      {event.start_date} to {event.end_date}
+                      {formatDate(event.start_date)} to {formatDate(event.end_date)}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">

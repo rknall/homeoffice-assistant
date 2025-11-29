@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/stores/auth'
+import { useLocale } from '@/stores/locale'
 import { Layout } from '@/components/layout/Layout'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { Login } from '@/pages/Login'
@@ -13,12 +14,20 @@ import { Settings } from '@/pages/Settings'
 import { Spinner } from '@/components/ui/Spinner'
 
 export function App() {
-  const { isLoading, checkSession, checkAuthStatus } = useAuth()
+  const { isLoading, user, checkSession, checkAuthStatus } = useAuth()
+  const { fetchSettings: fetchLocaleSettings, isLoaded: localeLoaded } = useLocale()
 
   useEffect(() => {
     checkAuthStatus()
     checkSession()
   }, [checkAuthStatus, checkSession])
+
+  // Fetch locale settings after user is authenticated
+  useEffect(() => {
+    if (user && !localeLoaded) {
+      fetchLocaleSettings()
+    }
+  }, [user, localeLoaded, fetchLocaleSettings])
 
   if (isLoading) {
     return (

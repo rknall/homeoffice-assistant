@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
 """Base classes for integration providers."""
 from abc import ABC, abstractmethod
 from typing import Any

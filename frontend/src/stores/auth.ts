@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+// SPDX-License-Identifier: GPL-2.0-only
 import { create } from 'zustand'
 import { api, ApiError } from '@/api/client'
 import type { AuthResponse, AuthStatus, User } from '@/types'
@@ -14,6 +16,7 @@ interface AuthState {
   checkSession: () => Promise<void>
   checkAuthStatus: () => Promise<void>
   clearError: () => void
+  setUser: (user: User) => void
 }
 
 export const useAuth = create<AuthState>((set) => ({
@@ -83,4 +86,6 @@ export const useAuth = create<AuthState>((set) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  setUser: (user: User) => set({ user }),
 }))

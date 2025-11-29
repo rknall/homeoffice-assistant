@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+// SPDX-License-Identifier: GPL-2.0-only
 import { Fragment, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'

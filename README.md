@@ -28,7 +28,7 @@ npm install
 npm run dev
 \`\`\`
 
-### Docker
+### Docker (Development)
 
 \`\`\`bash
 # Set required secret
@@ -39,6 +39,46 @@ docker compose up --build
 \`\`\`
 
 Access the application at http://localhost:8000
+
+## Production Deployment
+
+### Using Docker (Portainer)
+
+1. Pull the latest image:
+   ```bash
+   docker pull ghcr.io/rknall/travel-manager:latest
+   ```
+
+2. Create a `.env` file with your secret key:
+   ```bash
+   echo "SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(32))')" > .env
+   ```
+
+3. Deploy using docker-compose:
+   ```bash
+   docker compose -f docker-compose.prod.yml up -d
+   ```
+
+The image supports both `linux/amd64` and `linux/arm64` architectures.
+
+### Backup & Restore
+
+**Create backup from running container:**
+```bash
+./scripts/docker-backup.sh travel-manager ./backups
+```
+
+**Restore backup:**
+```bash
+./scripts/restore.sh ./backups/travel_manager_backup_YYYYMMDD_HHMMSS.tar.gz
+```
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| SECRET_KEY | Yes | Secret key for encryption (min 32 chars) |
+| DATABASE_URL | No | Database connection string (default: SQLite) |
 
 ## Configuration
 
@@ -75,4 +115,8 @@ After reset, visit the application to create a new admin user through the setup 
 
 ## License
 
-MIT
+This project is licensed under the GNU General Public License v2.0 only (GPL-2.0-only).
+
+See [LICENSE](LICENSE) for the full license text.
+
+SPDX-License-Identifier: GPL-2.0-only

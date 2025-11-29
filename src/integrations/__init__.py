@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
 """Integrations package."""
 from src.integrations.base import DocumentProvider, EmailProvider, IntegrationProvider, PhotoProvider
 from src.integrations.registry import IntegrationRegistry

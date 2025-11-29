@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+// SPDX-License-Identifier: GPL-2.0-only
 import { create } from 'zustand'
 import { api } from '@/api/client'
 import type { LocaleSettings, DateFormatType, TimeFormatType } from '@/types'

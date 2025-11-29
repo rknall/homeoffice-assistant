@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
 """Contact API endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session

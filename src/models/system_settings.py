@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
 """System settings model for global configuration."""
 from sqlalchemy import Boolean, String, Text
 from sqlalchemy.orm import Mapped, mapped_column

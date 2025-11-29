@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
 """User model for authentication."""
 import uuid
 from typing import TYPE_CHECKING
@@ -34,6 +36,9 @@ class User(Base, TimestampMixin):
     )
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    full_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    use_gravatar: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Relationships
     sessions: Mapped[list["Session"]] = relationship(

@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+// SPDX-License-Identifier: GPL-2.0-only
 import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/stores/auth'
@@ -12,6 +14,9 @@ import { CompanyDetail } from '@/pages/CompanyDetail'
 import { Events } from '@/pages/Events'
 import { EventDetail } from '@/pages/EventDetail'
 import { Settings } from '@/pages/Settings'
+import { RegionalSettings } from '@/pages/settings/RegionalSettings'
+import { IntegrationSettings } from '@/pages/settings/IntegrationSettings'
+import { EmailTemplateSettings } from '@/pages/settings/EmailTemplateSettings'
 import { Spinner } from '@/components/ui/Spinner'
 
 export function App() {
@@ -55,6 +60,9 @@ export function App() {
         <Route path="/companies" element={<Companies />} />
         <Route path="/companies/:id" element={<CompanyDetail />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/settings/regional" element={<RegionalSettings />} />
+        <Route path="/settings/integrations" element={<IntegrationSettings />} />
+        <Route path="/settings/templates" element={<EmailTemplateSettings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

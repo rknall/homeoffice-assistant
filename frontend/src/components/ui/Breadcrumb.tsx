@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+// SPDX-License-Identifier: GPL-2.0-only
 import { Link } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { useBreadcrumb } from '@/stores/breadcrumb'

@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+// SPDX-License-Identifier: GPL-2.0-only
 const APP_VERSION = '0.1.0'
 const APP_YEAR = new Date().getFullYear()
 

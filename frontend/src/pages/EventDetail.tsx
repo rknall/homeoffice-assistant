@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+// SPDX-License-Identifier: GPL-2.0-only
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Download, Plus, Trash2, Pencil, Mail, FileText, RefreshCw, Receipt } from 'lucide-react'
@@ -16,12 +18,13 @@ import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import { Alert } from '@/components/ui/Alert'
+import { getPaymentTypeLabel, getCategoryLabel } from '@/utils/labels'
 
 const expenseSchema = z.object({
   date: z.string().min(1, 'Date is required'),
   amount: z.string().min(1, 'Amount is required'),
   currency: z.string().min(1, 'Currency is required'),
-  payment_type: z.enum(['cash', 'credit_card', 'company_card', 'prepaid', 'invoice', 'other']),
+  payment_type: z.enum(['cash', 'credit_card', 'debit_card', 'company_card', 'prepaid', 'invoice', 'other']),
   category: z.enum(['travel', 'accommodation', 'meals', 'transport', 'equipment', 'communication', 'other']),
   description: z.string().optional(),
 })
@@ -42,6 +45,7 @@ type EventForm = z.infer<typeof eventSchema>
 const paymentTypeOptions = [
   { value: 'cash', label: 'Cash' },
   { value: 'credit_card', label: 'Credit Card' },
+  { value: 'debit_card', label: 'Debit Card' },
   { value: 'company_card', label: 'Company Card' },
   { value: 'prepaid', label: 'Prepaid' },
   { value: 'invoice', label: 'Invoice' },
@@ -215,8 +219,8 @@ export function EventDetail() {
       const items: { label: string; href?: string }[] = [
         { label: 'Events', href: '/events' },
       ]
-      if (event.company_name) {
-        items.push({ label: event.company_name, href: '/companies' })
+      if (event.company_name && event.company_id) {
+        items.push({ label: event.company_name, href: `/companies/${event.company_id}` })
       }
       items.push({ label: event.name })
       setBreadcrumb(items)
@@ -664,9 +668,9 @@ export function EventDetail() {
                       <td className="py-3 px-4">{formatDate(expense.date)}</td>
                       <td className="py-3 px-4">{expense.description || '-'}</td>
                       <td className="py-3 px-4">
-                        <Badge variant="default">{expense.category}</Badge>
+                        <Badge variant="default">{getCategoryLabel(expense.category)}</Badge>
                       </td>
-                      <td className="py-3 px-4">{expense.payment_type}</td>
+                      <td className="py-3 px-4">{getPaymentTypeLabel(expense.payment_type)}</td>
                       <td className="py-3 px-4 text-right font-medium">
                         {Number(expense.amount).toFixed(2)} {expense.currency}
                       </td>

@@ -1,10 +1,16 @@
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
 """FastAPI application entry point."""
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+
+# Ensure avatar directory exists
+os.makedirs("static/avatars", exist_ok=True)
 
 app = FastAPI(
     title="Travel Manager",

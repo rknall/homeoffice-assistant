@@ -1,5 +1,10 @@
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
 """Authentication API endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+import os
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user, get_db
@@ -10,8 +15,13 @@ from src.schemas.auth import (
     LoginRequest,
     RegisterRequest,
 )
-from src.schemas.user import UserResponse
+from src.schemas.user import UserProfileUpdate, UserResponse
+from src.security import get_password_hash, verify_password
 from src.services import auth_service
+
+AVATAR_DIR = "static/avatars"
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
 router = APIRouter()
 
@@ -117,4 +127,110 @@ def get_current_user_info(
     current_user: User = Depends(get_current_user),
 ) -> AuthResponse:
     """Get current authenticated user."""
+    return AuthResponse(user=UserResponse.model_validate(current_user))
+
+
+@router.put("/me", response_model=AuthResponse)
+def update_current_user_profile(
+    data: UserProfileUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AuthResponse:
+    """Update current user's profile."""
+    # If changing password, verify current password first
+    if data.new_password:
+        if not data.current_password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current password is required to change password",
+            )
+        if not verify_password(data.current_password, current_user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current password is incorrect",
+            )
+        current_user.hashed_password = get_password_hash(data.new_password)
+
+    # Update other fields
+    if data.full_name is not None:
+        current_user.full_name = data.full_name or None
+    if data.use_gravatar is not None:
+        current_user.use_gravatar = data.use_gravatar
+
+    db.commit()
+    db.refresh(current_user)
+
+    return AuthResponse(user=UserResponse.model_validate(current_user))
+
+
+@router.post("/me/avatar", response_model=AuthResponse)
+async def upload_avatar(
+    file: UploadFile,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AuthResponse:
+    """Upload a new avatar for the current user."""
+    # Validate file extension
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No file provided",
+        )
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File type not allowed. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}",
+        )
+
+    # Read file content
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024 * 1024)}MB",
+        )
+
+    # Ensure avatar directory exists
+    os.makedirs(AVATAR_DIR, exist_ok=True)
+
+    # Delete old avatar if exists
+    if current_user.avatar_url:
+        old_path = current_user.avatar_url.lstrip("/")
+        if os.path.exists(old_path):
+            os.remove(old_path)
+
+    # Save new avatar with unique filename
+    filename = f"{current_user.id}_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = os.path.join(AVATAR_DIR, filename)
+
+    with open(filepath, "wb") as f:
+        f.write(content)
+
+    # Update user
+    current_user.avatar_url = f"/{filepath}"
+    current_user.use_gravatar = False
+    db.commit()
+    db.refresh(current_user)
+
+    return AuthResponse(user=UserResponse.model_validate(current_user))
+
+
+@router.delete("/me/avatar", response_model=AuthResponse)
+def delete_avatar(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AuthResponse:
+    """Delete the current user's avatar and revert to Gravatar."""
+    if current_user.avatar_url:
+        old_path = current_user.avatar_url.lstrip("/")
+        if os.path.exists(old_path):
+            os.remove(old_path)
+
+    current_user.avatar_url = None
+    current_user.use_gravatar = True
+    db.commit()
+    db.refresh(current_user)
+
     return AuthResponse(user=UserResponse.model_validate(current_user))

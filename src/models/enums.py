@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
 """Enumeration types for database models."""
 from enum import Enum
 
@@ -29,6 +31,7 @@ class PaymentType(str, Enum):
 
     CASH = "cash"
     CREDIT_CARD = "credit_card"
+    DEBIT_CARD = "debit_card"
     COMPANY_CARD = "company_card"
     PREPAID = "prepaid"
     INVOICE = "invoice"

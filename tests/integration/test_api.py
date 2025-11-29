@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
 import os
 import pytest
 
@@ -232,7 +234,7 @@ class TestEventsAPI:
         assert response.status_code == 201
         data = response.json()
         assert data["name"] == "Test Event"
-        assert data["status"] == "draft"
+        assert data["status"] == "planning"
         assert "id" in data
 
     def test_list_events(self, authenticated_client):

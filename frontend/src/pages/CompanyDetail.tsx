@@ -1,9 +1,11 @@
+// SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+// SPDX-License-Identifier: GPL-2.0-only
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Pencil, Trash2, Plus, ArrowLeft } from 'lucide-react'
+import { Pencil, Trash2, Plus } from 'lucide-react'
 import { api } from '@/api/client'
 import type { Company, IntegrationConfig, StoragePath, EmailTemplate, TemplateReason } from '@/types'
 import { useBreadcrumb } from '@/stores/breadcrumb'
@@ -214,13 +216,6 @@ export function CompanyDetail() {
   return (
     <div>
       <div className="mb-6">
-        <button
-          onClick={() => navigate('/companies')}
-          className="flex items-center text-gray-500 hover:text-gray-700 mb-4"
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Back to Companies
-        </button>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{company.name}</h1>

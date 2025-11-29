@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+// SPDX-License-Identifier: GPL-2.0-only
 // User types
 export interface User {
   id: string
@@ -6,6 +8,9 @@ export interface User {
   role: 'admin' | 'user'
   is_admin: boolean
   is_active: boolean
+  full_name: string | null
+  avatar_url: string | null
+  use_gravatar: boolean
   created_at: string
   updated_at: string
 }
@@ -73,7 +78,7 @@ export interface EventCreate {
 }
 
 // Expense types
-export type PaymentType = 'cash' | 'credit_card' | 'company_card' | 'prepaid' | 'invoice' | 'other'
+export type PaymentType = 'cash' | 'credit_card' | 'debit_card' | 'company_card' | 'prepaid' | 'invoice' | 'other'
 export type ExpenseCategory =
   | 'travel'
   | 'accommodation'

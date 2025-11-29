@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
 """Database models package."""
 from src.models.base import Base, TimestampMixin
 from src.models.company import Company

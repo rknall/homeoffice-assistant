@@ -63,3 +63,6 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Playwright MCP
+.playwright-mcp/

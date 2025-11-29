@@ -5,6 +5,7 @@ from src.api.v1 import (
     auth,
     companies,
     contacts,
+    email_templates,
     events,
     expenses,
     integrations,
@@ -45,3 +46,8 @@ api_router.include_router(reports.router, prefix="/events", tags=["reports"])
 
 # Settings routes
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
+
+# Email template routes
+api_router.include_router(
+    email_templates.router, prefix="/email-templates", tags=["email-templates"]
+)

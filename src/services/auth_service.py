@@ -59,6 +59,9 @@ def register_user(db: Session, data: RegisterRequest) -> User:
 
     if first_run:
         set_first_run_complete(db)
+        # Create default email template during first run
+        from src.services import email_template_service
+        email_template_service.ensure_default_template_exists(db)
 
     return user
 

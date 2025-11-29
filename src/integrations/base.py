@@ -114,7 +114,8 @@ class EmailProvider(IntegrationProvider):
         to: list[str],
         subject: str,
         body: str,
+        body_html: str | None = None,
         attachments: list[tuple[str, bytes, str]] | None = None,
     ) -> bool:
-        """Send email with optional attachments. Returns success."""
+        """Send email with optional HTML and attachments. Returns success."""
         ...

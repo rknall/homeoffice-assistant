@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { api, downloadFile } from '@/api/client'
-import type { Company, Document, Event, EventStatus, Expense, ExpenseReportPreview, EventCustomFieldChoices } from '@/types'
+import type { Company, Document, Event, EventStatus, Expense, ExpenseReportPreview, EventCustomFieldChoices, EmailTemplate, TemplatePreviewResponse } from '@/types'
 import { useLocale } from '@/stores/locale'
 import { useBreadcrumb } from '@/stores/breadcrumb'
 import { Button } from '@/components/ui/Button'
@@ -90,6 +90,11 @@ export function EventDetail() {
   const [isSendingEmail, setIsSendingEmail] = useState(false)
   const [emailAddress, setEmailAddress] = useState('')
   const [emailResult, setEmailResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([])
+  const [emailPreview, setEmailPreview] = useState<TemplatePreviewResponse | null>(null)
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
+  const [isLoadingEmailPreview, setIsLoadingEmailPreview] = useState(false)
   const [isDeleteDocModalOpen, setIsDeleteDocModalOpen] = useState(false)
   const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null)
   const [isDeletingDocument, setIsDeletingDocument] = useState(false)
@@ -305,10 +310,68 @@ export function EventDetail() {
     }
   }
 
-  const openEmailModal = () => {
-    setEmailAddress(event?.company_name ? '' : '')
+  const openEmailModal = async () => {
+    setEmailAddress('')
     setEmailResult(null)
+    setSelectedTemplateId(null)
+    setEmailPreview(null)
     setIsEmailModalOpen(true)
+
+    // Fetch available templates
+    setIsLoadingTemplates(true)
+    try {
+      const params = new URLSearchParams({ reason: 'expense_report' })
+      if (event?.company_id) {
+        params.append('company_id', event.company_id)
+      }
+      const templates = await api.get<EmailTemplate[]>(`/email-templates?${params.toString()}`)
+      setEmailTemplates(templates)
+
+      // Auto-select default template
+      const defaultTemplate = templates.find(t =>
+        t.company_id === event?.company_id && t.is_default
+      ) || templates.find(t =>
+        t.company_id === null && t.is_default
+      ) || templates[0]
+
+      if (defaultTemplate) {
+        setSelectedTemplateId(defaultTemplate.id)
+        loadEmailPreview(defaultTemplate)
+      }
+    } catch {
+      setEmailTemplates([])
+    } finally {
+      setIsLoadingTemplates(false)
+    }
+  }
+
+  const loadEmailPreview = async (template: EmailTemplate) => {
+    if (!id) return
+    setIsLoadingEmailPreview(true)
+    try {
+      const result = await api.post<TemplatePreviewResponse>('/email-templates/preview', {
+        subject: template.subject,
+        body_html: template.body_html,
+        body_text: template.body_text,
+        reason: template.reason,
+        event_id: id,
+      })
+      setEmailPreview(result)
+    } catch {
+      setEmailPreview(null)
+    } finally {
+      setIsLoadingEmailPreview(false)
+    }
+  }
+
+  const handleTemplateChange = (templateId: string) => {
+    setSelectedTemplateId(templateId)
+    const template = emailTemplates.find(t => t.id === templateId)
+    if (template) {
+      loadEmailPreview(template)
+    } else {
+      setEmailPreview(null)
+    }
   }
 
   const openDeleteDocModal = (doc: Document) => {
@@ -464,7 +527,10 @@ export function EventDetail() {
     try {
       const result = await api.post<{ success: boolean; message: string }>(
         `/events/${id}/expense-report/send`,
-        { recipient_email: emailAddress || null }
+        {
+          recipient_email: emailAddress || null,
+          template_id: selectedTemplateId,
+        }
       )
       setEmailResult(result)
       if (result.success) {
@@ -851,11 +917,61 @@ export function EventDetail() {
           setEmailResult(null)
         }}
         title="Email Expense Report"
+        size="lg"
       >
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            Send the expense report to the specified email address. If no email is provided, it will be sent to the company's expense recipient email.
-          </p>
+          {/* Template Selection */}
+          {isLoadingTemplates ? (
+            <div className="flex items-center gap-2 py-4">
+              <Spinner size="sm" />
+              <span className="text-sm text-gray-500">Loading templates...</span>
+            </div>
+          ) : emailTemplates.length === 0 ? (
+            <Alert variant="warning">
+              No email templates found. Please configure a template in Settings or Company settings.
+            </Alert>
+          ) : (
+            <Select
+              label="Email Template"
+              value={selectedTemplateId || ''}
+              onChange={(e) => handleTemplateChange(e.target.value)}
+              options={emailTemplates.map(t => ({
+                value: t.id,
+                label: `${t.name}${t.company_id ? '' : ' (Global)'}${t.is_default ? ' - Default' : ''}`,
+              }))}
+            />
+          )}
+
+          {/* Preview */}
+          {selectedTemplateId && (
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                <p className="text-sm font-medium text-gray-700">Preview</p>
+              </div>
+              <div className="p-4 max-h-64 overflow-y-auto">
+                {isLoadingEmailPreview ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Spinner size="sm" />
+                  </div>
+                ) : emailPreview ? (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 uppercase">Subject</p>
+                      <p className="text-gray-900">{emailPreview.subject}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 uppercase mb-1">Body</p>
+                      <div
+                        className="text-sm text-gray-700 prose prose-sm max-w-none"
+                        dangerouslySetInnerHTML={{ __html: emailPreview.body_html }}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
+
           <Input
             label="Recipient Email (optional)"
             type="email"
@@ -863,6 +979,7 @@ export function EventDetail() {
             onChange={(e) => setEmailAddress(e.target.value)}
             description="Leave empty to use company's expense recipient email"
           />
+
           {emailResult && (
             <Alert variant={emailResult.success ? 'success' : 'error'}>
               {emailResult.message}
@@ -879,7 +996,11 @@ export function EventDetail() {
             >
               Cancel
             </Button>
-            <Button onClick={sendEmailReport} isLoading={isSendingEmail}>
+            <Button
+              onClick={sendEmailReport}
+              isLoading={isSendingEmail}
+              disabled={emailTemplates.length === 0 || !selectedTemplateId}
+            >
               <Mail className="h-4 w-4 mr-2" />
               Send Report
             </Button>

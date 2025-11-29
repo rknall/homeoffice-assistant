@@ -114,22 +114,25 @@ class SmtpProvider(EmailProvider):
         to: list[str],
         subject: str,
         body: str,
+        body_html: str | None = None,
         attachments: list[tuple[str, bytes, str]] | None = None,
     ) -> bool:
         """
-        Send email with optional attachments.
+        Send email with optional HTML and attachments.
 
         Args:
             to: List of recipient email addresses
             subject: Email subject
             body: Email body (plain text)
+            body_html: Email body (HTML, optional). If provided, creates multipart/alternative
             attachments: List of (filename, content, mime_type) tuples
 
         Returns:
             True if email was sent successfully
         """
         try:
-            msg = MIMEMultipart()
+            # Create the main message container
+            msg = MIMEMultipart("mixed")
 
             # Set sender
             if self.from_name:
@@ -140,8 +143,16 @@ class SmtpProvider(EmailProvider):
             msg["To"] = ", ".join(to)
             msg["Subject"] = subject
 
-            # Add body
-            msg.attach(MIMEText(body, "plain"))
+            # Create the body part
+            if body_html:
+                # Multipart/alternative for HTML + plain text
+                alt_part = MIMEMultipart("alternative")
+                alt_part.attach(MIMEText(body, "plain", "utf-8"))
+                alt_part.attach(MIMEText(body_html, "html", "utf-8"))
+                msg.attach(alt_part)
+            else:
+                # Plain text only
+                msg.attach(MIMEText(body, "plain", "utf-8"))
 
             # Add attachments
             if attachments:

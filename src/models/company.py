@@ -9,6 +9,7 @@ from src.models.base import Base, TimestampMixin
 from src.models.enums import CompanyType
 
 if TYPE_CHECKING:
+    from src.models.email_template import EmailTemplate
     from src.models.event import Event
 
 
@@ -47,6 +48,11 @@ class Company(Base, TimestampMixin):
     # Relationships
     events: Mapped[list["Event"]] = relationship(
         "Event",
+        back_populates="company",
+        cascade="all, delete-orphan",
+    )
+    email_templates: Mapped[list["EmailTemplate"]] = relationship(
+        "EmailTemplate",
         back_populates="company",
         cascade="all, delete-orphan",
     )

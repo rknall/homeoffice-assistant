@@ -16,6 +16,15 @@ from src.schemas.company import (
     CompanyResponse,
     CompanyUpdate,
 )
+from src.schemas.email_template import (
+    EmailTemplateCreate,
+    EmailTemplateResponse,
+    EmailTemplateUpdate,
+    TemplatePreviewRequest,
+    TemplatePreviewResponse,
+    TemplateReason,
+    TemplateVariableInfo,
+)
 from src.schemas.contact import (
     ContactCreate,
     ContactResponse,
@@ -107,4 +116,12 @@ __all__ = [
     "IntegrationTestResult",
     "StoragePathResponse",
     "TagResponse",
+    # Email Template
+    "EmailTemplateCreate",
+    "EmailTemplateUpdate",
+    "EmailTemplateResponse",
+    "TemplatePreviewRequest",
+    "TemplatePreviewResponse",
+    "TemplateReason",
+    "TemplateVariableInfo",
 ]

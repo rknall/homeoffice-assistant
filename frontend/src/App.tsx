@@ -8,6 +8,7 @@ import { Login } from '@/pages/Login'
 import { Setup } from '@/pages/Setup'
 import { Dashboard } from '@/pages/Dashboard'
 import { Companies } from '@/pages/Companies'
+import { CompanyDetail } from '@/pages/CompanyDetail'
 import { Events } from '@/pages/Events'
 import { EventDetail } from '@/pages/EventDetail'
 import { Settings } from '@/pages/Settings'
@@ -52,6 +53,7 @@ export function App() {
         <Route path="/events" element={<Events />} />
         <Route path="/events/:id" element={<EventDetail />} />
         <Route path="/companies" element={<Companies />} />
+        <Route path="/companies/:id" element={<CompanyDetail />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -2,6 +2,7 @@
 from src.models.base import Base, TimestampMixin
 from src.models.company import Company
 from src.models.contact import Contact
+from src.models.email_template import EmailTemplate
 from src.models.enums import (
     CompanyType,
     EventStatus,
@@ -37,6 +38,7 @@ __all__ = [
     "PhotoReference",
     "IntegrationConfig",
     "SystemSettings",
+    "EmailTemplate",
     "UserRole",
     "CompanyType",
     "EventStatus",

@@ -10,7 +10,7 @@ from src.api.deps import get_current_user, get_db
 from src.integrations.base import EmailProvider
 from src.models import User
 from src.models.enums import IntegrationType
-from src.services import event_service, integration_service
+from src.services import email_template_service, event_service, integration_service
 from src.services.report_generator import create_report_generator
 
 router = APIRouter()
@@ -22,6 +22,10 @@ class SendReportRequest(BaseModel):
     recipient_email: Optional[str] = Field(
         None,
         description="Email address to send report to. If not provided, uses company expense recipient.",
+    )
+    template_id: Optional[str] = Field(
+        None,
+        description="Email template ID to use. If not provided, uses default template.",
     )
 
 
@@ -134,6 +138,26 @@ async def send_expense_report(
         )
 
     try:
+        # Get email template
+        if data.template_id:
+            template = email_template_service.get_template(db, data.template_id)
+            if not template:
+                return SendReportResponse(
+                    success=False,
+                    message="Email template not found",
+                )
+        else:
+            # Use default template for the company
+            company_id = event.company.id if event.company else None
+            template = email_template_service.get_default_template(
+                db, company_id, "expense_report"
+            )
+            if not template:
+                return SendReportResponse(
+                    success=False,
+                    message="No default email template found. Please configure a template.",
+                )
+
         # Generate the report
         generator = await create_report_generator(db, event)
         try:
@@ -143,26 +167,22 @@ async def send_expense_report(
             if generator.paperless:
                 await generator.paperless.close()
 
-        # Send the email with the report attached
-        company_name = event.company.name if event.company else "Unknown"
-        subject = f"Expense Report: {event.name}"
-        body = f"""Dear expense recipient,
-
-Please find attached the expense report for:
-
-Event: {event.name}
-Company: {company_name}
-Period: {event.start_date} to {event.end_date}
-
-This report was generated automatically by Travel Manager.
-
-Best regards,
-Travel Manager"""
+        # Build template context and render
+        context = email_template_service.build_expense_report_context(
+            event=event,
+            company=event.company,
+            expenses=event.expenses,
+            user=current_user,
+        )
+        subject, body_html, body_text = email_template_service.render_template(
+            template, context
+        )
 
         success = await provider.send_email(
             to=[recipient_email],
             subject=subject,
-            body=body,
+            body=body_text,
+            body_html=body_html,
             attachments=[(filename, zip_bytes, "application/zip")],
         )
 

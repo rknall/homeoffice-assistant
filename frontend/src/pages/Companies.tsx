@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Trash2, ChevronRight } from 'lucide-react'
 import { api } from '@/api/client'
 import type { Company, IntegrationConfig, StoragePath } from '@/types'
 import { useBreadcrumb } from '@/stores/breadcrumb'
@@ -31,11 +32,11 @@ const typeOptions = [
 ]
 
 export function Companies() {
+  const navigate = useNavigate()
   const { setItems: setBreadcrumb } = useBreadcrumb()
   const [companies, setCompanies] = useState<Company[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingCompany, setEditingCompany] = useState<Company | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [storagePaths, setStoragePaths] = useState<StoragePath[]>([])
@@ -86,32 +87,19 @@ export function Companies() {
     fetchStoragePaths()
   }, [])
 
-  const openModal = (company?: Company) => {
-    if (company) {
-      setEditingCompany(company)
-      reset({
-        name: company.name,
-        type: company.type,
-        expense_recipient_email: company.expense_recipient_email || '',
-        expense_recipient_name: company.expense_recipient_name || '',
-        paperless_storage_path_id: company.paperless_storage_path_id?.toString() || '',
-      })
-    } else {
-      setEditingCompany(null)
-      reset({
-        type: 'employer',
-        name: '',
-        expense_recipient_email: '',
-        expense_recipient_name: '',
-        paperless_storage_path_id: '',
-      })
-    }
+  const openModal = () => {
+    reset({
+      type: 'employer',
+      name: '',
+      expense_recipient_email: '',
+      expense_recipient_name: '',
+      paperless_storage_path_id: '',
+    })
     setIsModalOpen(true)
   }
 
   const closeModal = () => {
     setIsModalOpen(false)
-    setEditingCompany(null)
     reset()
   }
 
@@ -128,11 +116,7 @@ export function Companies() {
           ? parseInt(data.paperless_storage_path_id, 10)
           : null,
       }
-      if (editingCompany) {
-        await api.put(`/companies/${editingCompany.id}`, payload)
-      } else {
-        await api.post('/companies', payload)
-      }
+      await api.post('/companies', payload)
       await fetchCompanies()
       closeModal()
     } catch (e) {
@@ -182,7 +166,8 @@ export function Companies() {
               {companies.map((company) => (
                 <div
                   key={company.id}
-                  className="flex items-center justify-between py-4"
+                  className="flex items-center justify-between py-4 cursor-pointer hover:bg-gray-50 -mx-4 px-4 rounded"
+                  onClick={() => navigate(`/companies/${company.id}`)}
                 >
                   <div>
                     <h3 className="font-medium text-gray-900">{company.name}</h3>
@@ -196,17 +181,16 @@ export function Companies() {
                     </Badge>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => openModal(company)}
-                        className="p-1 text-gray-400 hover:text-gray-600"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => deleteCompany(company.id)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          deleteCompany(company.id)
+                        }}
                         className="p-1 text-gray-400 hover:text-red-600"
+                        title="Delete company"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
+                      <ChevronRight className="h-4 w-4 text-gray-400" />
                     </div>
                   </div>
                 </div>
@@ -219,7 +203,7 @@ export function Companies() {
       <Modal
         isOpen={isModalOpen}
         onClose={closeModal}
-        title={editingCompany ? 'Edit Company' : 'Add Company'}
+        title="Add Company"
       >
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <Input
@@ -259,7 +243,7 @@ export function Companies() {
               Cancel
             </Button>
             <Button type="submit" isLoading={isSaving}>
-              {editingCompany ? 'Update' : 'Create'}
+              Create
             </Button>
           </div>
         </form>

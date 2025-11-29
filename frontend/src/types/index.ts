@@ -232,3 +232,62 @@ export interface LocaleSettings {
   time_format: TimeFormatType
   timezone: string
 }
+
+// Email Template types
+export interface EmailTemplate {
+  id: string
+  name: string
+  reason: string
+  company_id: string | null
+  subject: string
+  body_html: string
+  body_text: string
+  is_default: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface EmailTemplateCreate {
+  name: string
+  reason: string
+  company_id?: string | null
+  subject: string
+  body_html: string
+  body_text: string
+  is_default?: boolean
+}
+
+export interface EmailTemplateUpdate {
+  name?: string
+  reason?: string
+  subject?: string
+  body_html?: string
+  body_text?: string
+  is_default?: boolean
+}
+
+export interface TemplateVariableInfo {
+  variable: string
+  description: string
+  example: string
+}
+
+export interface TemplateReason {
+  reason: string
+  description: string
+  variables: TemplateVariableInfo[]
+}
+
+export interface TemplatePreviewRequest {
+  subject: string
+  body_html: string
+  body_text: string
+  reason: string
+  event_id?: string
+}
+
+export interface TemplatePreviewResponse {
+  subject: string
+  body_html: string
+  body_text: string
+}

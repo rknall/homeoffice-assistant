@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Plus, Trash2, CheckCircle, XCircle, Mail, Pencil } from 'lucide-react'
 import { api } from '@/api/client'
-import type { IntegrationConfig, IntegrationTypeInfo, LocaleSettings } from '@/types'
+import type { IntegrationConfig, IntegrationTypeInfo, LocaleSettings, EmailTemplate, TemplateReason } from '@/types'
 import { useAuth } from '@/stores/auth'
 import { useLocale } from '@/stores/locale'
 import { useBreadcrumb } from '@/stores/breadcrumb'
@@ -16,6 +16,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import { Alert } from '@/components/ui/Alert'
+import { EmailTemplateEditor } from '@/components/EmailTemplateEditor'
 
 interface IntegrationConfigDetail extends IntegrationConfig {
   config: Record<string, unknown>
@@ -105,6 +106,14 @@ export function Settings() {
   const [localeTimeFormat, setLocaleTimeFormat] = useState(localeSettings.time_format)
   const [localeTimezone, setLocaleTimezone] = useState(localeSettings.timezone)
 
+  // Email templates state
+  const [globalTemplates, setGlobalTemplates] = useState<EmailTemplate[]>([])
+  const [templateReasons, setTemplateReasons] = useState<TemplateReason[]>([])
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(true)
+  const [isTemplateEditorOpen, setIsTemplateEditorOpen] = useState(false)
+  const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null)
+  const [templateError, setTemplateError] = useState<string | null>(null)
+
   const {
     register,
     handleSubmit,
@@ -172,12 +181,54 @@ export function Settings() {
     }
   }
 
+  const fetchTemplates = async () => {
+    setIsLoadingTemplates(true)
+    try {
+      const [templatesData, reasonsData] = await Promise.all([
+        api.get<EmailTemplate[]>('/email-templates/global'),
+        api.get<TemplateReason[]>('/email-templates/reasons'),
+      ])
+      setGlobalTemplates(templatesData)
+      setTemplateReasons(reasonsData)
+    } catch {
+      setTemplateError('Failed to load email templates')
+    } finally {
+      setIsLoadingTemplates(false)
+    }
+  }
+
+  const openTemplateEditor = (template: EmailTemplate | null = null) => {
+    setEditingTemplate(template)
+    setIsTemplateEditorOpen(true)
+  }
+
+  const closeTemplateEditor = () => {
+    setIsTemplateEditorOpen(false)
+    setEditingTemplate(null)
+  }
+
+  const handleTemplateSaved = async () => {
+    await fetchTemplates()
+    closeTemplateEditor()
+  }
+
+  const deleteTemplate = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this email template?')) return
+    try {
+      await api.delete(`/email-templates/${id}`)
+      await fetchTemplates()
+    } catch {
+      setTemplateError('Failed to delete template')
+    }
+  }
+
   useEffect(() => {
     setBreadcrumb([{ label: 'Settings' }])
   }, [setBreadcrumb])
 
   useEffect(() => {
     fetchData()
+    fetchTemplates()
     if (!localeLoaded) {
       fetchLocaleSettings()
     }
@@ -466,6 +517,65 @@ export function Settings() {
             </CardContent>
           </Card>
         )}
+
+        {user?.is_admin && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Email Templates</CardTitle>
+              <Button onClick={() => openTemplateEditor()}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Template
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {templateError && <Alert variant="error" className="mb-4">{templateError}</Alert>}
+              {isLoadingTemplates ? (
+                <div className="flex justify-center py-8">
+                  <Spinner />
+                </div>
+              ) : globalTemplates.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">
+                  No global email templates configured. Add your first template.
+                </p>
+              ) : (
+                <div className="divide-y divide-gray-200">
+                  {globalTemplates.map((template) => (
+                    <div
+                      key={template.id}
+                      className="flex items-center justify-between py-4"
+                    >
+                      <div>
+                        <h3 className="font-medium text-gray-900">{template.name}</h3>
+                        <p className="text-sm text-gray-500">
+                          {templateReasons.find(r => r.reason === template.reason)?.description || template.reason}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        {template.is_default && (
+                          <Badge variant="info">Default</Badge>
+                        )}
+                        <button
+                          onClick={() => openTemplateEditor(template)}
+                          className="p-1 text-gray-400 hover:text-blue-600"
+                          title="Edit template"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteTemplate(template.id)}
+                          className="p-1 text-gray-400 hover:text-red-600"
+                          title="Delete template"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <Modal
@@ -647,6 +757,14 @@ export function Settings() {
           </div>
         </div>
       </Modal>
+
+      <EmailTemplateEditor
+        isOpen={isTemplateEditorOpen}
+        onClose={closeTemplateEditor}
+        onSaved={handleTemplateSaved}
+        template={editingTemplate}
+        reasons={templateReasons}
+      />
     </div>
   )
 }

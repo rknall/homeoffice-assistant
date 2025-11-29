@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
 """Settings service for system-wide configuration."""
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -18,7 +17,7 @@ SETTING_TIME_FORMAT = "locale_time_format"
 SETTING_TIMEZONE = "locale_timezone"
 
 
-def get_setting(db: Session, key: str) -> Optional[str]:
+def get_setting(db: Session, key: str) -> str | None:
     """Get a system setting by key."""
     setting = db.query(SystemSettings).filter(SystemSettings.key == key).first()
     return setting.value if setting else None
@@ -49,9 +48,9 @@ def get_locale_settings(db: Session) -> dict:
 
 def update_locale_settings(
     db: Session,
-    date_format: Optional[str] = None,
-    time_format: Optional[str] = None,
-    timezone: Optional[str] = None,
+    date_format: str | None = None,
+    time_format: str | None = None,
+    timezone: str | None = None,
 ) -> dict:
     """Update locale settings."""
     if date_format is not None:

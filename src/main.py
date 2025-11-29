@@ -35,7 +35,7 @@ def health_check() -> dict:
 
 
 # Import and include API router after it's created
-from src.api.v1.router import api_router
+from src.api.v1.router import api_router  # noqa: E402
 
 app.include_router(api_router, prefix="/api/v1")
 

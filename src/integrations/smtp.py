@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """SMTP email integration provider."""
 import smtplib
+from email import encoders
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
 from typing import Any
 
 from src.integrations.base import EmailProvider

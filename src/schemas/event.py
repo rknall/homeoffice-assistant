@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Event schemas."""
 import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -13,7 +12,7 @@ class EventBase(BaseModel):
     """Base event schema."""
 
     name: str = Field(..., min_length=1, max_length=200)
-    description: Optional[str] = None
+    description: str | None = None
     start_date: datetime.date
     end_date: datetime.date
 
@@ -29,19 +28,19 @@ class EventCreate(EventBase):
 
     company_id: str
     status: EventStatus = EventStatus.PLANNING
-    paperless_custom_field_value: Optional[str] = None
+    paperless_custom_field_value: str | None = None
 
 
 class EventUpdate(BaseModel):
     """Schema for updating an event."""
 
-    name: Optional[str] = Field(None, min_length=1, max_length=200)
-    description: Optional[str] = None
-    company_id: Optional[str] = None
-    start_date: Optional[datetime.date] = None
-    end_date: Optional[datetime.date] = None
-    status: Optional[EventStatus] = None
-    paperless_custom_field_value: Optional[str] = None
+    name: str | None = Field(None, min_length=1, max_length=200)
+    description: str | None = None
+    company_id: str | None = None
+    start_date: datetime.date | None = None
+    end_date: datetime.date | None = None
+    status: EventStatus | None = None
+    paperless_custom_field_value: str | None = None
 
 
 class EventResponse(BaseModel):
@@ -51,12 +50,12 @@ class EventResponse(BaseModel):
     user_id: str
     company_id: str
     name: str
-    description: Optional[str]
+    description: str | None
     start_date: datetime.date
     end_date: datetime.date
     status: EventStatus
-    external_tag: Optional[str]
-    paperless_custom_field_value: Optional[str] = None
+    external_tag: str | None
+    paperless_custom_field_value: str | None = None
     created_at: datetime.datetime
     updated_at: datetime.datetime
 
@@ -66,4 +65,4 @@ class EventResponse(BaseModel):
 class EventDetailResponse(EventResponse):
     """Schema for detailed event response with company info."""
 
-    company_name: Optional[str] = None
+    company_name: str | None = None

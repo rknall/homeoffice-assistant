@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
 """Integration API endpoints."""
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -91,7 +90,7 @@ def list_integration_types(
 
 @router.get("", response_model=list[IntegrationConfigResponse])
 def list_integrations(
-    integration_type: Optional[IntegrationType] = None,
+    integration_type: IntegrationType | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[IntegrationConfigResponse]:
@@ -453,7 +452,7 @@ async def add_custom_field_choice(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(e),
-            )
+            ) from e
         # Return updated choices
         choices = await provider.get_custom_field_choices(field_id)
         return CustomFieldChoicesResponse(choices=choices)

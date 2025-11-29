@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
 """Integration configuration service."""
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -20,7 +20,7 @@ def list_integration_types() -> list[dict[str, Any]]:
 
 def get_integration_configs(
     db: Session,
-    integration_type: Optional[IntegrationType] = None,
+    integration_type: IntegrationType | None = None,
     active_only: bool = False,
 ) -> list[IntegrationConfig]:
     """Get all integration configurations."""
@@ -32,7 +32,7 @@ def get_integration_configs(
     return query.all()
 
 
-def get_integration_config(db: Session, config_id: str) -> Optional[IntegrationConfig]:
+def get_integration_config(db: Session, config_id: str) -> IntegrationConfig | None:
     """Get a single integration configuration by ID."""
     return db.query(IntegrationConfig).filter(IntegrationConfig.id == config_id).first()
 
@@ -93,7 +93,7 @@ def get_decrypted_config(config: IntegrationConfig) -> dict[str, Any]:
     return decrypt_config(config.config_encrypted)
 
 
-def create_provider_instance(config: IntegrationConfig) -> Optional[IntegrationProvider]:
+def create_provider_instance(config: IntegrationConfig) -> IntegrationProvider | None:
     """Create a provider instance from an integration configuration."""
     decrypted = get_decrypted_config(config)
     return IntegrationRegistry.create_provider(config.integration_type.value, decrypted)
@@ -111,7 +111,7 @@ async def test_integration_connection(config: IntegrationConfig) -> tuple[bool, 
         await provider.close()
 
 
-def get_active_document_provider(db: Session) -> Optional[IntegrationConfig]:
+def get_active_document_provider(db: Session) -> IntegrationConfig | None:
     """Get the active document provider (Paperless) configuration."""
     configs = get_integration_configs(
         db,

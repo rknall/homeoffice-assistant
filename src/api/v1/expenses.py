@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
 """Expense API endpoints."""
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -23,7 +22,7 @@ router = APIRouter()
 @router.get("/{event_id}/expenses", response_model=list[ExpenseResponse])
 def list_expenses(
     event_id: str,
-    expense_status: Optional[ExpenseStatus] = None,
+    expense_status: ExpenseStatus | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[ExpenseResponse]:

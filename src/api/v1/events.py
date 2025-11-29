@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
 """Event API endpoints."""
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
@@ -10,9 +9,9 @@ from sqlalchemy.orm import Session
 from src.api.deps import get_current_user, get_db
 from src.integrations.base import DocumentProvider
 from src.models import User
-from src.models.enums import EventStatus, IntegrationType
+from src.models.enums import EventStatus
 from src.schemas.event import EventCreate, EventDetailResponse, EventResponse, EventUpdate
-from src.schemas.integration import DeleteDocumentRequest, DocumentResponse
+from src.schemas.integration import DocumentResponse
 from src.services import company_service, event_service, integration_service
 
 router = APIRouter()
@@ -20,8 +19,8 @@ router = APIRouter()
 
 @router.get("", response_model=list[EventDetailResponse])
 def list_events(
-    company_id: Optional[str] = None,
-    event_status: Optional[EventStatus] = None,
+    company_id: str | None = None,
+    event_status: EventStatus | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[EventDetailResponse]:
@@ -298,6 +297,6 @@ async def get_document_preview(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to download document: {str(e)}",
-        )
+        ) from e
     finally:
         await provider.close()

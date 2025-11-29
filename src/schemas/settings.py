@@ -1,10 +1,9 @@
 # SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
 """Settings schemas."""
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
-
 
 # Date format options
 DateFormatType = Literal["YYYY-MM-DD", "DD.MM.YYYY", "DD/MM/YYYY", "MM/DD/YYYY"]
@@ -24,6 +23,6 @@ class LocaleSettingsResponse(BaseModel):
 class LocaleSettingsUpdate(BaseModel):
     """Schema for updating locale settings."""
 
-    date_format: Optional[DateFormatType] = None
-    time_format: Optional[TimeFormatType] = None
-    timezone: Optional[str] = Field(None, max_length=50)
+    date_format: DateFormatType | None = None
+    time_format: TimeFormatType | None = None
+    timezone: str | None = Field(None, max_length=50)

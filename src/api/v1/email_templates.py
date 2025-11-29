@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
 """Email template API endpoints."""
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -23,8 +22,8 @@ router = APIRouter()
 
 @router.get("", response_model=list[EmailTemplateResponse])
 def list_templates(
-    reason: Optional[str] = None,
-    company_id: Optional[str] = None,
+    reason: str | None = None,
+    company_id: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[EmailTemplateResponse]:
@@ -40,7 +39,7 @@ def list_templates(
 
 @router.get("/global", response_model=list[EmailTemplateResponse])
 def list_global_templates(
-    reason: Optional[str] = None,
+    reason: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[EmailTemplateResponse]:

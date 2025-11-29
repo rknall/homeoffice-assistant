@@ -2,11 +2,10 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Expense report generator service."""
 import io
-import re
 import zipfile
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -38,7 +37,7 @@ class ExpenseReportGenerator:
     def __init__(
         self,
         db: Session,
-        paperless: Optional[DocumentProvider] = None,
+        paperless: DocumentProvider | None = None,
     ):
         self.db = db
         self.paperless = paperless

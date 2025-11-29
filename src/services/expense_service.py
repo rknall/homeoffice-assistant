@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
 """Expense service."""
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -13,7 +12,7 @@ from src.schemas.expense import ExpenseCreate, ExpenseUpdate
 def get_expenses(
     db: Session,
     event_id: str,
-    status: Optional[ExpenseStatus] = None,
+    status: ExpenseStatus | None = None,
 ) -> list[Expense]:
     """Get expenses for an event."""
     query = db.query(Expense).filter(Expense.event_id == event_id)
@@ -22,7 +21,7 @@ def get_expenses(
     return query.order_by(Expense.date).all()
 
 
-def get_expense(db: Session, expense_id: str) -> Optional[Expense]:
+def get_expense(db: Session, expense_id: str) -> Expense | None:
     """Get an expense by ID."""
     return db.query(Expense).filter(Expense.id == expense_id).first()
 
@@ -31,7 +30,7 @@ def get_expense_for_event(
     db: Session,
     expense_id: str,
     event_id: str,
-) -> Optional[Expense]:
+) -> Expense | None:
     """Get an expense that belongs to a specific event."""
     return (
         db.query(Expense)

@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Company schemas."""
 import datetime
-from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -19,21 +18,21 @@ class CompanyBase(BaseModel):
 class CompanyCreate(CompanyBase):
     """Schema for creating a company."""
 
-    paperless_storage_path_id: Optional[int] = None
-    expense_recipient_email: Optional[EmailStr] = None
-    expense_recipient_name: Optional[str] = Field(None, max_length=200)
-    report_recipients: Optional[list[dict[str, str]]] = None
+    paperless_storage_path_id: int | None = None
+    expense_recipient_email: EmailStr | None = None
+    expense_recipient_name: str | None = Field(None, max_length=200)
+    report_recipients: list[dict[str, str]] | None = None
 
 
 class CompanyUpdate(BaseModel):
     """Schema for updating a company."""
 
-    name: Optional[str] = Field(None, min_length=1, max_length=200)
-    type: Optional[CompanyType] = None
-    paperless_storage_path_id: Optional[int] = None
-    expense_recipient_email: Optional[EmailStr] = None
-    expense_recipient_name: Optional[str] = Field(None, max_length=200)
-    report_recipients: Optional[list[dict[str, str]]] = None
+    name: str | None = Field(None, min_length=1, max_length=200)
+    type: CompanyType | None = None
+    paperless_storage_path_id: int | None = None
+    expense_recipient_email: EmailStr | None = None
+    expense_recipient_name: str | None = Field(None, max_length=200)
+    report_recipients: list[dict[str, str]] | None = None
 
 
 class CompanyResponse(BaseModel):
@@ -42,10 +41,10 @@ class CompanyResponse(BaseModel):
     id: str
     name: str
     type: CompanyType
-    paperless_storage_path_id: Optional[int]
-    expense_recipient_email: Optional[str]
-    expense_recipient_name: Optional[str]
-    report_recipients: Optional[list[dict[str, str]]]
+    paperless_storage_path_id: int | None
+    expense_recipient_email: str | None
+    expense_recipient_name: str | None
+    report_recipients: list[dict[str, str]] | None
     created_at: datetime.datetime
     updated_at: datetime.datetime
 

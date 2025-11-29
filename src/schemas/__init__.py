@@ -18,6 +18,11 @@ from src.schemas.company import (
     CompanyResponse,
     CompanyUpdate,
 )
+from src.schemas.contact import (
+    ContactCreate,
+    ContactResponse,
+    ContactUpdate,
+)
 from src.schemas.email_template import (
     EmailTemplateCreate,
     EmailTemplateResponse,
@@ -26,11 +31,6 @@ from src.schemas.email_template import (
     TemplatePreviewResponse,
     TemplateReason,
     TemplateVariableInfo,
-)
-from src.schemas.contact import (
-    ContactCreate,
-    ContactResponse,
-    ContactUpdate,
 )
 from src.schemas.event import (
     EventCreate,

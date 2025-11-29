@@ -3,7 +3,6 @@
 """Expense schemas."""
 import datetime
 from decimal import Decimal
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -18,7 +17,7 @@ class ExpenseBase(BaseModel):
     currency: str = Field(default="EUR", min_length=3, max_length=3)
     payment_type: PaymentType
     category: ExpenseCategory
-    description: Optional[str] = None
+    description: str | None = None
 
     @field_validator("amount")
     @classmethod
@@ -31,26 +30,26 @@ class ExpenseBase(BaseModel):
 class ExpenseCreate(ExpenseBase):
     """Schema for creating an expense."""
 
-    paperless_doc_id: Optional[int] = None
-    original_filename: Optional[str] = Field(None, max_length=255)
+    paperless_doc_id: int | None = None
+    original_filename: str | None = Field(None, max_length=255)
 
 
 class ExpenseUpdate(BaseModel):
     """Schema for updating an expense."""
 
-    date: Optional[datetime.date] = None
-    amount: Optional[Decimal] = Field(None, ge=0, decimal_places=2)
-    currency: Optional[str] = Field(None, min_length=3, max_length=3)
-    payment_type: Optional[PaymentType] = None
-    category: Optional[ExpenseCategory] = None
-    description: Optional[str] = None
-    status: Optional[ExpenseStatus] = None
-    paperless_doc_id: Optional[int] = None
-    original_filename: Optional[str] = Field(None, max_length=255)
+    date: datetime.date | None = None
+    amount: Decimal | None = Field(None, ge=0, decimal_places=2)
+    currency: str | None = Field(None, min_length=3, max_length=3)
+    payment_type: PaymentType | None = None
+    category: ExpenseCategory | None = None
+    description: str | None = None
+    status: ExpenseStatus | None = None
+    paperless_doc_id: int | None = None
+    original_filename: str | None = Field(None, max_length=255)
 
     @field_validator("amount")
     @classmethod
-    def validate_amount(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+    def validate_amount(cls, v: Decimal | None) -> Decimal | None:
         if v is not None:
             if v <= 0:
                 raise ValueError("Amount must be positive")
@@ -63,15 +62,15 @@ class ExpenseResponse(BaseModel):
 
     id: str
     event_id: str
-    paperless_doc_id: Optional[int]
+    paperless_doc_id: int | None
     date: datetime.date
     amount: Decimal
     currency: str
     payment_type: PaymentType
     category: ExpenseCategory
-    description: Optional[str]
+    description: str | None
     status: ExpenseStatus
-    original_filename: Optional[str]
+    original_filename: str | None
     created_at: datetime.datetime
     updated_at: datetime.datetime
 

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Integration schemas."""
 import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -25,9 +25,9 @@ class IntegrationConfigCreate(IntegrationConfigBase):
 class IntegrationConfigUpdate(BaseModel):
     """Schema for updating an integration config."""
 
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    config: Optional[dict[str, Any]] = None
-    is_active: Optional[bool] = None
+    name: str | None = Field(None, min_length=1, max_length=100)
+    config: dict[str, Any] | None = None
+    is_active: bool | None = None
 
 
 class IntegrationConfigResponse(BaseModel):
@@ -86,7 +86,7 @@ class CustomFieldResponse(BaseModel):
     id: int
     name: str
     data_type: str
-    extra_data: Optional[dict[str, Any]] = None
+    extra_data: dict[str, Any] | None = None
 
 
 class CustomFieldChoicesResponse(BaseModel):
@@ -134,12 +134,12 @@ class DocumentResponse(BaseModel):
 
     id: int
     title: str
-    created: Optional[str] = None
-    added: Optional[str] = None
+    created: str | None = None
+    added: str | None = None
     original_file_name: str
-    correspondent: Optional[int] = None
-    document_type: Optional[int] = None
-    archive_serial_number: Optional[int] = None
+    correspondent: int | None = None
+    document_type: int | None = None
+    archive_serial_number: int | None = None
 
 
 class DeleteDocumentRequest(BaseModel):

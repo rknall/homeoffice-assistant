@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Company service."""
 import json
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -15,12 +14,12 @@ def get_companies(db: Session) -> list[Company]:
     return db.query(Company).order_by(Company.name).all()
 
 
-def get_company(db: Session, company_id: str) -> Optional[Company]:
+def get_company(db: Session, company_id: str) -> Company | None:
     """Get a company by ID."""
     return db.query(Company).filter(Company.id == company_id).first()
 
 
-def get_company_by_name(db: Session, name: str) -> Optional[Company]:
+def get_company_by_name(db: Session, name: str) -> Company | None:
     """Get a company by name."""
     return db.query(Company).filter(Company.name == name).first()
 

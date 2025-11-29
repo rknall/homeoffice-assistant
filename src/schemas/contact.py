@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Contact schemas."""
 import datetime
-from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -11,12 +10,12 @@ class ContactBase(BaseModel):
     """Base contact schema."""
 
     name: str = Field(..., min_length=1, max_length=200)
-    company: Optional[str] = Field(None, max_length=200)
-    role: Optional[str] = Field(None, max_length=200)
-    email: Optional[EmailStr] = None
-    phone: Optional[str] = Field(None, max_length=50)
-    notes: Optional[str] = None
-    met_on: Optional[datetime.date] = None
+    company: str | None = Field(None, max_length=200)
+    role: str | None = Field(None, max_length=200)
+    email: EmailStr | None = None
+    phone: str | None = Field(None, max_length=50)
+    notes: str | None = None
+    met_on: datetime.date | None = None
 
 
 class ContactCreate(ContactBase):
@@ -28,13 +27,13 @@ class ContactCreate(ContactBase):
 class ContactUpdate(BaseModel):
     """Schema for updating a contact."""
 
-    name: Optional[str] = Field(None, min_length=1, max_length=200)
-    company: Optional[str] = Field(None, max_length=200)
-    role: Optional[str] = Field(None, max_length=200)
-    email: Optional[EmailStr] = None
-    phone: Optional[str] = Field(None, max_length=50)
-    notes: Optional[str] = None
-    met_on: Optional[datetime.date] = None
+    name: str | None = Field(None, min_length=1, max_length=200)
+    company: str | None = Field(None, max_length=200)
+    role: str | None = Field(None, max_length=200)
+    email: EmailStr | None = None
+    phone: str | None = Field(None, max_length=50)
+    notes: str | None = None
+    met_on: datetime.date | None = None
 
 
 class ContactResponse(BaseModel):
@@ -43,12 +42,12 @@ class ContactResponse(BaseModel):
     id: str
     event_id: str
     name: str
-    company: Optional[str]
-    role: Optional[str]
-    email: Optional[str]
-    phone: Optional[str]
-    notes: Optional[str]
-    met_on: Optional[datetime.date]
+    company: str | None
+    role: str | None
+    email: str | None
+    phone: str | None
+    notes: str | None
+    met_on: datetime.date | None
     created_at: datetime.datetime
     updated_at: datetime.datetime
 

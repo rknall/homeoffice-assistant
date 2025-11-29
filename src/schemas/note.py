@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Note schemas."""
 import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -25,8 +24,8 @@ class NoteCreate(NoteBase):
 class NoteUpdate(BaseModel):
     """Schema for updating a note."""
 
-    content: Optional[str] = Field(None, min_length=1)
-    note_type: Optional[NoteType] = None
+    content: str | None = Field(None, min_length=1)
+    note_type: NoteType | None = None
 
 
 class NoteResponse(BaseModel):

@@ -36,9 +36,8 @@ class IntegrationProvider(ABC):
         """Check connectivity. Returns (success, message)."""
         ...
 
-    async def close(self) -> None:
-        """Clean up resources."""
-        pass
+    async def close(self) -> None:  # noqa: B027
+        """Clean up resources. Override in subclasses that need cleanup."""
 
 
 class DocumentProvider(IntegrationProvider):

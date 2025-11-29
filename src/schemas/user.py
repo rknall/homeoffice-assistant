@@ -3,7 +3,6 @@
 """User schemas."""
 import datetime
 import re
-from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -35,14 +34,14 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     """Schema for updating a user (admin use)."""
 
-    username: Optional[str] = Field(None, min_length=3, max_length=50)
-    email: Optional[EmailStr] = None
-    password: Optional[str] = Field(None, min_length=8)
-    is_active: Optional[bool] = None
+    username: str | None = Field(None, min_length=3, max_length=50)
+    email: EmailStr | None = None
+    password: str | None = Field(None, min_length=8)
+    is_active: bool | None = None
 
     @field_validator("username")
     @classmethod
-    def validate_username(cls, v: Optional[str]) -> Optional[str]:
+    def validate_username(cls, v: str | None) -> str | None:
         if v is not None and not USERNAME_PATTERN.match(v):
             raise ValueError("Username must contain only alphanumeric characters and underscores")
         return v
@@ -51,10 +50,10 @@ class UserUpdate(BaseModel):
 class UserProfileUpdate(BaseModel):
     """Schema for updating user's own profile."""
 
-    full_name: Optional[str] = Field(None, max_length=200)
-    use_gravatar: Optional[bool] = None
-    current_password: Optional[str] = None
-    new_password: Optional[str] = Field(None, min_length=8)
+    full_name: str | None = Field(None, max_length=200)
+    use_gravatar: bool | None = None
+    current_password: str | None = None
+    new_password: str | None = Field(None, min_length=8)
 
 
 class UserResponse(BaseModel):
@@ -66,8 +65,8 @@ class UserResponse(BaseModel):
     role: UserRole
     is_admin: bool
     is_active: bool
-    full_name: Optional[str] = None
-    avatar_url: Optional[str] = None
+    full_name: str | None = None
+    avatar_url: str | None = None
     use_gravatar: bool = True
     created_at: datetime.datetime
     updated_at: datetime.datetime

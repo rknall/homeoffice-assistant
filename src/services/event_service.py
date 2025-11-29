@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
 """Event service."""
-from typing import Optional
 
 from sqlalchemy.orm import Session, joinedload
 
@@ -14,9 +13,9 @@ from src.services import integration_service
 
 def get_events(
     db: Session,
-    user_id: Optional[str] = None,
-    company_id: Optional[str] = None,
-    status: Optional[EventStatus] = None,
+    user_id: str | None = None,
+    company_id: str | None = None,
+    status: EventStatus | None = None,
     include_company: bool = False,
 ) -> list[Event]:
     """Get events with optional filters."""
@@ -32,14 +31,14 @@ def get_events(
     return query.order_by(Event.start_date.desc(), Event.end_date.desc()).all()
 
 
-def get_event(db: Session, event_id: str) -> Optional[Event]:
+def get_event(db: Session, event_id: str) -> Event | None:
     """Get an event by ID."""
     return db.query(Event).filter(Event.id == event_id).first()
 
 
 def get_event_for_user(
     db: Session, event_id: str, user_id: str, include_company: bool = False
-) -> Optional[Event]:
+) -> Event | None:
     """Get an event by ID that belongs to a specific user."""
     query = db.query(Event)
     if include_company:
@@ -97,7 +96,7 @@ def delete_event(db: Session, event: Event) -> None:
     db.commit()
 
 
-async def sync_event_tag_to_paperless(db: Session, event: Event) -> Optional[dict]:
+async def sync_event_tag_to_paperless(db: Session, event: Event) -> dict | None:
     """Legacy: Create or get the tag for this event in Paperless-ngx."""
     paperless_config = integration_service.get_active_document_provider(db)
     if not paperless_config:

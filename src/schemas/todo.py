@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Todo schemas."""
 import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -13,8 +12,8 @@ class TodoBase(BaseModel):
     """Base todo schema."""
 
     title: str = Field(..., min_length=1, max_length=200)
-    description: Optional[str] = None
-    due_date: Optional[datetime.date] = None
+    description: str | None = None
+    due_date: datetime.date | None = None
     category: TodoCategory = TodoCategory.OTHER
 
 
@@ -27,11 +26,11 @@ class TodoCreate(TodoBase):
 class TodoUpdate(BaseModel):
     """Schema for updating a todo."""
 
-    title: Optional[str] = Field(None, min_length=1, max_length=200)
-    description: Optional[str] = None
-    due_date: Optional[datetime.date] = None
-    completed: Optional[bool] = None
-    category: Optional[TodoCategory] = None
+    title: str | None = Field(None, min_length=1, max_length=200)
+    description: str | None = None
+    due_date: datetime.date | None = None
+    completed: bool | None = None
+    category: TodoCategory | None = None
 
 
 class TodoResponse(BaseModel):
@@ -40,8 +39,8 @@ class TodoResponse(BaseModel):
     id: str
     event_id: str
     title: str
-    description: Optional[str]
-    due_date: Optional[datetime.date]
+    description: str | None
+    due_date: datetime.date | None
     completed: bool
     category: TodoCategory
     created_at: datetime.datetime

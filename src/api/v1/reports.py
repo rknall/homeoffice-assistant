@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
 """Report API endpoints."""
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
@@ -21,11 +20,11 @@ router = APIRouter()
 class SendReportRequest(BaseModel):
     """Schema for sending expense report via email."""
 
-    recipient_email: Optional[str] = Field(
+    recipient_email: str | None = Field(
         None,
         description="Email address to send report to. If not provided, uses company expense recipient.",
     )
-    template_id: Optional[str] = Field(
+    template_id: str | None = Field(
         None,
         description="Email template ID to use. If not provided, uses default template.",
     )

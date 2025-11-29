@@ -2,9 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Email template service for CRUD and rendering operations."""
 import re
-from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
@@ -121,8 +119,8 @@ Travel Manager""",
 
 def get_templates(
     db: Session,
-    reason: Optional[str] = None,
-    company_id: Optional[str] = None,
+    reason: str | None = None,
+    company_id: str | None = None,
 ) -> list[EmailTemplate]:
     """Get all templates, optionally filtered by reason and/or company."""
     query = db.query(EmailTemplate)
@@ -142,7 +140,7 @@ def get_templates(
     return query.order_by(EmailTemplate.name).all()
 
 
-def get_global_templates(db: Session, reason: Optional[str] = None) -> list[EmailTemplate]:
+def get_global_templates(db: Session, reason: str | None = None) -> list[EmailTemplate]:
     """Get only global templates (company_id is NULL)."""
     query = db.query(EmailTemplate).filter(EmailTemplate.company_id.is_(None))
 
@@ -174,16 +172,16 @@ def get_templates_for_company(
     )
 
 
-def get_template(db: Session, template_id: str) -> Optional[EmailTemplate]:
+def get_template(db: Session, template_id: str) -> EmailTemplate | None:
     """Get a template by ID."""
     return db.query(EmailTemplate).filter(EmailTemplate.id == template_id).first()
 
 
 def get_default_template(
     db: Session,
-    company_id: Optional[str],
+    company_id: str | None,
     reason: str,
-) -> Optional[EmailTemplate]:
+) -> EmailTemplate | None:
     """Get the default template for a reason.
 
     Priority:
@@ -278,8 +276,8 @@ def delete_template(db: Session, template: EmailTemplate) -> None:
 def _unset_other_defaults(
     db: Session,
     reason: str,
-    company_id: Optional[str],
-    exclude_id: Optional[str] = None,
+    company_id: str | None,
+    exclude_id: str | None = None,
 ) -> None:
     """Unset is_default for other templates in the same scope."""
     query = db.query(EmailTemplate).filter(
@@ -306,7 +304,7 @@ def get_reasons() -> list[TemplateReason]:
     return list(TEMPLATE_REASONS.values())
 
 
-def get_reason_variables(reason: str) -> Optional[TemplateReason]:
+def get_reason_variables(reason: str) -> TemplateReason | None:
     """Get variables for a specific reason."""
     return TEMPLATE_REASONS.get(reason)
 

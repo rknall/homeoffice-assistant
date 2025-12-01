@@ -3,6 +3,7 @@
 """Integrations package."""
 # Import providers to register them
 from src.integrations import (
+    immich,  # noqa: F401
     paperless,  # noqa: F401
     smtp,  # noqa: F401
 )

@@ -2,9 +2,10 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Photo reference model for Immich integration."""
 import uuid
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, TimestampMixin
@@ -35,6 +36,12 @@ class PhotoReference(Base, TimestampMixin):
         default=False,
         nullable=False,
     )
+
+    # Photo metadata from Immich
+    thumbnail_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    taken_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # Relationships
     event: Mapped[Event] = relationship("Event", back_populates="photo_references")

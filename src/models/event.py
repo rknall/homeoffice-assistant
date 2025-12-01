@@ -5,7 +5,7 @@ import uuid
 from datetime import date
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, Enum, ForeignKey, String, Text
+from sqlalchemy import Date, Enum, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, TimestampMixin
@@ -59,6 +59,13 @@ class Event(Base, TimestampMixin):
         String(200),
         nullable=True,
     )
+
+    # Location fields
+    city: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    country: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    country_code: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # Relationships
     user: Mapped[User] = relationship("User", back_populates="events")

@@ -62,6 +62,12 @@ export interface Event {
   status: EventStatus
   external_tag: string | null
   paperless_custom_field_value: string | null
+  // Location fields
+  city: string | null
+  country: string | null
+  country_code: string | null
+  latitude: number | null
+  longitude: number | null
   created_at: string
   updated_at: string
   company_name?: string
@@ -75,6 +81,12 @@ export interface EventCreate {
   end_date: string
   status?: EventStatus
   paperless_custom_field_value?: string | null
+  // Location fields
+  city?: string | null
+  country?: string | null
+  country_code?: string | null
+  latitude?: number | null
+  longitude?: number | null
 }
 
 // Expense types
@@ -324,4 +336,65 @@ export interface RestoreResponse {
   success: boolean
   message: string
   requires_restart: boolean
+}
+
+// Location types
+export interface LocationSuggestion {
+  city: string | null
+  country: string
+  country_code: string
+  latitude: number
+  longitude: number
+  display_name: string
+}
+
+export interface LocationImage {
+  image_url: string
+  thumbnail_url: string
+  photographer_name: string | null
+  photographer_url: string | null
+  attribution_html: string | null
+}
+
+// Photo types
+export interface PhotoAsset {
+  id: string
+  original_filename: string | null
+  thumbnail_url: string | null
+  taken_at: string | null
+  latitude: number | null
+  longitude: number | null
+  city: string | null
+  country: string | null
+  distance_km: number | null
+  is_linked: boolean
+}
+
+export interface PhotoReference {
+  id: string
+  event_id: string
+  immich_asset_id: string
+  caption: string | null
+  include_in_report: boolean
+  thumbnail_url: string | null
+  taken_at: string | null
+  latitude: number | null
+  longitude: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PhotoReferenceCreate {
+  immich_asset_id: string
+  caption?: string | null
+  include_in_report?: boolean
+  thumbnail_url?: string | null
+  taken_at?: string | null
+  latitude?: number | null
+  longitude?: number | null
+}
+
+export interface PhotoReferenceUpdate {
+  caption?: string | null
+  include_in_report?: boolean
 }

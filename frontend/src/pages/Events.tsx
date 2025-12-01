@@ -5,9 +5,10 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Trash2, Pencil, ChevronDown } from 'lucide-react'
+import { Plus, Trash2, Pencil, ChevronDown, MapPin } from 'lucide-react'
 import { api } from '@/api/client'
 import type { Company, Event, EventStatus, EventCustomFieldChoices as EventCustomFieldChoicesType } from '@/types'
+import { LocationAutocomplete } from '@/components/LocationAutocomplete'
 import { useLocale } from '@/stores/locale'
 import { useBreadcrumb } from '@/stores/breadcrumb'
 import { Button } from '@/components/ui/Button'
@@ -69,6 +70,20 @@ export function Events() {
   const [isEditCreatingNewCustomField, setIsEditCreatingNewCustomField] = useState(false)
   const [editNewCustomFieldValue, setEditNewCustomFieldValue] = useState('')
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const [location, setLocation] = useState({
+    city: null as string | null,
+    country: null as string | null,
+    country_code: null as string | null,
+    latitude: null as number | null,
+    longitude: null as number | null,
+  })
+  const [editLocation, setEditLocation] = useState({
+    city: null as string | null,
+    country: null as string | null,
+    country_code: null as string | null,
+    latitude: null as number | null,
+    longitude: null as number | null,
+  })
 
   const {
     register,
@@ -147,6 +162,13 @@ export function Events() {
       end_date: event.end_date,
       paperless_custom_field_value: event.paperless_custom_field_value || '',
     })
+    setEditLocation({
+      city: event.city ?? null,
+      country: event.country ?? null,
+      country_code: event.country_code ?? null,
+      latitude: event.latitude ?? null,
+      longitude: event.longitude ?? null,
+    })
     setIsEditModalOpen(true)
   }
 
@@ -163,12 +185,20 @@ export function Events() {
         ...data,
         description: data.description || null,
         paperless_custom_field_value: customFieldValue || null,
+        ...editLocation,
       })
       await fetchData()
       setIsEditModalOpen(false)
       setEditingEvent(null)
       setIsEditCreatingNewCustomField(false)
       setEditNewCustomFieldValue('')
+      setEditLocation({
+        city: null,
+        country: null,
+        country_code: null,
+        latitude: null,
+        longitude: null,
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to update event')
     } finally {
@@ -206,6 +236,7 @@ export function Events() {
         ...data,
         description: data.description || null,
         paperless_custom_field_value: customFieldValue || null,
+        ...location,
       })
       navigate(`/events/${event.id}`)
     } catch (e) {
@@ -267,6 +298,11 @@ export function Events() {
                         <span className="text-gray-600">{event.company_name} &middot; </span>
                       )}
                       {formatDate(event.start_date)} to {formatDate(event.end_date)}
+                      {(event.city || event.country) && (
+                        <span className="ml-2 text-gray-600">
+                          <MapPin className="inline h-3 w-3" /> {event.city ? `${event.city}, ${event.country}` : event.country}
+                        </span>
+                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -322,6 +358,13 @@ export function Events() {
           setIsModalOpen(false)
           setIsCreatingNewCustomField(false)
           setNewCustomFieldValue('')
+          setLocation({
+            city: null,
+            country: null,
+            country_code: null,
+            latitude: null,
+            longitude: null,
+          })
           reset()
         }}
         title="Create New Event"
@@ -356,6 +399,14 @@ export function Events() {
               type="date"
               {...register('end_date')}
               error={errors.end_date?.message}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+            <LocationAutocomplete
+              value={location}
+              onChange={setLocation}
+              placeholder="Search for a city..."
             />
           </div>
           {customFieldChoices?.available && (
@@ -394,6 +445,13 @@ export function Events() {
                 setIsModalOpen(false)
                 setIsCreatingNewCustomField(false)
                 setNewCustomFieldValue('')
+                setLocation({
+                  city: null,
+                  country: null,
+                  country_code: null,
+                  latitude: null,
+                  longitude: null,
+                })
                 reset()
               }}
             >
@@ -413,6 +471,13 @@ export function Events() {
           setEditingEvent(null)
           setIsEditCreatingNewCustomField(false)
           setEditNewCustomFieldValue('')
+          setEditLocation({
+            city: null,
+            country: null,
+            country_code: null,
+            latitude: null,
+            longitude: null,
+          })
           resetEdit()
         }}
         title="Edit Event"
@@ -447,6 +512,14 @@ export function Events() {
               type="date"
               {...registerEdit('end_date')}
               error={editErrors.end_date?.message}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+            <LocationAutocomplete
+              value={editLocation}
+              onChange={setEditLocation}
+              placeholder="Search for a city..."
             />
           </div>
           {customFieldChoices?.available && (
@@ -486,6 +559,13 @@ export function Events() {
                 setEditingEvent(null)
                 setIsEditCreatingNewCustomField(false)
                 setEditNewCustomFieldValue('')
+                setEditLocation({
+                  city: null,
+                  country: null,
+                  country_code: null,
+                  latitude: null,
+                  longitude: null,
+                })
                 resetEdit()
               }}
             >

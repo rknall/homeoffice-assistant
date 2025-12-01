@@ -53,10 +53,20 @@ from src.schemas.integration import (
     StoragePathResponse,
     TagResponse,
 )
+from src.schemas.location import (
+    LocationImageResponse,
+    LocationSuggestion,
+)
 from src.schemas.note import (
     NoteCreate,
     NoteResponse,
     NoteUpdate,
+)
+from src.schemas.photo import (
+    PhotoAsset,
+    PhotoReferenceCreate,
+    PhotoReferenceResponse,
+    PhotoReferenceUpdate,
 )
 from src.schemas.todo import (
     TodoCreate,
@@ -118,6 +128,14 @@ __all__ = [
     "IntegrationTestResult",
     "StoragePathResponse",
     "TagResponse",
+    # Location
+    "LocationSuggestion",
+    "LocationImageResponse",
+    # Photo
+    "PhotoAsset",
+    "PhotoReferenceCreate",
+    "PhotoReferenceUpdate",
+    "PhotoReferenceResponse",
     # Email Template
     "EmailTemplateCreate",
     "EmailTemplateUpdate",

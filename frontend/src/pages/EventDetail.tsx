@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: GPL-2.0-only
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Download, Plus, Trash2, Pencil, Mail, FileText, RefreshCw, Receipt } from 'lucide-react'
+import { Download, Plus, Trash2, Pencil, Mail, FileText, RefreshCw, Receipt, MapPin, Camera } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { api, downloadFile } from '@/api/client'
-import type { Company, Document, Event, EventStatus, Expense, ExpenseReportPreview, EventCustomFieldChoices, EmailTemplate, TemplatePreviewResponse } from '@/types'
+import type { Company, Document, Event, EventStatus, Expense, ExpenseReportPreview, EventCustomFieldChoices, EmailTemplate, TemplatePreviewResponse, LocationImage } from '@/types'
+import { PhotoGallery } from '@/components/PhotoGallery'
 import { useLocale } from '@/stores/locale'
 import { useBreadcrumb } from '@/stores/breadcrumb'
 import { Button } from '@/components/ui/Button'
@@ -115,6 +116,8 @@ export function EventDetail() {
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isEditSaving, setIsEditSaving] = useState(false)
+  const [locationImage, setLocationImage] = useState<LocationImage | null>(null)
+  const [photoCount, setPhotoCount] = useState(0)
 
   const {
     register,
@@ -185,6 +188,16 @@ export function EventDetail() {
     }
   }
 
+  const fetchLocationImage = async (eventId: string) => {
+    try {
+      const image = await api.get<LocationImage | null>(`/events/${eventId}/location-image`)
+      setLocationImage(image)
+    } catch {
+      // Location image is optional, ignore errors
+      setLocationImage(null)
+    }
+  }
+
   const fetchData = async () => {
     if (!id) return
     try {
@@ -202,6 +215,10 @@ export function EventDetail() {
       setCustomFieldChoices(choicesData)
       // Fetch documents after main data
       fetchDocuments()
+      // Fetch location image if event has location
+      if (eventData.country) {
+        fetchLocationImage(id)
+      }
     } catch {
       setError('Failed to load event')
     } finally {
@@ -570,36 +587,93 @@ export function EventDetail() {
 
   return (
     <div>
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{event.name}</h1>
-            <p className="text-gray-500">
+      {/* Location Image Banner */}
+      {locationImage && (
+        <div className="relative mb-6 -mx-6 -mt-6 h-48 overflow-hidden">
+          <img
+            src={locationImage.image_url}
+            alt={event.city ? `${event.city}, ${event.country}` : event.country || ''}
+            className="h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+          <div className="absolute bottom-4 left-6 right-6">
+            <h1 className="text-2xl font-bold text-white drop-shadow-lg">{event.name}</h1>
+            <p className="text-white/90 drop-shadow">
               {event.company_name && (
-                <span className="text-gray-600">{event.company_name} &middot; </span>
+                <span>{event.company_name} &middot; </span>
               )}
               {formatDate(event.start_date)} to {formatDate(event.end_date)}
+              {(event.city || event.country) && (
+                <span className="ml-2">
+                  <MapPin className="inline h-4 w-4" /> {event.city ? `${event.city}, ${event.country}` : event.country}
+                </span>
+              )}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="absolute top-4 right-6 flex items-center gap-3">
             <Badge variant={statusColors[event.status]}>{statusLabels[event.status]}</Badge>
             <button
               onClick={openEditModal}
-              className="p-2 text-gray-400 hover:text-gray-600"
+              className="p-2 text-white/80 hover:text-white bg-black/20 rounded-full"
               title="Edit event"
             >
               <Pencil className="h-5 w-5" />
             </button>
             <button
               onClick={deleteEvent}
-              className="p-2 text-gray-400 hover:text-red-600"
+              className="p-2 text-white/80 hover:text-red-400 bg-black/20 rounded-full"
               title="Delete event"
             >
               <Trash2 className="h-5 w-5" />
             </button>
           </div>
+          {locationImage.attribution_html && (
+            <div
+              className="absolute bottom-1 right-2 text-xs text-white/60"
+              dangerouslySetInnerHTML={{ __html: locationImage.attribution_html }}
+            />
+          )}
         </div>
-      </div>
+      )}
+
+      {/* Standard Header (no location image) */}
+      {!locationImage && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{event.name}</h1>
+              <p className="text-gray-500">
+                {event.company_name && (
+                  <span className="text-gray-600">{event.company_name} &middot; </span>
+                )}
+                {formatDate(event.start_date)} to {formatDate(event.end_date)}
+                {(event.city || event.country) && (
+                  <span className="ml-2 text-gray-600">
+                    <MapPin className="inline h-4 w-4" /> {event.city ? `${event.city}, ${event.country}` : event.country}
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Badge variant={statusColors[event.status]}>{statusLabels[event.status]}</Badge>
+              <button
+                onClick={openEditModal}
+                className="p-2 text-gray-400 hover:text-gray-600"
+                title="Edit event"
+              >
+                <Pencil className="h-5 w-5" />
+              </button>
+              <button
+                onClick={deleteEvent}
+                className="p-2 text-gray-400 hover:text-red-600"
+                title="Delete event"
+              >
+                <Trash2 className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && <Alert variant="error" className="mb-4">{error}</Alert>}
 
@@ -775,6 +849,27 @@ export function EventDetail() {
               </table>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Camera className="h-5 w-5" />
+            Photos from Immich
+            {photoCount > 0 && (
+              <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                {photoCount} linked
+              </span>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PhotoGallery
+            eventId={id!}
+            hasLocation={!!(event.latitude && event.longitude)}
+            onPhotoCountChange={setPhotoCount}
+          />
         </CardContent>
       </Card>
 

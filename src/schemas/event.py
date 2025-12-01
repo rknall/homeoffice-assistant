@@ -29,6 +29,12 @@ class EventCreate(EventBase):
     company_id: str
     status: EventStatus = EventStatus.PLANNING
     paperless_custom_field_value: str | None = None
+    # Location fields
+    city: str | None = None
+    country: str | None = None
+    country_code: str | None = Field(None, max_length=3)
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 class EventUpdate(BaseModel):
@@ -41,6 +47,12 @@ class EventUpdate(BaseModel):
     end_date: datetime.date | None = None
     status: EventStatus | None = None
     paperless_custom_field_value: str | None = None
+    # Location fields
+    city: str | None = None
+    country: str | None = None
+    country_code: str | None = Field(None, max_length=3)
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 class EventResponse(BaseModel):
@@ -56,6 +68,12 @@ class EventResponse(BaseModel):
     status: EventStatus
     external_tag: str | None
     paperless_custom_field_value: str | None = None
+    # Location fields
+    city: str | None = None
+    country: str | None = None
+    country_code: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
     created_at: datetime.datetime
     updated_at: datetime.datetime
 

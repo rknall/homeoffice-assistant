@@ -42,9 +42,18 @@ const smtpSchema = z.object({
   use_ssl: z.boolean().optional(),
 })
 
+const immichSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100),
+  integration_type: z.literal('immich'),
+  url: z.string().url('Invalid URL'),
+  api_key: z.string().min(1, 'API key is required'),
+  search_radius_km: z.string().optional(),
+})
+
 const integrationSchema = z.discriminatedUnion('integration_type', [
   paperlessSchema,
   smtpSchema,
+  immichSchema,
 ])
 
 type IntegrationForm = z.infer<typeof integrationSchema>
@@ -116,7 +125,7 @@ export function IntegrationSettings() {
     try {
       const detail = await api.get<IntegrationConfigDetail>(`/integrations/${integration.id}/config`)
       setValue('name', detail.name)
-      setValue('integration_type', detail.integration_type as 'paperless' | 'smtp')
+      setValue('integration_type', detail.integration_type as 'paperless' | 'smtp' | 'immich')
       if (detail.integration_type === 'paperless') {
         setValue('url', detail.config.url as string || '')
         setValue('token', '')
@@ -130,6 +139,10 @@ export function IntegrationSettings() {
         setValue('from_name', detail.config.from_name as string || '')
         setValue('use_tls', detail.config.use_tls as boolean ?? true)
         setValue('use_ssl', detail.config.use_ssl as boolean ?? false)
+      } else if (detail.integration_type === 'immich') {
+        setValue('url', detail.config.url as string || '')
+        setValue('api_key', '')
+        setValue('search_radius_km', String(detail.config.search_radius_km || '50'))
       }
     } catch {
       setError('Failed to load integration configuration')
@@ -165,6 +178,12 @@ export function IntegrationSettings() {
           from_name: data.from_name || '',
           use_tls: data.use_tls ?? true,
           use_ssl: data.use_ssl ?? false,
+        }
+      } else if (data.integration_type === 'immich') {
+        config = {
+          url: data.url,
+          api_key: data.api_key,
+          search_radius_km: parseInt(data.search_radius_km || '50', 10),
         }
       } else {
         throw new Error('Unknown integration type')
@@ -452,6 +471,32 @@ export function IntegrationSettings() {
                     <span className="text-sm text-gray-700">Use SSL</span>
                   </label>
                 </div>
+              </>
+            )}
+
+            {watchedType === 'immich' && (
+              <>
+                <Input
+                  label="URL"
+                  {...register('url')}
+                  error={'url' in errors ? errors.url?.message : undefined}
+                  description="Base URL of your Immich server (e.g., https://immich.example.com)"
+                />
+                <Input
+                  label="API Key"
+                  type="password"
+                  {...register('api_key')}
+                  error={'api_key' in errors ? errors.api_key?.message : undefined}
+                  description="Your Immich API key (found in Account Settings)"
+                />
+                <Input
+                  label="Search Radius (km)"
+                  type="number"
+                  {...register('search_radius_km')}
+                  error={'search_radius_km' in errors ? errors.search_radius_km?.message : undefined}
+                  description="Maximum distance from event location to search for photos (default: 50km)"
+                  defaultValue="50"
+                />
               </>
             )}
 

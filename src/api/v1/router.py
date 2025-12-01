@@ -12,7 +12,9 @@ from src.api.v1 import (
     events,
     expenses,
     integrations,
+    locations,
     notes,
+    photos,
     reports,
     settings,
     todos,
@@ -57,3 +59,9 @@ api_router.include_router(
 
 # Backup routes
 api_router.include_router(backup.router, prefix="/backup", tags=["backup"])
+
+# Location routes
+api_router.include_router(locations.router)
+
+# Photo routes (nested under events)
+api_router.include_router(photos.router, prefix="/events", tags=["photos"])

@@ -19,6 +19,7 @@ from src.models.enums import (
 from src.models.event import Event
 from src.models.expense import Expense
 from src.models.integration_config import IntegrationConfig
+from src.models.location_image import LocationImage
 from src.models.note import Note
 from src.models.photo_reference import PhotoReference
 from src.models.session import Session
@@ -38,6 +39,7 @@ __all__ = [
     "Note",
     "Todo",
     "PhotoReference",
+    "LocationImage",
     "IntegrationConfig",
     "SystemSettings",
     "EmailTemplate",

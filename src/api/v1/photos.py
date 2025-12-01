@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
 """Photo API endpoints for Immich integration."""
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
@@ -77,16 +77,30 @@ async def get_event_photos(
 
     try:
         # Search for photos
-        # Extend date range by 1 day on each side to catch edge cases
-        start_date = datetime.combine(event.start_date, datetime.min.time())
-        end_date = datetime.combine(event.end_date, datetime.max.time()) + timedelta(days=1)
+        # For future events (planning), search by location only
+        # For past/current events, use date range
+        today = date.today()
 
-        assets = await provider.search_by_location_and_date(
-            latitude=event.latitude,
-            longitude=event.longitude,
-            start_date=start_date,
-            end_date=end_date,
-        )
+        if event.start_date > today:
+            # Future event - search by location only
+            assets = await provider.search_by_location_and_date(
+                latitude=event.latitude,
+                longitude=event.longitude,
+                start_date=None,
+                end_date=None,
+            )
+        else:
+            # Past or current event - search by date range
+            # Extend date range by 1 day on each side to catch edge cases
+            start_date = datetime.combine(event.start_date, datetime.min.time())
+            end_date = datetime.combine(event.end_date, datetime.max.time()) + timedelta(days=1)
+
+            assets = await provider.search_by_location_and_date(
+                latitude=event.latitude,
+                longitude=event.longitude,
+                start_date=start_date,
+                end_date=end_date,
+            )
 
         # Get already-linked photo IDs
         linked_ids = {

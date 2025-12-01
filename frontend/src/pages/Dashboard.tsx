@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus } from 'lucide-react'
+import { Plus, MapPin } from 'lucide-react'
 import { api } from '@/api/client'
 import type { Event, EventStatus } from '@/types'
 import { useLocale } from '@/stores/locale'
@@ -94,23 +94,49 @@ export function Dashboard() {
               No events yet. Create your first event to get started.
             </p>
           ) : (
-            <div className="divide-y divide-gray-200">
+            <div className="space-y-3">
               {events.slice(0, 5).map((event) => (
                 <Link
                   key={event.id}
                   to={`/events/${event.id}`}
-                  className="flex items-center justify-between py-4 hover:bg-gray-50 -mx-6 px-6 transition-colors"
+                  className={`relative block rounded-lg overflow-hidden transition-all hover:shadow-md ${
+                    event.cover_thumbnail_url
+                      ? 'min-h-[80px]'
+                      : 'bg-gray-50 hover:bg-gray-100'
+                  }`}
                 >
-                  <div>
-                    <h3 className="font-medium text-gray-900">{event.name}</h3>
-                    <p className="text-sm text-gray-500">
-                      {event.company_name && (
-                        <span className="text-gray-600">{event.company_name} &middot; </span>
-                      )}
-                      {formatDate(event.start_date)} to {formatDate(event.end_date)}
-                    </p>
+                  {event.cover_thumbnail_url && (
+                    <>
+                      <div
+                        className="absolute inset-0 bg-cover bg-center"
+                        style={{ backgroundImage: `url(${event.cover_thumbnail_url})` }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-black/30" />
+                    </>
+                  )}
+                  <div className={`relative flex items-center justify-between p-4 ${
+                    event.cover_thumbnail_url ? 'text-white' : ''
+                  }`}>
+                    <div>
+                      <h3 className={`font-medium ${event.cover_thumbnail_url ? 'text-white' : 'text-gray-900'}`}>
+                        {event.name}
+                      </h3>
+                      <p className={`text-sm ${event.cover_thumbnail_url ? 'text-white/80' : 'text-gray-500'}`}>
+                        {event.company_name && (
+                          <span className={event.cover_thumbnail_url ? 'text-white/90' : 'text-gray-600'}>
+                            {event.company_name} &middot;{' '}
+                          </span>
+                        )}
+                        {formatDate(event.start_date)} to {formatDate(event.end_date)}
+                        {(event.city || event.country) && (
+                          <span className="ml-2">
+                            <MapPin className="inline h-3 w-3" /> {event.city ? `${event.city}, ${event.country}` : event.country}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <Badge variant={statusColors[event.status]}>{event.status}</Badge>
                   </div>
-                  <Badge variant={statusColors[event.status]}>{event.status}</Badge>
                 </Link>
               ))}
             </div>

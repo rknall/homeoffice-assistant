@@ -144,26 +144,32 @@ class ImmichProvider(PhotoProvider):
         self,
         latitude: float,
         longitude: float,
-        start_date: datetime,
-        end_date: datetime,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
         radius_km: float | None = None,
     ) -> list[dict[str, Any]]:
         """
-        Search for photos by location and date range.
+        Search for photos by location and optionally date range.
 
         Since Immich doesn't support proximity search natively,
-        we fetch by date range and filter by distance client-side.
+        we fetch assets and filter by distance client-side.
+
+        If start_date/end_date are None, searches all photos by location only.
         """
         if radius_km is None:
             radius_km = self.search_radius_km
 
-        # Search by date range
+        # Build search params
         params: dict[str, Any] = {
-            "takenAfter": start_date.isoformat(),
-            "takenBefore": end_date.isoformat(),
             "size": 1000,
             "page": 1,
         }
+
+        # Only add date filters if provided
+        if start_date is not None:
+            params["takenAfter"] = start_date.isoformat()
+        if end_date is not None:
+            params["takenBefore"] = end_date.isoformat()
 
         resp = await self._client.post("/api/search/metadata", json=params)
         resp.raise_for_status()

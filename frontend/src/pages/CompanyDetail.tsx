@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Pencil, Trash2, Plus } from 'lucide-react'
 import { api } from '@/api/client'
 import type { Company, IntegrationConfig, StoragePath, EmailTemplate, TemplateReason } from '@/types'
@@ -27,6 +27,7 @@ export function CompanyDetail() {
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [hasSmtpIntegration, setHasSmtpIntegration] = useState(true)
 
   const fetchCompany = async () => {
     if (!id) return
@@ -72,6 +73,15 @@ export function CompanyDetail() {
     }
   }
 
+  const checkSmtpIntegration = async () => {
+    try {
+      const integrations = await api.get<IntegrationConfig[]>('/integrations')
+      setHasSmtpIntegration(integrations.some(i => i.integration_type === 'smtp'))
+    } catch {
+      // Silently fail - assume configured
+    }
+  }
+
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true)
@@ -80,6 +90,7 @@ export function CompanyDetail() {
         fetchTemplates(),
         fetchReasons(),
         fetchStoragePaths(),
+        checkSmtpIntegration(),
       ])
       setIsLoading(false)
     }
@@ -215,6 +226,14 @@ export function CompanyDetail() {
       </Card>
 
       {/* Email Templates Card */}
+      {!hasSmtpIntegration && (
+        <Alert variant="warning" className="mb-4">
+          No email integration has been configured. Email templates cannot be used until you{' '}
+          <Link to="/settings/integrations" className="font-medium underline hover:no-underline">
+            configure an SMTP server
+          </Link>.
+        </Alert>
+      )}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Email Templates</CardTitle>

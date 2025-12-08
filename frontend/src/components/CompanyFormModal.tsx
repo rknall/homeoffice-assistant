@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { api } from '@/api/client'
 import type { Company, IntegrationConfig, StoragePath } from '@/types'
+import { optionalEmailSchema } from '@/lib/validation'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -14,13 +15,7 @@ import { Modal } from '@/components/ui/Modal'
 const companySchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),
   type: z.enum(['employer', 'third_party']),
-  expense_recipient_email: z
-    .string()
-    .refine(
-      (val) => val === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
-      { message: 'Please enter a valid email address' }
-    )
-    .optional(),
+  expense_recipient_email: optionalEmailSchema,
   expense_recipient_name: z.string().max(200).optional(),
   paperless_storage_path_id: z.string().optional(),
 })

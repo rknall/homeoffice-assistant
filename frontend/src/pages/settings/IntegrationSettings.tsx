@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { Plus, Trash2, CheckCircle, XCircle, Mail, Pencil } from 'lucide-react'
 import { api } from '@/api/client'
 import type { IntegrationConfig, IntegrationTypeInfo } from '@/types'
+import { emailSchema } from '@/lib/validation'
 import { useBreadcrumb } from '@/stores/breadcrumb'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -36,7 +37,7 @@ const smtpSchema = z.object({
   port: z.string().min(1, 'Port is required'),
   username: z.string().optional(),
   password: z.string().optional(),
-  from_email: z.string().email('Invalid email'),
+  from_email: emailSchema,
   from_name: z.string().optional(),
   use_tls: z.boolean().optional(),
   use_ssl: z.boolean().optional(),
@@ -92,6 +93,7 @@ export function IntegrationSettings() {
     formState: { errors },
   } = useForm<IntegrationForm>({
     resolver: zodResolver(integrationSchema),
+    mode: 'onBlur',
     defaultValues: {
       integration_type: 'paperless',
     } as IntegrationForm,

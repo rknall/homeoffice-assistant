@@ -49,6 +49,10 @@
 - Email validation with real-time error display on blur
 - Unique email constraint prevents duplicate expense recipient emails
 
+#### Shared Validation
+- Reusable email validation utilities (`frontend/src/lib/validation.ts`)
+- Consistent email validation across Company forms and SMTP integration settings
+
 #### Email Templates
 - Prevent deletion of last global template (backend + frontend)
 - Prefill option when creating new templates with default content
@@ -63,6 +67,11 @@
 
 - Fix event location and cover image saving
 - Fix Immich search for future events
+
+### Warnings & Guidance
+
+- SMTP configuration warning on Email Templates settings page when no email integration configured
+- SMTP configuration warning on Company detail page with link to integration settings
 
 ---
 

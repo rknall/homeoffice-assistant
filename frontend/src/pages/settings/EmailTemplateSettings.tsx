@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Plus, Trash2, Pencil } from 'lucide-react'
 import { api } from '@/api/client'
-import type { EmailTemplate, TemplateReason } from '@/types'
+import type { EmailTemplate, TemplateReason, IntegrationConfig } from '@/types'
 import { useBreadcrumb } from '@/stores/breadcrumb'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -20,6 +21,7 @@ export function EmailTemplateSettings() {
   const [isEditorOpen, setIsEditorOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [hasSmtpIntegration, setHasSmtpIntegration] = useState(true)
 
   useEffect(() => {
     setBreadcrumb([
@@ -31,12 +33,14 @@ export function EmailTemplateSettings() {
   const fetchData = async () => {
     setIsLoading(true)
     try {
-      const [templatesData, reasonsData] = await Promise.all([
+      const [templatesData, reasonsData, integrationsData] = await Promise.all([
         api.get<EmailTemplate[]>('/email-templates/global'),
         api.get<TemplateReason[]>('/email-templates/reasons'),
+        api.get<IntegrationConfig[]>('/integrations'),
       ])
       setTemplates(templatesData)
       setReasons(reasonsData)
+      setHasSmtpIntegration(integrationsData.some(i => i.integration_type === 'smtp'))
     } catch {
       setError('Failed to load email templates')
     } finally {
@@ -84,6 +88,15 @@ export function EmailTemplateSettings() {
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Email Templates</h1>
 
       {error && <Alert variant="error" className="mb-4">{error}</Alert>}
+
+      {!hasSmtpIntegration && (
+        <Alert variant="warning" className="mb-4">
+          No email integration has been configured. Email templates cannot be used until you{' '}
+          <Link to="/settings/integrations" className="font-medium underline hover:no-underline">
+            configure an SMTP server
+          </Link>.
+        </Alert>
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

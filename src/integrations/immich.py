@@ -8,10 +8,10 @@ from typing import Any
 
 import httpx
 
-logger = logging.getLogger(__name__)
-
 from src.integrations.base import PhotoProvider
 from src.integrations.registry import IntegrationRegistry
+
+logger = logging.getLogger(__name__)
 
 
 @IntegrationRegistry.register

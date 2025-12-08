@@ -660,18 +660,16 @@ def mock_paperless(respx_mock: MockRouter):
 ### Format
 Each entry should include:
 - Feature/change description
-- Commit hash (6-8 characters) in parentheses, e.g., `(abc1234)`
 - Categorize under: Major Features, Improvements, or Bug Fixes
 
 ### Example Entry
 ```markdown
-#### Feature Name (`abc1234`)
+#### Feature Name
 - Brief description of the feature
 - Key capabilities or changes
 ```
 
 ### When to Update
-- After committing a feature, immediately add it to RELEASENOTES.md
-- Group related commits under a single feature entry
+- When committing a feature, include the RELEASENOTES.md update in the same commit
+- Group related changes under a single feature entry
 - Keep the "In Development" version at the top until release
-- Releasenotes should always be commited WITH the commit they reference

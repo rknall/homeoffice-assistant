@@ -4,72 +4,72 @@
 
 ### Major Features
 
-#### Immich Integration (`e2556aa`)
+#### Immich Integration
 - Connect to Immich photo server for event photos
 - Search photos by date range and location
 - Select cover images for events from Immich library
 - Photo thumbnails displayed in event views
 
-#### Location Support (`e2556aa`)
+#### Location Support
 - Add location fields (city, country, coordinates) to events
 - Location displayed on event cards and detail pages
 - Map pin indicators in event listings
 
-#### Cover Images (`a9701d3`, `06aae07`)
+#### Cover Images
 - Event cover images with gradient overlays
 - Cover image backgrounds on event list and detail pages
 - Dashboard displays event cover thumbnails
 - Support for both Immich photos and Unsplash images
 
-#### Unsplash Integration (`469a334`, `ddd7754`)
+#### Unsplash Integration
 - Search and select cover images from Unsplash
 - Unsplash form fields for image selection
 - Proper attribution for Unsplash images
 
 ### Improvements
 
-#### User Registration (`41a9608`)
+#### User Registration
 - Added display name (full name) field to registration
 - Real-time password validation with requirement indicators
 - Auto-generate username from first name
 - Username availability check with automatic suffix if taken
 - Enhanced email validation
 
-#### Regional Settings (`13b87bb`)
+#### Regional Settings
 - "Detect from Browser" button to auto-detect locale settings
 - Auto-detects date format, time format, and timezone
 - Success notification when settings are saved
 
-#### Event Management (`9eb6506`)
+#### Event Management
 - "New Event" button disabled until at least one company exists
 - Tooltip explains company requirement
 - Removed redundant "New Event" button from dashboard
 
-#### Company Management (`8bc545b`)
+#### Company Management
 - Email validation with real-time error display on blur
 - Unique email constraint prevents duplicate expense recipient emails
 
-#### Email Templates (`4d54f6b`)
+#### Email Templates
 - Prevent deletion of last global template (backend + frontend)
 - Prefill option when creating new templates with default content
 - "Use Default" / "Start Empty" prompt for new templates
 
-#### UI/UX Improvements (`469a334`)
+#### UI/UX Improvements
 - Shared form modals for consistent editing experience
 - Improved backup/restore functionality
 - Better form styling and layout
 
 ### Bug Fixes
 
-- Fix event location and cover image saving (`ddd7754`)
-- Fix Immich search for future events (`06aae07`)
+- Fix event location and cover image saving
+- Fix Immich search for future events
 
 ---
 
 ## Version 0.1.1
 
 ### Features
-- Backup and restore functionality (`e29af78`)
+- Backup and restore functionality
 - Paperless integration improvements
 
 ### Bug Fixes

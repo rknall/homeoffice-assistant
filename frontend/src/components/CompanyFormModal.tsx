@@ -14,7 +14,13 @@ import { Modal } from '@/components/ui/Modal'
 const companySchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),
   type: z.enum(['employer', 'third_party']),
-  expense_recipient_email: z.string().email().optional().or(z.literal('')),
+  expense_recipient_email: z
+    .string()
+    .refine(
+      (val) => val === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
+      { message: 'Please enter a valid email address' }
+    )
+    .optional(),
   expense_recipient_name: z.string().max(200).optional(),
   paperless_storage_path_id: z.string().optional(),
 })
@@ -51,6 +57,7 @@ export function CompanyFormModal({
     formState: { errors },
   } = useForm<CompanyFormData>({
     resolver: zodResolver(companySchema),
+    mode: 'onBlur',
   })
 
   // Fetch storage paths for Paperless integration

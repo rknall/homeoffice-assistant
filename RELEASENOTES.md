@@ -45,6 +45,10 @@
 - Tooltip explains company requirement
 - Removed redundant "New Event" button from dashboard
 
+#### Company Management (`8bc545b`)
+- Email validation with real-time error display on blur
+- Unique email constraint prevents duplicate expense recipient emails
+
 #### UI/UX Improvements (`469a334`)
 - Shared form modals for consistent editing experience
 - Improved backup/restore functionality

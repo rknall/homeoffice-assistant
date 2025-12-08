@@ -24,6 +24,14 @@ def get_company_by_name(db: Session, name: str) -> Company | None:
     return db.query(Company).filter(Company.name == name).first()
 
 
+def get_company_by_email(db: Session, email: str, exclude_id: str | None = None) -> Company | None:
+    """Get a company by expense recipient email, optionally excluding a specific company ID."""
+    query = db.query(Company).filter(Company.expense_recipient_email == email)
+    if exclude_id:
+        query = query.filter(Company.id != exclude_id)
+    return query.first()
+
+
 def create_company(db: Session, data: CompanyCreate) -> Company:
     """Create a new company."""
     company = Company(

@@ -37,6 +37,15 @@ def create_company(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Company with this name already exists",
         )
+
+    if data.expense_recipient_email:
+        existing_email = company_service.get_company_by_email(db, data.expense_recipient_email)
+        if existing_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Another company already uses this email address",
+            )
+
     company = company_service.create_company(db, data)
     return CompanyResponse(**company_service.company_to_response_dict(company))
 
@@ -78,6 +87,14 @@ def update_company(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Company with this name already exists",
+            )
+
+    if data.expense_recipient_email and data.expense_recipient_email != company.expense_recipient_email:
+        existing_email = company_service.get_company_by_email(db, data.expense_recipient_email, exclude_id=company_id)
+        if existing_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Another company already uses this email address",
             )
 
     company = company_service.update_company(db, company, data)

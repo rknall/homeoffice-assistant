@@ -71,6 +71,21 @@ def get_reason_variables(
     return reason_info
 
 
+@router.get("/default-content/{reason}")
+def get_default_content(
+    reason: str,
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Get the default template content for a reason (for prefilling new templates)."""
+    default_content = email_template_service.get_default_template_content(reason)
+    if not default_content:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No default content for reason: {reason}",
+        )
+    return default_content
+
+
 @router.post("/preview", response_model=TemplatePreviewResponse)
 def preview_template(
     data: TemplatePreviewRequest,
@@ -202,4 +217,12 @@ def delete_template(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Email template not found",
         )
+
+    # Prevent deleting the last global template
+    if email_template_service.is_last_global_template(db, template):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete the last global email template. At least one template must exist.",
+        )
+
     email_template_service.delete_template(db, template)

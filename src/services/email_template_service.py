@@ -273,6 +273,18 @@ def delete_template(db: Session, template: EmailTemplate) -> None:
     db.commit()
 
 
+def count_global_templates(db: Session) -> int:
+    """Count the number of global templates."""
+    return db.query(EmailTemplate).filter(EmailTemplate.company_id.is_(None)).count()
+
+
+def is_last_global_template(db: Session, template: EmailTemplate) -> bool:
+    """Check if this is the last global template."""
+    if template.company_id is not None:
+        return False  # Company-specific templates can always be deleted
+    return count_global_templates(db) <= 1
+
+
 def _unset_other_defaults(
     db: Session,
     reason: str,
@@ -307,6 +319,13 @@ def get_reasons() -> list[TemplateReason]:
 def get_reason_variables(reason: str) -> TemplateReason | None:
     """Get variables for a specific reason."""
     return TEMPLATE_REASONS.get(reason)
+
+
+def get_default_template_content(reason: str) -> dict | None:
+    """Get default template content for prefilling new templates."""
+    if reason == "expense_report":
+        return DEFAULT_EXPENSE_REPORT_TEMPLATE
+    return None
 
 
 def render_template(

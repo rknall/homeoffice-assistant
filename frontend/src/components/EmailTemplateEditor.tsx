@@ -45,6 +45,7 @@ export function EmailTemplateEditor({
   const [preview, setPreview] = useState<TemplatePreviewResponse | null>(null)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit')
+  const [showPrefillPrompt, setShowPrefillPrompt] = useState(false)
 
   const {
     register,
@@ -83,6 +84,7 @@ export function EmailTemplateEditor({
           body_text: template.body_text,
           is_default: template.is_default,
         })
+        setShowPrefillPrompt(false)
       } else {
         reset({
           name: '',
@@ -92,11 +94,39 @@ export function EmailTemplateEditor({
           body_text: '',
           is_default: false,
         })
+        // Show prefill prompt for new templates
+        setShowPrefillPrompt(true)
       }
       setPreview(null)
       setActiveTab('edit')
     }
   }, [isOpen, template, reset])
+
+  const loadDefaultContent = async () => {
+    try {
+      const defaultContent = await api.get<{
+        name: string
+        subject: string
+        body_html: string
+        body_text: string
+      }>(`/email-templates/default-content/${watchReason}`)
+      reset({
+        name: defaultContent.name + ' (Copy)',
+        reason: watchReason,
+        subject: defaultContent.subject,
+        body_html: defaultContent.body_html,
+        body_text: defaultContent.body_text,
+        is_default: false,
+      })
+      setShowPrefillPrompt(false)
+    } catch {
+      setError('Failed to load default template content')
+    }
+  }
+
+  const skipPrefill = () => {
+    setShowPrefillPrompt(false)
+  }
 
   // Debounced preview update
   useEffect(() => {
@@ -207,6 +237,22 @@ export function EmailTemplateEditor({
           </div>
 
           {error && <Alert variant="error" className="mb-4">{error}</Alert>}
+
+          {showPrefillPrompt && !template && (
+            <Alert variant="info" className="mb-4">
+              <div className="flex items-center justify-between">
+                <span>Would you like to start with the default template?</span>
+                <div className="flex gap-2 ml-4">
+                  <Button size="sm" onClick={loadDefaultContent}>
+                    Use Default
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={skipPrefill}>
+                    Start Empty
+                  </Button>
+                </div>
+              </div>
+            </Alert>
+          )}
 
           {activeTab === 'edit' ? (
             <form onSubmit={handleSubmit(onSubmit)} className="flex-1 flex flex-col space-y-4">

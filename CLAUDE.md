@@ -674,3 +674,4 @@ Each entry should include:
 - After committing a feature, immediately add it to RELEASENOTES.md
 - Group related commits under a single feature entry
 - Keep the "In Development" version at the top until release
+- Releasenotes should always be commited WITH the commit they reference

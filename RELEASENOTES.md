@@ -49,6 +49,11 @@
 - Email validation with real-time error display on blur
 - Unique email constraint prevents duplicate expense recipient emails
 
+#### Email Templates (`4d54f6b`)
+- Prevent deletion of last global template (backend + frontend)
+- Prefill option when creating new templates with default content
+- "Use Default" / "Start Empty" prompt for new templates
+
 #### UI/UX Improvements (`469a334`)
 - Shared form modals for consistent editing experience
 - Improved backup/restore functionality

@@ -64,14 +64,20 @@ export function EmailTemplateSettings() {
   }
 
   const deleteTemplate = async (id: string) => {
+    if (templates.length <= 1) {
+      setError('Cannot delete the last email template. At least one template must exist.')
+      return
+    }
     if (!confirm('Are you sure you want to delete this email template?')) return
     try {
       await api.delete(`/email-templates/${id}`)
       await fetchData()
-    } catch {
-      setError('Failed to delete template')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete template')
     }
   }
+
+  const isLastTemplate = templates.length <= 1
 
   return (
     <div>
@@ -122,8 +128,9 @@ export function EmailTemplateSettings() {
                     </button>
                     <button
                       onClick={() => deleteTemplate(template.id)}
-                      className="p-1 text-gray-400 hover:text-red-600"
-                      title="Delete template"
+                      className={`p-1 ${isLastTemplate ? 'text-gray-200 cursor-not-allowed' : 'text-gray-400 hover:text-red-600'}`}
+                      title={isLastTemplate ? 'Cannot delete the last template' : 'Delete template'}
+                      disabled={isLastTemplate}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

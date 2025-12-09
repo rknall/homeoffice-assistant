@@ -21,7 +21,7 @@ from src.services.backup_encryption import (
 logger = logging.getLogger(__name__)
 
 # Current backup format version
-BACKUP_FORMAT_VERSION = "0.2.1"
+BACKUP_FORMAT_VERSION = "0.2.2"
 
 # Derive paths from database URL
 DATA_DIR = Path("./data")

@@ -1,6 +1,6 @@
 [project]
 name = "travel-manager"
-version = "0.1.1"
+version = "0.2.1"
 description = "Self-hosted business trip management with expense tracking and report generation"
 readme = "README.md"
 requires-python = ">=3.14"

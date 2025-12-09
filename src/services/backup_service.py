@@ -118,6 +118,15 @@ def create_backup(username: str, password: str) -> tuple[bytes, str]:
             conn.close()
             backup_conn.close()
 
+            # Clear users and sessions from backup (users are instance-specific)
+            # This must happen before exporting configs to avoid foreign key issues
+            clean_conn = sqlite3.connect(str(dest_db))
+            clean_conn.execute("DELETE FROM users")
+            clean_conn.execute("DELETE FROM sessions")
+            clean_conn.commit()
+            clean_conn.close()
+            logger.info("Cleared users and sessions from backup database")
+
             # Export integration configs (decrypted) before we lose access to SECRET_KEY
             integration_configs = _export_integration_configs(dest_db)
             with open(backup_dir / "integration_configs.json", "w") as f:
@@ -340,46 +349,64 @@ def _import_integration_configs(db_path: Path, configs: list[dict], admin_id: st
         Number of configs imported
     """
     imported = 0
+    conn = None
     try:
         conn = sqlite3.connect(str(db_path))
         cursor = conn.cursor()
 
-        # Clear existing integration configs
+        # Clear existing integration configs (encrypted with old SECRET_KEY)
         cursor.execute("DELETE FROM integration_configs")
+        logger.info(f"Cleared existing integration configs from restored database")
 
         for config in configs:
+            config_id = config.get("id", "unknown")
+            config_type = config.get("integration_type", "unknown")
+
             if config.get("config_data") is None:
-                logger.warning(f"Skipping config {config.get('id')} - no config data")
+                logger.warning(
+                    f"Skipping config {config_type} ({config_id}) - no config_data in backup"
+                )
                 continue
 
-            # Re-encrypt with current SECRET_KEY
-            encrypted = encrypt_config(config["config_data"])
+            try:
+                # Re-encrypt with current SECRET_KEY
+                encrypted = encrypt_config(config["config_data"])
 
-            cursor.execute(
-                """
-                INSERT INTO integration_configs
-                (id, integration_type, name, config_encrypted, is_active, created_by,
-                 created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    config["id"],
-                    config["integration_type"],
-                    config["name"],
-                    encrypted,
-                    config["is_active"],
-                    admin_id,  # Use current admin instead of original created_by
-                    config["created_at"],
-                    config["updated_at"],
-                ),
-            )
-            imported += 1
+                cursor.execute(
+                    """
+                    INSERT INTO integration_configs
+                    (id, integration_type, name, config_encrypted, is_active, created_by,
+                     created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        config["id"],
+                        config["integration_type"],
+                        config["name"],
+                        encrypted,
+                        config["is_active"],
+                        admin_id,  # Use current admin instead of original created_by
+                        config["created_at"],
+                        config["updated_at"],
+                    ),
+                )
+                imported += 1
+                logger.info(f"Re-encrypted and imported config: {config_type}")
+            except Exception as e:
+                logger.error(
+                    f"Failed to import config {config_type} ({config_id}): {e}"
+                )
+                continue
 
         conn.commit()
-        conn.close()
-        logger.info(f"Imported {imported} integration configs")
+        logger.info(f"Successfully imported {imported}/{len(configs)} integration configs")
     except Exception as e:
         logger.error(f"Failed to import integration configs: {e}")
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            conn.close()
 
     return imported
 
@@ -397,55 +424,79 @@ def _preserve_admin_user(db_path: Path, admin_data: dict) -> bool:
     Returns:
         True if successful
     """
+    conn = None
     try:
         conn = sqlite3.connect(str(db_path))
         cursor = conn.cursor()
 
         admin_id = admin_data["id"]
+        admin_username = admin_data["username"]
 
-        # Delete all existing users
+        # Count users before deletion
+        cursor.execute("SELECT COUNT(*) FROM users")
+        user_count_before = cursor.fetchone()[0]
+        logger.info(
+            f"Preserving current admin '{admin_username}', removing {user_count_before} users from backup"
+        )
+
+        # Delete all existing users from backup
         cursor.execute("DELETE FROM users")
 
         # Insert the current admin
+        # Note: We include all required columns for schema compatibility
         cursor.execute(
             """
-            INSERT INTO users (id, username, email, hashed_password, is_admin, is_active,
-                               avatar_url, use_gravatar, regional_settings, created_at, updated_at)
+            INSERT INTO users (id, username, email, hashed_password, role, is_admin, is_active,
+                               avatar_url, use_gravatar, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 admin_id,
-                admin_data["username"],
+                admin_username,
                 admin_data["email"],
                 admin_data["hashed_password"],
+                "ADMIN",  # role - required field
                 True,  # is_admin
                 True,  # is_active
                 admin_data.get("avatar_url"),
                 admin_data.get("use_gravatar", True),
-                admin_data.get("regional_settings"),
                 admin_data.get("created_at", datetime.now(UTC).isoformat()),
                 datetime.now(UTC).isoformat(),
             ),
         )
 
-        # Update all foreign keys to point to admin
+        # Update all foreign keys to point to current admin
         # Events
-        cursor.execute("UPDATE events SET user_id = ?", (admin_id,))
+        cursor.execute("SELECT COUNT(*) FROM events")
+        event_count = cursor.fetchone()[0]
+        if event_count > 0:
+            cursor.execute("UPDATE events SET user_id = ?", (admin_id,))
+            logger.info(f"Updated {event_count} events to be owned by current admin")
 
         # Integration configs (created_by)
-        cursor.execute("UPDATE integration_configs SET created_by = ?", (admin_id,))
+        cursor.execute("SELECT COUNT(*) FROM integration_configs")
+        config_count = cursor.fetchone()[0]
+        if config_count > 0:
+            cursor.execute("UPDATE integration_configs SET created_by = ?", (admin_id,))
+            logger.info(f"Updated {config_count} integration configs to be owned by current admin")
 
         # Clear all sessions (force re-login)
         cursor.execute("DELETE FROM sessions")
+        logger.info("Cleared all sessions - users will need to re-login")
 
         conn.commit()
-        conn.close()
-
-        logger.info(f"Preserved admin user: {admin_data['username']}")
+        logger.info(
+            f"Successfully preserved admin user '{admin_username}' - restore complete"
+        )
         return True
     except Exception as e:
         logger.error(f"Failed to preserve admin user: {e}")
+        if conn:
+            conn.rollback()
         return False
+    finally:
+        if conn:
+            conn.close()
 
 
 def _get_user_data(user_id: str) -> dict | None:
@@ -573,15 +624,18 @@ def perform_restore(
     details["migrations_run"] = migration_success
     details["migrations_message"] = migration_msg
 
-    # Preserve current admin user
-    if admin_data:
-        _preserve_admin_user(DB_PATH, admin_data)
-
     # Import integration configs (v0.2.1+)
+    # Backup no longer contains users, so we just need to re-encrypt configs
+    # and update foreign keys to point to current admin
     if integration_configs and admin_data:
+        logger.info(f"Re-encrypting and importing {len(integration_configs)} integration configs")
         details["configs_imported"] = _import_integration_configs(
             DB_PATH, integration_configs, admin_data["id"]
         )
+        if details["configs_imported"] != len(integration_configs):
+            logger.warning(
+                f"Only imported {details['configs_imported']} of {len(integration_configs)} configs"
+            )
     elif backup_secret_key:
         # Legacy backup - update .env with the old secret key so configs remain readable
         _update_env_secret_key(backup_secret_key)
@@ -589,6 +643,60 @@ def perform_restore(
             " Note: Legacy backup restored with original SECRET_KEY. "
             "Consider creating a new password-protected backup."
         )
+
+    # Re-insert current admin and update foreign keys
+    # Backup has no users (cleared during backup creation), so we need to:
+    # 1. Insert the current admin user into the restored database
+    # 2. Update all foreign keys to point to this admin
+    if admin_data:
+        try:
+            admin_id = admin_data["id"]
+            conn = sqlite3.connect(str(DB_PATH))
+            cursor = conn.cursor()
+
+            # Insert current admin into the restored database
+            cursor.execute(
+                """
+                INSERT INTO users (id, username, email, hashed_password, role, is_admin, is_active,
+                                   full_name, avatar_url, use_gravatar, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    admin_id,
+                    admin_data["username"],
+                    admin_data["email"],
+                    admin_data["hashed_password"],
+                    admin_data.get("role", "ADMIN"),
+                    True,  # is_admin
+                    True,  # is_active
+                    admin_data.get("full_name"),
+                    admin_data.get("avatar_url"),
+                    admin_data.get("use_gravatar", True),
+                    admin_data.get("created_at", datetime.now(UTC).isoformat()),
+                    datetime.now(UTC).isoformat(),
+                ),
+            )
+            logger.info(f"Inserted current admin '{admin_data['username']}' into restored database")
+
+            # Update events to be owned by current admin
+            cursor.execute("UPDATE events SET user_id = ?", (admin_id,))
+            event_count = cursor.rowcount
+            logger.info(f"Updated {event_count} events to be owned by current admin")
+
+            # Update integration configs ownership
+            cursor.execute("UPDATE integration_configs SET created_by = ?", (admin_id,))
+            config_count = cursor.rowcount
+            logger.info(f"Updated {config_count} integration configs ownership")
+
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Failed to restore admin user: {e}")
+            return (
+                False,
+                f"Restore failed: could not restore admin user: {e}",
+                details,
+            )
 
     return True, "Restore completed. Please restart the application to apply changes.", details
 

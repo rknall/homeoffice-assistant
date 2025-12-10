@@ -7,7 +7,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 from src.models import Company, CompanyContact
-from src.models.enums import CompanyType, ContactType, ExpenseCategory, PaymentType
+from src.models.enums import CompanyType, ContactType
 from src.schemas.email_template import EmailTemplateCreate, EmailTemplateUpdate
 from src.services import email_template_service
 

@@ -7,9 +7,9 @@ from datetime import datetime, timedelta
 from src.models import SystemSettings, User
 from src.models.session import Session as SessionModel
 from src.schemas.auth import RegisterRequest
+from src.security import get_password_hash
 from src.services import auth_service
 from src.services import email_template_service as email_service
-from src.security import get_password_hash
 
 
 def create_user(db_session, username: str = "existing") -> User:

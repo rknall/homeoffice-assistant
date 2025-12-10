@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """FastAPI application entry point."""
 
+import logging
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -10,13 +12,43 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-# Ensure avatar directory exists
+from src.database import SessionLocal
+from src.plugins import PluginRegistry
+
+logger = logging.getLogger(__name__)
+
+# Ensure directories exist
 os.makedirs("static/avatars", exist_ok=True)
+os.makedirs("plugins", exist_ok=True)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan handler for startup and shutdown events."""
+    # Startup: Initialize plugin system
+    logger.info("Initializing plugin system...")
+    registry = PluginRegistry.get_instance()
+    registry.set_app(app)
+
+    db = SessionLocal()
+    try:
+        await registry.load_all_plugins(db)
+        logger.info(f"Loaded {len(registry.get_enabled_plugins())} enabled plugins")
+    except Exception as e:
+        logger.error(f"Error loading plugins: {e}")
+    finally:
+        db.close()
+
+    yield
+
+    # Shutdown: Cleanup
+    logger.info("Shutting down plugin system...")
 
 app = FastAPI(
     title="HomeOffice Assistant",
     description="Self-hosted personal productivity and work management assistant",
-    version="0.1.0",
+    version="0.3.0",
+    lifespan=lifespan,
 )
 
 # CORS middleware for frontend development
@@ -39,6 +71,15 @@ def health_check() -> dict:
 from src.api.v1.router import api_router  # noqa: E402
 
 app.include_router(api_router, prefix="/api/v1")
+
+# Mount plugin assets directory (for frontend plugin bundles)
+plugins_path = Path("plugins")
+if plugins_path.exists():
+    app.mount(
+        "/plugins",
+        StaticFiles(directory="plugins"),
+        name="plugins",
+    )
 
 # Mount static files for production frontend (if directory exists)
 static_path = Path("static")

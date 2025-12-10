@@ -1,0 +1,400 @@
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
+"""Plugin registry for managing loaded plugins."""
+
+import logging
+from pathlib import Path
+from typing import TYPE_CHECKING, ClassVar
+
+from src.plugins.base import BasePlugin, PluginConfig, PluginManifest
+from src.plugins.events import AppEvent, event_bus
+from src.plugins.loader import (
+    PLUGIN_MANIFEST_FILE,
+    PluginLoader,
+    parse_manifest,
+)
+
+if TYPE_CHECKING:
+    from fastapi import FastAPI
+    from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
+
+
+class PluginRegistry:
+    """Central registry for all loaded plugins.
+
+    This is a singleton that manages the lifecycle of all plugins:
+    loading, enabling, disabling, and uninstalling.
+    """
+
+    _instance: ClassVar[PluginRegistry | None] = None
+
+    def __init__(self) -> None:
+        """Initialize the plugin registry."""
+        self._plugins: dict[str, BasePlugin] = {}
+        self._loader = PluginLoader()
+        self._app: FastAPI | None = None
+        self._initialized = False
+
+    @classmethod
+    def get_instance(cls) -> PluginRegistry:
+        """Get the singleton instance of the registry."""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    @classmethod
+    def reset_instance(cls) -> None:
+        """Reset the singleton instance (for testing)."""
+        cls._instance = None
+
+    def set_app(self, app: FastAPI) -> None:
+        """Set the FastAPI app for route mounting.
+
+        Args:
+            app: FastAPI application instance
+        """
+        self._app = app
+
+    def get_plugin(self, plugin_id: str) -> BasePlugin | None:
+        """Get a loaded plugin by ID.
+
+        Args:
+            plugin_id: Plugin identifier
+
+        Returns:
+            Plugin instance or None if not loaded
+        """
+        return self._plugins.get(plugin_id)
+
+    def get_all_plugins(self) -> list[BasePlugin]:
+        """Get all loaded plugins.
+
+        Returns:
+            List of all loaded plugin instances
+        """
+        return list(self._plugins.values())
+
+    def get_enabled_plugins(self) -> list[BasePlugin]:
+        """Get all enabled plugins.
+
+        Returns:
+            List of enabled plugin instances
+        """
+        return [p for p in self._plugins.values() if p.config.enabled]
+
+    def is_plugin_loaded(self, plugin_id: str) -> bool:
+        """Check if a plugin is loaded.
+
+        Args:
+            plugin_id: Plugin identifier
+
+        Returns:
+            True if plugin is loaded
+        """
+        return plugin_id in self._plugins
+
+    async def load_all_plugins(self, db: Session) -> None:
+        """Discover and load all installed plugins.
+
+        Args:
+            db: Database session
+        """
+        from src.models.plugin_config import PluginConfigModel
+
+        if self._initialized:
+            logger.warning("Plugin registry already initialized")
+            return
+
+        discovered = self._loader.discover_plugins()
+        logger.info(f"Discovered {len(discovered)} plugins")
+
+        for plugin_path, manifest in discovered:
+            # Get config from database
+            db_config = (
+                db.query(PluginConfigModel)
+                .filter(PluginConfigModel.plugin_id == manifest.id)
+                .first()
+            )
+
+            if db_config is None:
+                # Plugin on disk but not in database - skip
+                logger.info(f"Skipping unregistered plugin: {manifest.id}")
+                continue
+
+            config = PluginConfig(
+                enabled=db_config.is_enabled,
+                settings=db_config.get_decrypted_settings(),
+            )
+
+            if not config.enabled:
+                logger.info(f"Plugin {manifest.id} is disabled, skipping load")
+                continue
+
+            try:
+                await self._load_single_plugin(plugin_path, manifest, config)
+            except Exception as e:
+                logger.error(f"Failed to load plugin {manifest.id}: {e}")
+
+        self._initialized = True
+
+    async def _load_single_plugin(
+        self,
+        plugin_path: Path,
+        manifest: PluginManifest,
+        config: PluginConfig,
+    ) -> BasePlugin:
+        """Load a single plugin.
+
+        Args:
+            plugin_path: Path to plugin directory
+            manifest: Plugin manifest
+            config: Plugin configuration
+
+        Returns:
+            Loaded plugin instance
+        """
+        plugin = self._loader.load_plugin(plugin_path, manifest, config)
+
+        # Mount routes if plugin provides them
+        router = plugin.get_router()
+        if router and self._app:
+            prefix = f"/api/v1/plugins/{manifest.id}"
+            self._app.include_router(
+                router,
+                prefix=prefix,
+                tags=[f"plugin:{manifest.id}"],
+            )
+            logger.debug(f"Mounted routes for {manifest.id} at {prefix}")
+
+        # Register event handlers
+        handlers = plugin.get_event_handlers()
+        for event_name, handler in handlers.items():
+            try:
+                event_type = AppEvent(event_name)
+                event_bus.subscribe(event_type, handler, manifest.id)
+            except ValueError:
+                logger.warning(
+                    f"Plugin {manifest.id} subscribed to unknown event: {event_name}"
+                )
+
+        # Call on_enable lifecycle hook
+        await plugin.on_enable()
+
+        self._plugins[manifest.id] = plugin
+        logger.info(f"Loaded plugin: {manifest.id} v{manifest.version}")
+
+        return plugin
+
+    async def install_plugin(
+        self,
+        zip_path: Path,
+        db: Session,
+    ) -> BasePlugin:
+        """Install and enable a new plugin from ZIP.
+
+        Args:
+            zip_path: Path to the plugin ZIP file
+            db: Database session
+
+        Returns:
+            Installed and loaded plugin instance
+        """
+        from src.models.plugin_config import PluginConfigModel
+        from src.plugins.migrations import PluginMigrationRunner
+
+        # Extract and validate
+        manifest = self._loader.install_from_zip(zip_path, db)
+
+        # Run migrations if plugin has them
+        plugin_path = self._loader.plugins_dir / manifest.id
+        migration_runner = PluginMigrationRunner(plugin_path, manifest.id)
+        if migration_runner.has_migrations():
+            migration_runner.run_migrations()
+
+        # Create database config record
+        db_config = PluginConfigModel(
+            plugin_id=manifest.id,
+            plugin_version=manifest.version,
+            is_enabled=True,
+            settings_encrypted=None,
+        )
+        db.add(db_config)
+        db.commit()
+
+        # Load the plugin
+        config = PluginConfig(enabled=True, settings={})
+        plugin = await self._load_single_plugin(plugin_path, manifest, config)
+
+        # Call on_install lifecycle hook
+        await plugin.on_install()
+
+        # Publish event
+        await event_bus.publish(
+            AppEvent.PLUGIN_INSTALLED,
+            {"plugin_id": manifest.id, "version": manifest.version},
+        )
+
+        return plugin
+
+    async def uninstall_plugin(
+        self,
+        plugin_id: str,
+        db: Session,
+        drop_tables: bool = False,
+    ) -> None:
+        """Uninstall a plugin.
+
+        Args:
+            plugin_id: Plugin to uninstall
+            db: Database session
+            drop_tables: Whether to drop plugin's database tables
+        """
+        from src.models.plugin_config import PluginConfigModel
+        from src.plugins.migrations import PluginMigrationRunner
+
+        plugin = self._plugins.get(plugin_id)
+
+        if plugin:
+            # Call lifecycle hook
+            await plugin.on_uninstall()
+            # Remove event handlers
+            event_bus.unsubscribe_plugin(plugin_id)
+            # Remove from registry
+            del self._plugins[plugin_id]
+
+        # Drop tables if requested
+        if drop_tables:
+            plugin_path = self._loader.plugins_dir / plugin_id
+            if plugin_path.exists():
+                migration_runner = PluginMigrationRunner(plugin_path, plugin_id)
+                migration_runner.downgrade_all()
+
+        # Remove from database
+        db.query(PluginConfigModel).filter(
+            PluginConfigModel.plugin_id == plugin_id
+        ).delete()
+        db.commit()
+
+        # Remove files
+        self._loader.uninstall(plugin_id)
+
+        # Publish event
+        await event_bus.publish(
+            AppEvent.PLUGIN_UNINSTALLED,
+            {"plugin_id": plugin_id},
+        )
+
+        logger.info(f"Uninstalled plugin {plugin_id}")
+
+    async def enable_plugin(self, plugin_id: str, db: Session) -> None:
+        """Enable a disabled plugin.
+
+        Args:
+            plugin_id: Plugin to enable
+            db: Database session
+        """
+        from src.models.plugin_config import PluginConfigModel
+
+        db_config = (
+            db.query(PluginConfigModel)
+            .filter(PluginConfigModel.plugin_id == plugin_id)
+            .first()
+        )
+
+        if not db_config:
+            raise ValueError(f"Plugin {plugin_id} not found in database")
+
+        db_config.is_enabled = True
+        db.commit()
+
+        # Load if not already loaded
+        if plugin_id not in self._plugins:
+            plugin_path = self._loader.get_plugin_path(plugin_id)
+            if plugin_path:
+                manifest_path = plugin_path / PLUGIN_MANIFEST_FILE
+                manifest = parse_manifest(manifest_path)
+                config = PluginConfig(
+                    enabled=True,
+                    settings=db_config.get_decrypted_settings(),
+                )
+                await self._load_single_plugin(plugin_path, manifest, config)
+
+        await event_bus.publish(
+            AppEvent.PLUGIN_ENABLED,
+            {"plugin_id": plugin_id},
+        )
+
+        logger.info(f"Enabled plugin {plugin_id}")
+
+    async def disable_plugin(self, plugin_id: str, db: Session) -> None:
+        """Disable an enabled plugin.
+
+        Args:
+            plugin_id: Plugin to disable
+            db: Database session
+        """
+        from src.models.plugin_config import PluginConfigModel
+
+        plugin = self._plugins.get(plugin_id)
+
+        if plugin:
+            # Call lifecycle hook
+            await plugin.on_disable()
+            # Remove event handlers
+            event_bus.unsubscribe_plugin(plugin_id)
+            # Remove from registry
+            del self._plugins[plugin_id]
+
+        # Update database
+        db_config = (
+            db.query(PluginConfigModel)
+            .filter(PluginConfigModel.plugin_id == plugin_id)
+            .first()
+        )
+
+        if db_config:
+            db_config.is_enabled = False
+            db.commit()
+
+        await event_bus.publish(
+            AppEvent.PLUGIN_DISABLED,
+            {"plugin_id": plugin_id},
+        )
+
+        logger.info(f"Disabled plugin {plugin_id}")
+
+    async def update_plugin_settings(
+        self,
+        plugin_id: str,
+        settings: dict,
+        db: Session,
+    ) -> None:
+        """Update a plugin's settings.
+
+        Args:
+            plugin_id: Plugin to update
+            settings: New settings dictionary
+            db: Database session
+        """
+        from src.models.plugin_config import PluginConfigModel
+
+        db_config = (
+            db.query(PluginConfigModel)
+            .filter(PluginConfigModel.plugin_id == plugin_id)
+            .first()
+        )
+
+        if not db_config:
+            raise ValueError(f"Plugin {plugin_id} not found")
+
+        db_config.set_encrypted_settings(settings)
+        db.commit()
+
+        # Update loaded plugin's config
+        plugin = self._plugins.get(plugin_id)
+        if plugin:
+            plugin.config.settings = settings
+
+        logger.info(f"Updated settings for plugin {plugin_id}")

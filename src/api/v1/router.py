@@ -17,6 +17,7 @@ from src.api.v1 import (
     locations,
     notes,
     photos,
+    plugins,
     reports,
     settings,
     todos,
@@ -74,3 +75,6 @@ api_router.include_router(locations.router)
 
 # Photo routes (nested under events)
 api_router.include_router(photos.router, prefix="/events", tags=["photos"])
+
+# Plugin management routes
+api_router.include_router(plugins.router)

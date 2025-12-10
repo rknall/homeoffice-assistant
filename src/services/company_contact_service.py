@@ -139,6 +139,7 @@ def delete_contact(db: Session, contact: CompanyContact) -> None:
     company_id = contact.company_id
 
     db.delete(contact)
+    db.flush()  # ensure deletion is applied before checking remaining contacts
 
     if was_main:
         # Find another contact to make main

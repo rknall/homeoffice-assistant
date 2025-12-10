@@ -16,7 +16,7 @@ from src.services import backup_service
 from src.services.backup_encryption import decrypt_backup_archive
 
 # Test password used for all backup tests
-TEST_PASSWORD = "test_password_123"
+TEST_PASSWORD = "test_password_123"  # noqa: S105
 
 
 @pytest.fixture
@@ -130,8 +130,9 @@ def temp_backup_dirs(admin_user):
 
     # Insert the admin user into the temp database so restore can find them
     conn.execute(
-        """INSERT INTO users (id, username, email, hashed_password, role, is_admin, is_active,
-                             full_name, avatar_url, use_gravatar, created_at, updated_at)
+        """INSERT INTO users (id, username, email, hashed_password, role, is_admin,
+                             is_active, full_name, avatar_url, use_gravatar, created_at,
+                             updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             str(admin_user.id),

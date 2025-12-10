@@ -10,6 +10,7 @@ import {
   Link2,
   LogOut,
   Mail,
+  Puzzle,
   Settings,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -17,6 +18,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import logoImage from '@/assets/logo.png'
 import { ProfileEditModal } from '@/components/ProfileEditModal'
 import { cn } from '@/lib/utils'
+import { usePlugins } from '@/plugins'
 import { useAuth } from '@/stores/auth'
 import { getAvatarUrl } from '@/utils/gravatar'
 
@@ -29,6 +31,7 @@ const navItems = [
 const settingsSubItems = [
   { to: '/settings/regional', label: 'Regional', icon: Globe },
   { to: '/settings/integrations', label: 'Integrations', icon: Link2 },
+  { to: '/settings/plugins', label: 'Plugins', icon: Puzzle },
   { to: '/settings/templates', label: 'Email Templates', icon: Mail },
   { to: '/settings/backup', label: 'Backup', icon: HardDrive },
 ]
@@ -37,8 +40,10 @@ export function Sidebar() {
   const { user, logout, setUser } = useAuth()
   const location = useLocation()
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
+  const pluginNavItems = usePlugins((state) => state.getNavItems())
 
   const isSettingsRoute = location.pathname.startsWith('/settings')
+  const isPluginRoute = location.pathname.startsWith('/plugins')
 
   return (
     <>
@@ -66,6 +71,34 @@ export function Sidebar() {
               {item.label}
             </NavLink>
           ))}
+
+          {/* Plugin nav items */}
+          {pluginNavItems.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-800">
+              <span className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Plugins
+              </span>
+              <div className="mt-2 space-y-1">
+                {pluginNavItems.map((item) => (
+                  <NavLink
+                    key={item.id}
+                    to={item.path}
+                    className={({ isActive }) =>
+                      cn(
+                        'flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                        isActive || (isPluginRoute && item.path.includes(location.pathname))
+                          ? 'bg-gray-800 text-white'
+                          : 'text-gray-300 hover:bg-gray-800 hover:text-white',
+                      )
+                    }
+                  >
+                    {item.icon && <item.icon className="h-5 w-5 mr-3" />}
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Settings with sub-navigation */}
           {user?.is_admin && (

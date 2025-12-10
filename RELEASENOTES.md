@@ -2,6 +2,23 @@
 
 ## Version 0.3.0 (In Development)
 
+### Major Features
+
+#### Plugin System
+- Extensible plugin architecture for third-party extensions
+- Backend plugin infrastructure with BasePlugin abstract class
+- Plugin manifest support (id, name, version, description, capabilities, permissions)
+- Plugin lifecycle management (install, enable, disable, uninstall)
+- Per-plugin database migrations with separate Alembic version tables
+- Event bus for plugin subscriptions to application events (22 event types)
+- Permission system for controlling plugin access to resources
+- Plugin settings stored encrypted in database
+- REST API for plugin management (7 endpoints)
+- Admin UI for plugin management in Settings > Plugins
+- Frontend plugin loader with dynamic import support
+- Plugin navigation items dynamically added to sidebar
+- Plugin routes dynamically registered in React Router
+
 ---
 
 ## Version 0.2.3

@@ -16,7 +16,9 @@ import { Setup } from '@/pages/Setup'
 import { BackupSettings } from '@/pages/settings/BackupSettings'
 import { EmailTemplateSettings } from '@/pages/settings/EmailTemplateSettings'
 import { IntegrationSettings } from '@/pages/settings/IntegrationSettings'
+import { PluginSettings } from '@/pages/settings/PluginSettings'
 import { RegionalSettings } from '@/pages/settings/RegionalSettings'
+import { PluginProvider, PluginRoutes } from '@/plugins'
 import { useAuth } from '@/stores/auth'
 import { useLocale } from '@/stores/locale'
 
@@ -45,28 +47,33 @@ export function App() {
   }
 
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/setup" element={<Setup />} />
-      <Route
-        element={
-          <ProtectedRoute>
-            <Layout />
-          </ProtectedRoute>
-        }
-      >
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/events" element={<Events />} />
-        <Route path="/events/:id" element={<EventDetail />} />
-        <Route path="/companies" element={<Companies />} />
-        <Route path="/companies/:id" element={<CompanyDetail />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/settings/regional" element={<RegionalSettings />} />
-        <Route path="/settings/integrations" element={<IntegrationSettings />} />
-        <Route path="/settings/templates" element={<EmailTemplateSettings />} />
-        <Route path="/settings/backup" element={<BackupSettings />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <PluginProvider>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/setup" element={<Setup />} />
+        <Route
+          element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/events" element={<Events />} />
+          <Route path="/events/:id" element={<EventDetail />} />
+          <Route path="/companies" element={<Companies />} />
+          <Route path="/companies/:id" element={<CompanyDetail />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/settings/regional" element={<RegionalSettings />} />
+          <Route path="/settings/integrations" element={<IntegrationSettings />} />
+          <Route path="/settings/plugins" element={<PluginSettings />} />
+          <Route path="/settings/templates" element={<EmailTemplateSettings />} />
+          <Route path="/settings/backup" element={<BackupSettings />} />
+          {/* Dynamic plugin routes */}
+          <PluginRoutes />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </PluginProvider>
   )
 }

@@ -3,7 +3,7 @@
 
 export { PluginLoader, pluginLoader } from './loader'
 export { PluginProvider, usePluginContext } from './PluginContext'
-export { PluginRoutes } from './PluginRoutes'
+export { usePluginRoutes } from './PluginRoutes'
 export { usePlugins } from './registry'
 export type {
   LoadedPlugin,

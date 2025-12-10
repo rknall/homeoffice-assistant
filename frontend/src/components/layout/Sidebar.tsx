@@ -40,10 +40,25 @@ export function Sidebar() {
   const { user, logout, setUser } = useAuth()
   const location = useLocation()
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
-  const pluginNavItems = usePlugins((state) => state.getNavItems())
+  // Select loadedPlugins directly to avoid infinite re-renders from getNavItems()
+  const loadedPlugins = usePlugins((state) => state.loadedPlugins)
 
   const isSettingsRoute = location.pathname.startsWith('/settings')
   const isPluginRoute = location.pathname.startsWith('/plugins')
+
+  // Derive nav items from loaded plugins
+  const pluginNavItems = loadedPlugins
+    .flatMap((plugin) => {
+      if (plugin.isLoaded && plugin.exports.getNavItems) {
+        try {
+          return plugin.exports.getNavItems()
+        } catch {
+          return []
+        }
+      }
+      return []
+    })
+    .sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
 
   return (
     <>

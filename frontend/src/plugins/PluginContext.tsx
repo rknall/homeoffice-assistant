@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
 
-import { createContext, type ReactNode, useContext, useEffect, useState } from 'react'
+import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from 'react'
+import { useAuth } from '@/stores/auth'
 import { usePlugins } from './registry'
 
 interface PluginContextValue {
@@ -18,14 +19,22 @@ interface PluginProviderProps {
 
 /**
  * Provider component that initializes the plugin system.
- * Fetches installed plugins on mount and loads enabled frontend modules.
+ * Fetches installed plugins when user is authenticated and loads enabled frontend modules.
  */
 export function PluginProvider({ children }: PluginProviderProps) {
   const [initError, setInitError] = useState<string | null>(null)
   const { fetchPlugins, loadAllFrontends, isInitialized, isLoading, error } = usePlugins()
+  const { user } = useAuth()
+  const hasInitialized = useRef(false)
 
   useEffect(() => {
+    // Only initialize plugins when user is authenticated and hasn't initialized yet
+    if (!user || hasInitialized.current) {
+      return
+    }
+
     async function initPlugins() {
+      hasInitialized.current = true
       try {
         // Fetch list of installed plugins
         await fetchPlugins()
@@ -39,7 +48,7 @@ export function PluginProvider({ children }: PluginProviderProps) {
     }
 
     initPlugins()
-  }, [fetchPlugins, loadAllFrontends])
+  }, [user, fetchPlugins, loadAllFrontends])
 
   const value: PluginContextValue = {
     isInitialized,

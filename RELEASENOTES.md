@@ -1,6 +1,6 @@
 # Release Notes
 
-## Version 0.2.3 (In Development)
+## Version 0.2.3
 
 ### Major Features
 
@@ -32,6 +32,10 @@
 - Multiple recipients in single email
 - Automatic recipient selection from contacts matching template types
 - Clear validation messages when contacts are missing
+
+### Bug Fixes
+
+- Fixed backup service tests after project rename from Travel Manager to HomeOffice Assistant
 
 ---
 

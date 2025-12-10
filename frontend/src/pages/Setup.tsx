@@ -210,7 +210,7 @@ export function Setup() {
         </CardHeader>
         <CardContent>
           <p className="text-gray-600 mb-4">
-            Set up your administrator account to start using Travel Manager.
+            Set up your administrator account to start using HomeOffice Assistant.
           </p>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {error && <Alert variant="error">{error}</Alert>}

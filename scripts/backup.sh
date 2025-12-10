@@ -1,24 +1,24 @@
 #!/bin/bash
 # SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
-# Backup Travel Manager data
+# Backup HomeOffice Assistant data
 # Usage: ./scripts/backup.sh [backup_dir]
 
 set -e
 
 BACKUP_DIR="${1:-./backups}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_NAME="travel_manager_backup_${TIMESTAMP}"
+BACKUP_NAME="homeoffice_assistant_backup_${TIMESTAMP}"
 BACKUP_PATH="${BACKUP_DIR}/${BACKUP_NAME}"
 
 mkdir -p "$BACKUP_PATH"
 
 # Backup SQLite database
-if [ -f "./data/travel_manager.db" ]; then
+if [ -f "./data/homeoffice_assistant.db" ]; then
     echo "Backing up database..."
-    sqlite3 ./data/travel_manager.db ".backup '${BACKUP_PATH}/travel_manager.db'"
+    sqlite3 ./data/homeoffice_assistant.db ".backup '${BACKUP_PATH}/homeoffice_assistant.db'"
 else
-    echo "Warning: Database not found at ./data/travel_manager.db"
+    echo "Warning: Database not found at ./data/homeoffice_assistant.db"
 fi
 
 # Backup avatars

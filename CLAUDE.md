@@ -1,8 +1,8 @@
 # CLAUDE.md - Project Guidelines for Claude Code
 
-## Project: Travel Manager
+## Project: HomeOffice Assistant
 
-A self-hosted web application for managing business trips, expenses, and reports with external system integrations.
+A self-hosted personal productivity and work management assistant with external system integrations.
 
 ## Anthropic Skills
 
@@ -26,7 +26,7 @@ A self-hosted web application for managing business trips, expenses, and reports
 
 ```bash
 # Development - Backend
-cd /Users/rknall/Development/Claude/travel-manager
+cd /Users/rknall/Development/Claude/homeoffice-assistant
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest                          # Run tests
@@ -47,7 +47,7 @@ docker-compose up --build
 ## Architecture
 
 ```
-travel-manager/
+homeoffice-assistant/
 ├── src/                        # Backend (Python/FastAPI)
 │   ├── __init__.py
 │   ├── main.py                 # FastAPI app entry point
@@ -168,7 +168,7 @@ travel-manager/
 ```bash
 # .env
 SECRET_KEY=<generate-with-secrets.token_urlsafe(32)>  # REQUIRED
-DATABASE_URL=sqlite:///./data/travel_manager.db       # Optional, has default
+DATABASE_URL=sqlite:///./data/homeoffice_assistant.db       # Optional, has default
 ```
 
 ### Database-stored Configuration
@@ -766,3 +766,4 @@ Each entry should include:
 - Group related changes under a single feature entry
 - Keep the "In Development" version at the top until release
 - Sync footer version in `frontend/src/components/layout/Footer.tsx` with app version
+- Ensure that ALL lint operations have run and do not report ANY errors BEFORE committing a change

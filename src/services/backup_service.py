@@ -27,7 +27,7 @@ BACKUP_FORMAT_VERSION = "0.2.2"
 # Derive paths from database URL
 DATA_DIR = Path("./data")
 AVATAR_DIR = Path("./static/avatars")
-DB_PATH = DATA_DIR / "travel_manager.db"
+DB_PATH = DATA_DIR / "homeoffice_assistant.db"
 PRE_RESTORE_BACKUP_DIR = Path("./backups/pre_restore")
 
 # If using custom database URL, extract the path
@@ -104,7 +104,7 @@ def create_backup(username: str, password: str) -> tuple[bytes, str]:
         Tuple of (encrypted_bytes, filename)
     """
     timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-    backup_name = f"travel_manager_backup_{timestamp}"
+    backup_name = f"homeoffice_assistant_backup_{timestamp}"
 
     with tempfile.TemporaryDirectory() as temp_dir:
         backup_dir = Path(temp_dir) / backup_name
@@ -112,7 +112,7 @@ def create_backup(username: str, password: str) -> tuple[bytes, str]:
 
         # Safe SQLite backup using .backup command
         if DB_PATH.exists():
-            dest_db = backup_dir / "travel_manager.db"
+            dest_db = backup_dir / "homeoffice_assistant.db"
             conn = sqlite3.connect(str(DB_PATH))
             backup_conn = sqlite3.connect(str(dest_db))
             conn.backup(backup_conn)
@@ -138,7 +138,7 @@ def create_backup(username: str, password: str) -> tuple[bytes, str]:
             shutil.copytree(AVATAR_DIR, backup_dir / "avatars")
 
         # Create manifest (without SECRET_KEY)
-        db_file = backup_dir / "travel_manager.db"
+        db_file = backup_dir / "homeoffice_assistant.db"
         db_size = db_file.stat().st_size if db_file.exists() else 0
         avatar_dir = backup_dir / "avatars"
         avatar_count = len(list(avatar_dir.glob("*"))) if avatar_dir.exists() else 0
@@ -302,7 +302,7 @@ def validate_backup(
                 )
 
         # Check database file
-        db_path = backup_dir / "travel_manager.db"
+        db_path = backup_dir / "homeoffice_assistant.db"
         if not db_path.exists():
             return False, "No database file found in backup", None, []
 
@@ -624,7 +624,7 @@ def perform_restore(
                 backup_secret_key = manifest_data.get("secret_key")
 
         # Replace database
-        src_db = backup_dir / "travel_manager.db"
+        src_db = backup_dir / "homeoffice_assistant.db"
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_db, DB_PATH)
 
@@ -729,7 +729,7 @@ def perform_restore(
 def _create_unencrypted_backup(username: str) -> bytes:
     """Create an unencrypted backup for internal use (pre-restore backup)."""
     timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-    backup_name = f"travel_manager_backup_{timestamp}"
+    backup_name = f"homeoffice_assistant_backup_{timestamp}"
 
     with tempfile.TemporaryDirectory() as temp_dir:
         backup_dir = Path(temp_dir) / backup_name
@@ -737,7 +737,7 @@ def _create_unencrypted_backup(username: str) -> bytes:
 
         # Safe SQLite backup
         if DB_PATH.exists():
-            dest_db = backup_dir / "travel_manager.db"
+            dest_db = backup_dir / "homeoffice_assistant.db"
             conn = sqlite3.connect(str(DB_PATH))
             backup_conn = sqlite3.connect(str(dest_db))
             conn.backup(backup_conn)
@@ -749,7 +749,7 @@ def _create_unencrypted_backup(username: str) -> bytes:
             shutil.copytree(AVATAR_DIR, backup_dir / "avatars")
 
         # Create manifest
-        db_file = backup_dir / "travel_manager.db"
+        db_file = backup_dir / "homeoffice_assistant.db"
         db_size = db_file.stat().st_size if db_file.exists() else 0
         avatar_dir = backup_dir / "avatars"
         avatar_count = len(list(avatar_dir.glob("*"))) if avatar_dir.exists() else 0

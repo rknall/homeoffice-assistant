@@ -1,7 +1,7 @@
 #!/bin/bash
 # SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
-# Restore Travel Manager data from backup
+# Restore HomeOffice Assistant data from backup
 # Usage: ./scripts/restore.sh <backup_file.tar.gz>
 
 set -e
@@ -19,10 +19,10 @@ tar -xzf "$BACKUP_FILE" -C "$TEMP_DIR"
 BACKUP_NAME=$(ls "$TEMP_DIR")
 
 # Restore database
-if [ -f "${TEMP_DIR}/${BACKUP_NAME}/travel_manager.db" ]; then
+if [ -f "${TEMP_DIR}/${BACKUP_NAME}/homeoffice_assistant.db" ]; then
     echo "Restoring database..."
     mkdir -p ./data
-    cp "${TEMP_DIR}/${BACKUP_NAME}/travel_manager.db" ./data/
+    cp "${TEMP_DIR}/${BACKUP_NAME}/homeoffice_assistant.db" ./data/
 fi
 
 # Restore avatars

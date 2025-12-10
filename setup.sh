@@ -28,7 +28,7 @@ touch tests/integration/test_api/__init__.py
 echo "Generating SECRET_KEY if not exists..."
 if [ ! -f .env ]; then
     echo "SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')" > .env
-    echo "DATABASE_URL=sqlite:///./data/travel_manager.db" >> .env
+    echo "DATABASE_URL=sqlite:///./data/homeoffice_assistant.db" >> .env
     echo "Created .env file"
 else
     echo ".env already exists"

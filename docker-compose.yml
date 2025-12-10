@@ -1,16 +1,16 @@
 services:
-  travel-manager:
+  homeoffice-assistant:
     build: .
-    container_name: travelmanager
+    container_name: homeoffice-assistant
     ports:
       - "8123:8000"
     volumes:
       - ./data:/app/data
-    #  - travel_manager_avatars:/app/static/avatars
+    #  - homeoffice_assistant_avatars:/app/static/avatars
     environment:
       # Only these two env vars are needed - everything else is configured via UI
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
-      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/travel_manager.db}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/homeoffice_assistant.db}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -20,18 +20,18 @@ services:
       start_period: 10s
 
   # Optional: PostgreSQL for production
-  # Uncomment and set DATABASE_URL=postgresql://travel_manager:${POSTGRES_PASSWORD}@db:5432/travel_manager
+  # Uncomment and set DATABASE_URL=postgresql://homeoffice_assistant:${POSTGRES_PASSWORD}@db:5432/homeoffice_assistant
   # db:
   #   image: postgres:16-alpine
   #   volumes:
   #     - postgres_data:/var/lib/postgresql/data
   #   environment:
-  #     POSTGRES_USER: travel_manager
+  #     POSTGRES_USER: homeoffice_assistant
   #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-  #     POSTGRES_DB: travel_manager
+  #     POSTGRES_DB: homeoffice_assistant
   #   restart: unless-stopped
   #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U travel_manager"]
+  #     test: ["CMD-SHELL", "pg_isready -U homeoffice_assistant"]
   #     interval: 10s
   #     timeout: 5s
   #     retries: 5
@@ -39,5 +39,5 @@ services:
 #volumes:
 #   postgres_data:
 
-#  travel_manager_data:
-#  travel_manager_avatars:
+#  homeoffice_assistant_data:
+#  homeoffice_assistant_avatars:

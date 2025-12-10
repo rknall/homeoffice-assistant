@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     secret_key: str
-    database_url: str = "sqlite:///./data/travel_manager.db"
+    database_url: str = "sqlite:///./data/homeoffice_assistant.db"
 
     class Config:
         env_file = ".env"

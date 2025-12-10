@@ -6,10 +6,10 @@
 
 set -e
 
-CONTAINER="${1:-travelmanager}"
+CONTAINER="${1:-homeoffice-assistant}"
 BACKUP_DIR="${2:-./backups}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_NAME="travel_manager_backup_${TIMESTAMP}"
+BACKUP_NAME="homeoffice_assistant_backup_${TIMESTAMP}"
 
 mkdir -p "$BACKUP_DIR"
 

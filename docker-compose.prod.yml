@@ -1,16 +1,16 @@
 services:
-  travel-manager:
-    image: ghcr.io/rknall/travelmanager:latest
-    container_name: travel-manager
+  homeoffice-assistant:
+    image: ghcr.io/rknall/homeoffice-assistant:latest
+    container_name: homeoffice-assistant
     restart: unless-stopped
     ports:
       - "8123:8000"
     environment:
       - SECRET_KEY=${SECRET_KEY}
-      - DATABASE_URL=sqlite:///./data/travel_manager.db
+      - DATABASE_URL=sqlite:///./data/homeoffice_assistant.db
     volumes:
-      - travel_manager_data:/app/data
-      - travel_manager_avatars:/app/static/avatars
+      - homeoffice_assistant_data:/app/data
+      - homeoffice_assistant_avatars:/app/static/avatars
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -19,5 +19,5 @@ services:
       start_period: 40s
 
 volumes:
-  travel_manager_data:
-  travel_manager_avatars:
+  homeoffice_assistant_data:
+  homeoffice_assistant_avatars:

@@ -1,4 +1,4 @@
-# Travel Manager - Requirements Document
+# HomeOffice Assistant - Requirements Document
 
 ## Overview
 

@@ -1,7 +1,7 @@
 [project]
-name = "travel-manager"
+name = "homeoffice-assistant"
 version = "0.2.2"
-description = "Self-hosted business trip management with expense tracking and report generation"
+description = "Self-hosted personal productivity and work management assistant"
 readme = "README.md"
 requires-python = ">=3.14"
 license = {text = "GPL-2.0-only"}

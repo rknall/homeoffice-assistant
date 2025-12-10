@@ -58,10 +58,10 @@ export function Login() {
             <CardHeader className="text-center">
               <img
                 src={logoImage}
-                alt="Travel Manager"
+                alt="HomeOffice Assistant"
                 className="h-20 w-20 mx-auto mb-4 object-contain"
               />
-              <CardTitle>Welcome to Travel Manager</CardTitle>
+              <CardTitle>Welcome to HomeOffice Assistant</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-gray-600 mb-4">
@@ -85,11 +85,11 @@ export function Login() {
           <CardHeader className="text-center">
             <img
               src={logoImage}
-              alt="Travel Manager"
+              alt="HomeOffice Assistant"
               className="h-20 w-20 mx-auto mb-4 object-contain"
               style={{ objectPosition: 'left bottom' }}
             />
-            <CardTitle>Sign in to Travel Manager</CardTitle>
+            <CardTitle>Sign in to HomeOffice Assistant</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

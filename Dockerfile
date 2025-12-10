@@ -1,4 +1,4 @@
-# Multi-stage build for Travel Manager
+# Multi-stage build for HomeOffice Assistant
 # Stage 1: Build frontend
 # Note: node:25-alpine has CVE-2025-64756 (glob package, HIGH severity)
 # This only affects the build stage - vulnerable package is not in final image
@@ -77,7 +77,7 @@ RUN mkdir -p /app/data && chown -R appuser:appuser /app
 USER appuser
 
 # Environment defaults
-ENV DATABASE_URL="sqlite:///./data/travel_manager.db"
+ENV DATABASE_URL="sqlite:///./data/homeoffice_assistant.db"
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000

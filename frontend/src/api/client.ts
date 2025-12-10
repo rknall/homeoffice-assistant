@@ -84,7 +84,7 @@ export async function downloadBackup(password: string) {
   const contentDisposition = response.headers.get('content-disposition')
   const filename =
     contentDisposition?.match(/filename="(.+)"/)?.[1] ||
-    `travel_manager_backup_${Date.now()}.tar.gz.enc`
+    `homeoffice_assistant_backup_${Date.now()}.tar.gz.enc`
 
   const url = window.URL.createObjectURL(blob)
   const a = document.createElement('a')

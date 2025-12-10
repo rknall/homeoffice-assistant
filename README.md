@@ -1,15 +1,15 @@
-# Travel Manager
+# HomeOffice Assistant
 
-[![CI](https://github.com/rknall/travelmanager/actions/workflows/ci.yml/badge.svg)](https://github.com/rknall/travelmanager/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/rknall/travelmanager)](https://github.com/rknall/travelmanager/releases/latest)
+[![CI](https://github.com/rknall/homeoffice-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/rknall/homeoffice-assistant/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/rknall/homeoffice-assistant)](https://github.com/rknall/homeoffice-assistant/releases/latest)
 [![License](https://img.shields.io/badge/license-GPL--2.0--only-blue.svg)](LICENSE)
-[![Docker](https://img.shields.io/badge/docker-ghcr.io-blue)](https://github.com/rknall/travelmanager/pkgs/container/travelmanager)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io-blue)](https://github.com/rknall/homeoffice-assistant/pkgs/container/homeoffice-assistant)
 
-A self-hosted web application for managing business trips, expenses, and travel documentation with powerful integrations.
+A self-hosted personal productivity and work management assistant with powerful integrations.
 
-## What is Travel Manager?
+## What is HomeOffice Assistant?
 
-Travel Manager is a comprehensive solution for organizing business travel from start to finish. Whether you're managing trips for yourself or a team, Travel Manager helps you:
+HomeOffice Assistant is a comprehensive solution for managing your work life. Currently focused on business travel management, it helps you:
 
 - **Plan Events**: Track business trips with dates, locations, and companies
 - **Manage Expenses**: Record and categorize all trip-related expenses
@@ -20,7 +20,7 @@ Travel Manager is a comprehensive solution for organizing business travel from s
 
 Perfect for consultants, sales teams, field engineers, or anyone who travels frequently for work.
 
-## ✨ Key Features
+## Key Features
 
 ### Event Management
 - Create events for business trips with dates and locations
@@ -47,7 +47,7 @@ Perfect for consultants, sales teams, field engineers, or anyone who travels fre
 - Backup and restore functionality
 - Dark-themed sidebar with breadcrumb navigation
 
-## 🚀 Quick Start
+## Quick Start
 
 ### First-Time Setup
 
@@ -61,11 +61,11 @@ The easiest way to get started is with Docker:
 2. **Start the application:**
    ```bash
    docker run -d \
-     --name travel-manager \
+     --name homeoffice-assistant \
      -p 8000:8000 \
      -v $(pwd)/data:/app/data \
      --env-file .env \
-     ghcr.io/rknall/travelmanager:latest
+     ghcr.io/rknall/homeoffice-assistant:latest
    ```
 
 3. **Open your browser:**
@@ -89,9 +89,9 @@ For a more permanent setup, use Docker Compose:
 1. **Create a `docker-compose.yml` file:**
    ```yaml
    services:
-     travel-manager:
-       image: ghcr.io/rknall/travelmanager:latest
-       container_name: travel-manager
+     homeoffice-assistant:
+       image: ghcr.io/rknall/homeoffice-assistant:latest
+       container_name: homeoffice-assistant
        ports:
          - "8000:8000"
        volumes:
@@ -120,11 +120,11 @@ After initial setup, you can connect external services in **Settings → Integra
 - **Unsplash**: Enable cover image search (requires free API key)
 - **SMTP**: Configure email for sending expense reports
 
-## 📸 Screenshots
+## Screenshots
 
 *Coming soon: Screenshots of the dashboard, event detail page, and expense tracking.*
 
-## 🛠️ Development
+## Development
 
 ### Local Development (without Docker)
 
@@ -157,7 +157,7 @@ docker compose up --build
 
 Access at http://localhost:8000
 
-## 📦 Deployment
+## Deployment
 
 ### Production with Docker
 
@@ -165,20 +165,20 @@ The application is available as a multi-architecture Docker image supporting `li
 
 **Pull the latest release:**
 ```bash
-docker pull ghcr.io/rknall/travelmanager:v0.2.0
+docker pull ghcr.io/rknall/homeoffice-assistant:v0.2.0
 ```
 
 **Or use `latest` tag:**
 ```bash
-docker pull ghcr.io/rknall/travelmanager:latest
+docker pull ghcr.io/rknall/homeoffice-assistant:latest
 ```
 
 ### Environment Variables
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SECRET_KEY` | ✅ Yes | - | Encryption key (min 32 chars) |
-| `DATABASE_URL` | ❌ No | SQLite | Database connection string |
+| `SECRET_KEY` | Yes | - | Encryption key (min 32 chars) |
+| `DATABASE_URL` | No | SQLite | Database connection string |
 
 > **Note**: Only `SECRET_KEY` is required. All other configuration (integrations, SMTP, etc.) is managed through the web UI.
 
@@ -193,16 +193,16 @@ docker compose -f docker-compose.prod.yml up -d
 Update `.env` to include:
 ```
 SECRET_KEY=your-secret-key
-DATABASE_URL=postgresql://user:password@postgres:5432/travelmanager
+DATABASE_URL=postgresql://user:password@postgres:5432/homeoffice_assistant
 ```
 
-## 💾 Backup & Restore
+## Backup & Restore
 
 ### Create Backup
 
 **From running container:**
 ```bash
-./scripts/docker-backup.sh travel-manager ./backups
+./scripts/docker-backup.sh homeoffice-assistant ./backups
 ```
 
 **Or via UI:**
@@ -212,7 +212,7 @@ Go to Settings → Backup/Restore and click "Download Backup"
 ### Restore Backup
 
 ```bash
-./scripts/restore.sh ./backups/travel_manager_backup_YYYYMMDD_HHMMSS.tar.gz
+./scripts/restore.sh ./backups/homeoffice_assistant_backup_YYYYMMDD_HHMMSS.tar.gz
 ```
 
 Backups include:
@@ -220,7 +220,7 @@ Backups include:
 - User avatars
 - All configuration
 
-## 🗄️ Database Management
+## Database Management
 
 ### Automatic Migrations
 
@@ -230,7 +230,7 @@ Database migrations run automatically on container startup. No manual interventi
 
 **Development (SQLite):**
 ```bash
-rm -f data/travel_manager.db
+rm -f data/homeoffice_assistant.db
 source .venv/bin/activate
 alembic upgrade head
 ```
@@ -244,16 +244,16 @@ docker compose up
 
 After reset, visit the application to run through the setup wizard again.
 
-## 📚 Documentation
+## Documentation
 
 - [Release Notes](RELEASENOTES.md) - Full changelog
 - [Development Guide](CLAUDE.md) - Architecture and development instructions
 
-## 🐛 Issues & Support
+## Issues & Support
 
-Found a bug or have a feature request? Please [open an issue](https://github.com/rknall/travelmanager/issues/new).
+Found a bug or have a feature request? Please [open an issue](https://github.com/rknall/homeoffice-assistant/issues/new).
 
-## 📄 License
+## License
 
 This project is licensed under the **GNU General Public License v2.0 only (GPL-2.0-only)**.
 
@@ -265,4 +265,4 @@ SPDX-License-Identifier: GPL-2.0-only
 
 ---
 
-**Made with ❤️ for business travelers**
+**Made with love for productive home office workers**

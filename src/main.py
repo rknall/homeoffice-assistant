@@ -14,8 +14,8 @@ from fastapi.staticfiles import StaticFiles
 os.makedirs("static/avatars", exist_ok=True)
 
 app = FastAPI(
-    title="Travel Manager",
-    description="Self-hosted business trip management with expense tracking",
+    title="HomeOffice Assistant",
+    description="Self-hosted personal productivity and work management assistant",
     version="0.1.0",
 )
 

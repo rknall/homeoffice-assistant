@@ -240,9 +240,9 @@ async def send_test_email(
     try:
         success = await provider.send_email(
             to=[data.to_email],
-            subject="Test Email from Travel Manager",
+            subject="Test Email from HomeOffice Assistant",
             body=(
-                "This is a test email from Travel Manager.\n\n"
+                "This is a test email from HomeOffice Assistant.\n\n"
                 "If you received this, your SMTP configuration is working."
             ),
         )

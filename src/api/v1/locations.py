@@ -15,7 +15,7 @@ router = APIRouter(prefix="/locations", tags=["locations"])
 
 # OpenStreetMap Nominatim API
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
-USER_AGENT = "TravelManager/0.2.0 (https://github.com/rknall/travel-manager)"
+USER_AGENT = "HomeOfficeAssistant/0.2.0 (https://github.com/rknall/homeoffice-assistant)"
 
 
 @router.get("/autocomplete", response_model=list[LocationSuggestion])

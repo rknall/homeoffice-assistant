@@ -205,11 +205,12 @@ def clear_expired_cache(db: Session) -> int:
 
 def get_attribution_html(image: LocationImage) -> str:
     """Generate Unsplash attribution HTML (required by their API guidelines)."""
+    utm = "homeoffice_assistant"
     if image.photographer_name and image.photographer_url:
+        photo_url = f"{image.photographer_url}?utm_source={utm}&utm_medium=referral"
+        unsplash_url = f"https://unsplash.com?utm_source={utm}&utm_medium=referral"
         return (
-            f'Photo by <a href="{image.photographer_url}?utm_source=travel_manager'
-            f'&utm_medium=referral">{image.photographer_name}</a> on '
-            f'<a href="https://unsplash.com?utm_source=travel_manager'
-            f'&utm_medium=referral">Unsplash</a>'
+            f'Photo by <a href="{photo_url}">{image.photographer_name}</a> on '
+            f'<a href="{unsplash_url}">Unsplash</a>'
         )
     return 'Photo from <a href="https://unsplash.com">Unsplash</a>'

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from src.models import SystemSettings, User
 from src.models.enums import UserRole
 from src.models.session import Session as SessionModel
+from src.plugins.events import AppEvent, event_bus
 from src.schemas.auth import RegisterRequest
 from src.security import get_password_hash, verify_password
 
@@ -72,6 +73,12 @@ def register_user(db: Session, data: RegisterRequest) -> User:
 
         email_template_service.ensure_default_template_exists(db)
 
+    # Publish user created event
+    event_bus.publish_sync(
+        AppEvent.USER_CREATED,
+        {"user_id": str(user.id), "username": user.username, "is_admin": user.is_admin},
+    )
+
     return user
 
 
@@ -100,6 +107,9 @@ def create_session(db: Session, user_id: str) -> str:
     db.add(session)
     db.commit()
 
+    # Publish user login event
+    event_bus.publish_sync(AppEvent.USER_LOGIN, {"user_id": user_id})
+
     return token
 
 
@@ -119,8 +129,11 @@ def delete_session(db: Session, token: str) -> bool:
     """Delete a session by token."""
     session = db.query(SessionModel).filter(SessionModel.token == token).first()
     if session:
+        user_id = session.user_id
         db.delete(session)
         db.commit()
+        # Publish user logout event
+        event_bus.publish_sync(AppEvent.USER_LOGOUT, {"user_id": str(user_id)})
         return True
     return False
 

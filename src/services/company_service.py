@@ -7,6 +7,7 @@ import json
 from sqlalchemy.orm import Session
 
 from src.models import Company
+from src.plugins.events import AppEvent, event_bus
 from src.schemas.company import CompanyCreate, CompanyUpdate
 
 
@@ -41,6 +42,17 @@ def create_company(db: Session, data: CompanyCreate) -> Company:
     db.add(company)
     db.commit()
     db.refresh(company)
+
+    # Publish company created event
+    event_bus.publish_sync(
+        AppEvent.COMPANY_CREATED,
+        {
+            "company_id": str(company.id),
+            "name": company.name,
+            "type": company.type.value if company.type else None,
+        },
+    )
+
     return company
 
 
@@ -63,6 +75,17 @@ def update_company(db: Session, company: Company, data: CompanyUpdate) -> Compan
 
     db.commit()
     db.refresh(company)
+
+    # Publish company updated event
+    event_bus.publish_sync(
+        AppEvent.COMPANY_UPDATED,
+        {
+            "company_id": str(company.id),
+            "name": company.name,
+            "type": company.type.value if company.type else None,
+        },
+    )
+
     return company
 
 

@@ -1,0 +1,35 @@
+{
+  "id": "example",
+  "name": "Example Plugin",
+  "version": "1.0.0",
+  "description": "A demonstration plugin showing all plugin system capabilities",
+  "author": "HomeOffice Assistant Team",
+  "homepage": "https://github.com/rknall/homeoffice-assistant",
+  "capabilities": {
+    "backend": true,
+    "frontend": true,
+    "config": true
+  },
+  "permissions": [
+    "user.read",
+    "event.read",
+    "event.write"
+  ],
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "greeting_message": {
+        "type": "string",
+        "title": "Greeting Message",
+        "description": "Custom greeting message displayed on the plugin page",
+        "default": "Hello from the Example Plugin!"
+      },
+      "enable_notifications": {
+        "type": "boolean",
+        "title": "Enable Notifications",
+        "description": "Log events to console when they occur",
+        "default": true
+      }
+    }
+  }
+}

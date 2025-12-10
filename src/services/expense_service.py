@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from src.models import Expense
 from src.models.enums import ExpenseStatus, PaymentType
+from src.plugins.events import AppEvent, event_bus
 from src.schemas.expense import ExpenseCreate, ExpenseUpdate
 
 
@@ -56,6 +57,19 @@ def create_expense(db: Session, event_id: str, data: ExpenseCreate) -> Expense:
     db.add(expense)
     db.commit()
     db.refresh(expense)
+
+    # Publish expense created event
+    event_bus.publish_sync(
+        AppEvent.EXPENSE_CREATED,
+        {
+            "expense_id": str(expense.id),
+            "event_id": str(expense.event_id),
+            "amount": float(expense.amount),
+            "currency": expense.currency,
+            "category": expense.category.value,
+        },
+    )
+
     return expense
 
 
@@ -82,6 +96,18 @@ def update_expense(db: Session, expense: Expense, data: ExpenseUpdate) -> Expens
 
     db.commit()
     db.refresh(expense)
+
+    # Publish expense updated event
+    event_bus.publish_sync(
+        AppEvent.EXPENSE_UPDATED,
+        {
+            "expense_id": str(expense.id),
+            "event_id": str(expense.event_id),
+            "amount": float(expense.amount),
+            "currency": expense.currency,
+        },
+    )
+
     return expense
 
 

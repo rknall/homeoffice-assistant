@@ -19,6 +19,19 @@
 - Plugin navigation items dynamically added to sidebar
 - Plugin routes dynamically registered in React Router
 
+#### Event System Integration
+- Application events published for user actions (login, logout, registration)
+- Event lifecycle events (created, updated, deleted)
+- Expense lifecycle events (created, updated)
+- Company lifecycle events (created, updated)
+- Plugins can subscribe to events via EventBus
+
+#### Example Plugin
+- Complete reference plugin implementation in `plugins/example/`
+- Demonstrates backend routes, database models, and event subscriptions
+- Simple notes CRUD functionality
+- Frontend module with dynamic React components
+
 ---
 
 ## Version 0.2.3

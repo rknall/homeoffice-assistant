@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from src.integrations.base import DocumentProvider
 from src.models import Event
 from src.models.enums import EventStatus
+from src.plugins.events import AppEvent, event_bus
 from src.schemas.event import EventCreate, EventUpdate
 from src.services import integration_service
 
@@ -74,6 +75,18 @@ def create_event(db: Session, data: EventCreate, user_id: str) -> Event:
     db.add(event)
     db.commit()
     db.refresh(event)
+
+    # Publish event created
+    event_bus.publish_sync(
+        AppEvent.EVENT_CREATED,
+        {
+            "event_id": str(event.id),
+            "user_id": str(event.user_id),
+            "company_id": str(event.company_id) if event.company_id else None,
+            "name": event.name,
+        },
+    )
+
     return event
 
 
@@ -121,13 +134,33 @@ def update_event(db: Session, event: Event, data: EventUpdate) -> Event:
 
     db.commit()
     db.refresh(event)
+
+    # Publish event updated
+    event_bus.publish_sync(
+        AppEvent.EVENT_UPDATED,
+        {
+            "event_id": str(event.id),
+            "user_id": str(event.user_id),
+            "name": event.name,
+        },
+    )
+
     return event
 
 
 def delete_event(db: Session, event: Event) -> None:
     """Delete an event."""
+    event_id = str(event.id)
+    user_id = str(event.user_id)
+    name = event.name
     db.delete(event)
     db.commit()
+
+    # Publish event deleted
+    event_bus.publish_sync(
+        AppEvent.EVENT_DELETED,
+        {"event_id": event_id, "user_id": user_id, "name": name},
+    )
 
 
 async def sync_event_tag_to_paperless(db: Session, event: Event) -> dict | None:

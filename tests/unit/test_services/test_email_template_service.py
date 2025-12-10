@@ -21,7 +21,10 @@ def create_company(db_session, name: str = "Acme") -> Company:
 
 
 def create_template(
-    db_session, company_id: str | None = None, is_default: bool = False, name: str = "Template"
+    db_session,
+    company_id: str | None = None,
+    is_default: bool = False,
+    name: str = "Template",
 ):
     data = EmailTemplateCreate(
         name=name,
@@ -63,7 +66,9 @@ def test_get_templates_and_filters(db_session):
     )
     assert len(company_filtered) == 2  # company + global
 
-    global_only = email_template_service.get_global_templates(db_session, reason="expense_report")
+    global_only = email_template_service.get_global_templates(
+        db_session, reason="expense_report"
+    )
     assert global_template in global_only
     assert company_template not in global_only
 
@@ -138,7 +143,10 @@ def test_reason_helpers():
 
 
 def test_default_template_content_helper():
-    assert email_template_service.get_default_template_content("expense_report") is not None
+    assert (
+        email_template_service.get_default_template_content("expense_report")
+        is not None
+    )
     assert email_template_service.get_default_template_content("other") is None
 
 

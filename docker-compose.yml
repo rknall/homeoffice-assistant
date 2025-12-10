@@ -6,6 +6,7 @@ services:
       - "8123:8000"
     volumes:
       - ./data:/app/data
+      - ./plugins:/app/plugins  # Plugin directory for development
     #  - homeoffice_assistant_avatars:/app/static/avatars
     environment:
       # Only these two env vars are needed - everything else is configured via UI

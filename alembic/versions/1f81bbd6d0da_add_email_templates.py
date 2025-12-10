@@ -33,8 +33,18 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_email_templates_company_id'), 'email_templates', ['company_id'], unique=False)
-    op.create_index(op.f('ix_email_templates_reason'), 'email_templates', ['reason'], unique=False)
+    op.create_index(
+        op.f('ix_email_templates_company_id'),
+        'email_templates',
+        ['company_id'],
+        unique=False,
+    )
+    op.create_index(
+        op.f('ix_email_templates_reason'),
+        'email_templates',
+        ['reason'],
+        unique=False,
+    )
 
 
 def downgrade() -> None:

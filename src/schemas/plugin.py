@@ -109,3 +109,21 @@ class PluginSettingsResponse(BaseModel):
     plugin_id: str
     settings: dict[str, Any]
     message: str = ""
+
+
+class DiscoveredPlugin(BaseModel):
+    """A plugin discovered on disk but not yet installed."""
+
+    plugin_id: str
+    name: str
+    version: str
+    description: str
+    author: str = ""
+    has_frontend: bool
+    has_backend: bool
+
+
+class DiscoveredPluginsResponse(BaseModel):
+    """Response for discovered plugins endpoint."""
+
+    plugins: list[DiscoveredPlugin]

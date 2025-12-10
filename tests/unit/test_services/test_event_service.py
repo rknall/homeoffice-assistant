@@ -84,7 +84,9 @@ def test_event_crud_operations(db_session):
     fetched = event_service.get_event(db_session, event.id)
     assert fetched == event
     assert (
-        event_service.get_event_for_user(db_session, event.id, user.id, include_company=True)
+        event_service.get_event_for_user(
+            db_session, event.id, user.id, include_company=True
+        )
         == event
     )
 
@@ -245,4 +247,7 @@ async def test_sync_event_to_paperless_custom_field(monkeypatch, db_session):
 @pytest.mark.asyncio
 async def test_sync_event_to_paperless_custom_field_without_config(db_session):
     event, _user, _company = create_event_instance(db_session)
-    assert await event_service.sync_event_to_paperless_custom_field(db_session, event) is False
+    assert (
+        await event_service.sync_event_to_paperless_custom_field(db_session, event)
+        is False
+    )

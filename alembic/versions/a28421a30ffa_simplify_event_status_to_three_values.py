@@ -24,11 +24,26 @@ def upgrade() -> None:
     # active/ACTIVE -> ACTIVE
     # completed/COMPLETED -> PAST
     # archived/ARCHIVED -> PAST
-    op.execute("UPDATE events SET status = 'PLANNING' WHERE status IN ('draft', 'DRAFT')")
-    op.execute("UPDATE events SET status = 'PLANNING' WHERE status IN ('preparation', 'PREPARATION')")
-    op.execute("UPDATE events SET status = 'ACTIVE' WHERE status IN ('active', 'ACTIVE')")
-    op.execute("UPDATE events SET status = 'PAST' WHERE status IN ('completed', 'COMPLETED')")
-    op.execute("UPDATE events SET status = 'PAST' WHERE status IN ('archived', 'ARCHIVED')")
+    op.execute(
+        "UPDATE events SET status = 'PLANNING' "
+        "WHERE status IN ('draft', 'DRAFT')"
+    )
+    op.execute(
+        "UPDATE events SET status = 'PLANNING' "
+        "WHERE status IN ('preparation', 'PREPARATION')"
+    )
+    op.execute(
+        "UPDATE events SET status = 'ACTIVE' "
+        "WHERE status IN ('active', 'ACTIVE')"
+    )
+    op.execute(
+        "UPDATE events SET status = 'PAST' "
+        "WHERE status IN ('completed', 'COMPLETED')"
+    )
+    op.execute(
+        "UPDATE events SET status = 'PAST' "
+        "WHERE status IN ('archived', 'ARCHIVED')"
+    )
 
 
 def downgrade() -> None:

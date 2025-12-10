@@ -50,10 +50,16 @@ def upgrade() -> None:
     )
 
     # Add new fields to companies table
-    op.add_column("companies", sa.Column("webpage", sa.String(length=500), nullable=True))
+    op.add_column(
+        "companies", sa.Column("webpage", sa.String(length=500), nullable=True)
+    )
     op.add_column("companies", sa.Column("address", sa.Text(), nullable=True))
-    op.add_column("companies", sa.Column("country", sa.String(length=100), nullable=True))
-    op.add_column("companies", sa.Column("logo_path", sa.String(length=500), nullable=True))
+    op.add_column(
+        "companies", sa.Column("country", sa.String(length=100), nullable=True)
+    )
+    op.add_column(
+        "companies", sa.Column("logo_path", sa.String(length=500), nullable=True)
+    )
 
     # Add contact_types field to email_templates table
     op.add_column(
@@ -72,7 +78,9 @@ def upgrade() -> None:
         companies = connection.execute(
             sa.text(
                 "SELECT id, name, expense_recipient_email, expense_recipient_name "
-                "FROM companies WHERE expense_recipient_email IS NOT NULL AND expense_recipient_email != ''"
+                "FROM companies "
+                "WHERE expense_recipient_email IS NOT NULL "
+                "AND expense_recipient_email != ''"
             )
         ).fetchall()
 
@@ -82,15 +90,19 @@ def upgrade() -> None:
 
         for company in companies:
             contact_id = str(uuid.uuid4())
-            contact_name = company[3] if company[3] else company[1]  # Use recipient name or company name
+            contact_name = (
+                company[3] if company[3] else company[1]
+            )  # Use recipient name or company name
             contact_email = company[2]
             contact_types = json.dumps(["billing"])
 
             connection.execute(
                 sa.text(
                     "INSERT INTO company_contacts "
-                    "(id, company_id, name, email, contact_types, is_main_contact, created_at, updated_at) "
-                    "VALUES (:id, :company_id, :name, :email, :contact_types, 1, :created_at, :updated_at)"
+                    "(id, company_id, name, email, contact_types, "
+                    "is_main_contact, created_at, updated_at) "
+                    "VALUES (:id, :company_id, :name, :email, "
+                    ":contact_types, 1, :created_at, :updated_at)"
                 ),
                 {
                     "id": contact_id,

@@ -28,9 +28,11 @@ class ExamplePlugin(BasePlugin):
     - Use configuration settings
     """
 
-    def __init__(self, manifest: PluginManifest, config: PluginConfig) -> None:
+    def __init__(
+        self, manifest: PluginManifest, config: PluginConfig, plugin_path: str
+    ) -> None:
         """Initialize the example plugin."""
-        super().__init__(manifest, config)
+        super().__init__(manifest, config, plugin_path)
         self._greeting = config.settings.get("greeting_message", "Hello!")
         self._notifications_enabled = config.settings.get("enable_notifications", True)
 

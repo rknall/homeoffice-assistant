@@ -66,7 +66,8 @@ class TestAuthAPI:
             },
         )
 
-        # Try to register with same username (registration is still allowed for first user scenario)
+        # Try to register with same username (registration is still allowed for
+        # first user scenario)
         # After first user, registration is disabled, so we test during first run
         response = client.post(
             "/api/v1/auth/register",

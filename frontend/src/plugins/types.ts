@@ -165,3 +165,23 @@ export interface LoadedPlugin {
  * Plugin loading state
  */
 export type PluginLoadState = 'idle' | 'loading' | 'loaded' | 'error'
+
+/**
+ * A plugin discovered on disk but not yet installed
+ */
+export interface DiscoveredPlugin {
+  plugin_id: string
+  name: string
+  version: string
+  description: string
+  author?: string
+  has_frontend: boolean
+  has_backend: boolean
+}
+
+/**
+ * Discovered plugins API response
+ */
+export interface DiscoveredPluginsResponse {
+  plugins: DiscoveredPlugin[]
+}

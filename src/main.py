@@ -4,6 +4,7 @@
 
 import logging
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -13,7 +14,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.database import SessionLocal
-from src.plugins import PluginRegistry
+from src.plugins import PluginRegistry, get_plugin_router_manager
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ os.makedirs("plugins", exist_ok=True)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan handler for startup and shutdown events."""
     # Startup: Initialize plugin system
     logger.info("Initializing plugin system...")
@@ -72,13 +73,21 @@ from src.api.v1.router import api_router  # noqa: E402
 
 app.include_router(api_router, prefix="/api/v1")
 
+# Mount the plugin router manager for dynamic plugin routes
+# This must be done before lifespan runs, as plugins will add routes dynamically
+# Note: Uses /api/v1/plugin/{plugin_id}/* (singular) to avoid conflict with
+# /api/v1/plugins/* (plural) management API
+plugin_router_manager = get_plugin_router_manager()
+app.mount("/api/v1/plugin", plugin_router_manager.get_router(), name="plugin-routes")
+
 # Mount plugin assets directory (for frontend plugin bundles)
+# Note: We use /plugin-assets/* for static files and /plugins/* for SPA routes
 plugins_path = Path("plugins")
 if plugins_path.exists():
     app.mount(
-        "/plugins",
+        "/plugin-assets",
         StaticFiles(directory="plugins"),
-        name="plugins",
+        name="plugin-assets",
     )
 
 # Mount static files for production frontend (if directory exists)
@@ -94,9 +103,17 @@ if static_path.exists():
         return FileResponse("static/index.html")
 
     # Catch-all route for SPA - must be last
+    # Note: This catches all non-API routes for client-side routing
     @app.get("/{full_path:path}")
     async def serve_spa(request: Request, full_path: str) -> FileResponse:
         """Serve SPA assets or fall back to index.html for client-side routing."""
+        # Don't serve SPA for API routes - let them 404 naturally
+        # This allows dynamically added plugin routes to work
+        if full_path.startswith("api/"):
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=404, detail="Not Found")
+
         # Serve static files if they exist
         file_path = static_path / full_path
         if file_path.exists() and file_path.is_file():

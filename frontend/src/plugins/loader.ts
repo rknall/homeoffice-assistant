@@ -6,7 +6,7 @@ import type { LoadedPlugin, PluginExports, PluginSummary } from './types'
 /**
  * Plugin loader for dynamically importing frontend plugin modules.
  *
- * Plugins are served from /plugins/{plugin_id}/frontend/index.js
+ * Plugins are served from /plugin-assets/{plugin_id}/frontend/index.js
  * and must export a default object conforming to PluginExports.
  */
 export class PluginLoader {
@@ -15,9 +15,10 @@ export class PluginLoader {
 
   /**
    * Get the URL for a plugin's frontend module.
+   * Plugin assets are served from /plugin-assets/* while routes are /plugins/*
    */
   private getPluginUrl(pluginId: string): string {
-    return `/plugins/${pluginId}/frontend/index.js`
+    return `/plugin-assets/${pluginId}/frontend/index.js`
   }
 
   /**

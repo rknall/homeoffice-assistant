@@ -116,7 +116,11 @@ def test_getters_and_filters(db_session):
 def test_validate_contact_types_exist(db_session):
     company = create_company(db_session)
     create_contact(
-        db_session, company.id, "first", contact_types=[ContactType.BILLING], is_main=True
+        db_session,
+        company.id,
+        "first",
+        contact_types=[ContactType.BILLING],
+        is_main=True,
     )
 
     ok, missing = company_contact_service.validate_contact_types_exist(

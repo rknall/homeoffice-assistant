@@ -65,5 +65,7 @@ def test_company_to_response_dict_includes_contacts(db_session):
     assert response["report_recipients"] is None
     assert len(response["contacts"]) == 1
 
-    no_contacts = company_service.company_to_response_dict(company, include_contacts=False)
+    no_contacts = company_service.company_to_response_dict(
+        company, include_contacts=False
+    )
     assert no_contacts["contacts"] == []

@@ -25,7 +25,10 @@ def upgrade() -> None:
     inspector = sa.inspect(conn)
     columns = [col['name'] for col in inspector.get_columns('events')]
     if 'cover_image_position_y' not in columns:
-        op.add_column('events', sa.Column('cover_image_position_y', sa.Integer(), nullable=True))
+        op.add_column(
+            'events',
+            sa.Column('cover_image_position_y', sa.Integer(), nullable=True),
+        )
     # ### end Alembic commands ###
 
 

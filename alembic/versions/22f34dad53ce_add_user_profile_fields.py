@@ -21,7 +21,10 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.add_column('users', sa.Column('full_name', sa.String(200), nullable=True))
     op.add_column('users', sa.Column('avatar_url', sa.String(500), nullable=True))
-    op.add_column('users', sa.Column('use_gravatar', sa.Boolean(), nullable=False, server_default='1'))
+    op.add_column(
+        'users',
+        sa.Column('use_gravatar', sa.Boolean(), nullable=False, server_default='1'),
+    )
 
 
 def downgrade() -> None:

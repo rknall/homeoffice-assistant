@@ -159,7 +159,12 @@ class DummyDocumentProvider(DocumentProvider):
     async def get_tag_by_name(self, name: str):
         return None
 
-    async def get_documents(self, tag_id=None, storage_path_id=None, custom_field_value=None):
+    async def get_documents(
+        self,
+        tag_id=None,
+        storage_path_id=None,
+        custom_field_value=None,
+    ):
         return []
 
     async def download_document(self, doc_id: int):

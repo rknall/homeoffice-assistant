@@ -13,6 +13,7 @@ from src.plugins.loader import (
     PluginLoader,
     parse_manifest,
 )
+from src.plugins.router_proxy import get_plugin_router_manager
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -160,13 +161,10 @@ class PluginRegistry:
         # Mount routes if plugin provides them
         router = plugin.get_router()
         if router and self._app:
-            prefix = f"/api/v1/plugins/{manifest.id}"
-            self._app.include_router(
-                router,
-                prefix=prefix,
-                tags=[f"plugin:{manifest.id}"],
-            )
-            logger.debug(f"Mounted routes for {manifest.id} at {prefix}")
+            # Use the router proxy manager for dynamic route registration
+            router_manager = get_plugin_router_manager()
+            router_manager.add_plugin_router(manifest.id, router, self._app)
+            logger.debug(f"Mounted routes for {manifest.id}")
 
         # Register event handlers
         handlers = plugin.get_event_handlers()
@@ -261,6 +259,9 @@ class PluginRegistry:
             await plugin.on_uninstall()
             # Remove event handlers
             event_bus.unsubscribe_plugin(plugin_id)
+            # Remove router
+            router_manager = get_plugin_router_manager()
+            router_manager.remove_plugin_router(plugin_id)
             # Remove from registry
             del self._plugins[plugin_id]
 
@@ -344,6 +345,9 @@ class PluginRegistry:
             await plugin.on_disable()
             # Remove event handlers
             event_bus.unsubscribe_plugin(plugin_id)
+            # Remove router
+            router_manager = get_plugin_router_manager()
+            router_manager.remove_plugin_router(plugin_id)
             # Remove from registry
             del self._plugins[plugin_id]
 

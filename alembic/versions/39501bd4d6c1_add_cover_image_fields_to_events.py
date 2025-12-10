@@ -19,10 +19,21 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column('events', sa.Column('cover_image_url', sa.String(length=500), nullable=True))
-    op.add_column('events', sa.Column('cover_thumbnail_url', sa.String(length=500), nullable=True))
-    op.add_column('events', sa.Column('cover_photographer_name', sa.String(length=200), nullable=True))
-    op.add_column('events', sa.Column('cover_photographer_url', sa.String(length=500), nullable=True))
+    op.add_column(
+        'events', sa.Column('cover_image_url', sa.String(length=500), nullable=True)
+    )
+    op.add_column(
+        'events',
+        sa.Column('cover_thumbnail_url', sa.String(length=500), nullable=True),
+    )
+    op.add_column(
+        'events',
+        sa.Column('cover_photographer_name', sa.String(length=200), nullable=True),
+    )
+    op.add_column(
+        'events',
+        sa.Column('cover_photographer_url', sa.String(length=500), nullable=True),
+    )
 
 
 def downgrade() -> None:

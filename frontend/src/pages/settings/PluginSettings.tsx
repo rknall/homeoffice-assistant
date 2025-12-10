@@ -10,17 +10,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
 import { Spinner } from '@/components/ui/Spinner'
 import { usePlugins } from '@/plugins'
-import type { PluginInfo, PluginSummary } from '@/plugins/types'
+import type { DiscoveredPlugin, PluginInfo, PluginSummary } from '@/plugins/types'
 import { useBreadcrumb } from '@/stores/breadcrumb'
 
 export function PluginSettings() {
   const { setItems: setBreadcrumb } = useBreadcrumb()
   const {
     plugins,
+    discoveredPlugins,
     isLoading,
     error: storeError,
     fetchPlugins,
+    fetchDiscoveredPlugins,
     installPlugin,
+    installDiscoveredPlugin,
     uninstallPlugin,
     enablePlugin,
     disablePlugin,
@@ -43,15 +46,28 @@ export function PluginSettings() {
 
   const loadPlugins = useCallback(async () => {
     try {
-      await fetchPlugins()
+      await Promise.all([fetchPlugins(), fetchDiscoveredPlugins()])
     } catch {
       setError('Failed to load plugins')
     }
-  }, [fetchPlugins])
+  }, [fetchPlugins, fetchDiscoveredPlugins])
 
   useEffect(() => {
     loadPlugins()
   }, [loadPlugins])
+
+  const handleInstallDiscoveredPlugin = async (plugin: DiscoveredPlugin) => {
+    setIsProcessing(plugin.plugin_id)
+    setError(null)
+    try {
+      const result = await installDiscoveredPlugin(plugin.plugin_id)
+      setSuccessMessage(`Plugin "${result.plugin_name}" installed successfully`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to install plugin')
+    } finally {
+      setIsProcessing(null)
+    }
+  }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -276,6 +292,62 @@ export function PluginSettings() {
           )}
         </CardContent>
       </Card>
+
+      {/* Available (Discovered) Plugins */}
+      {discoveredPlugins.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Available Plugins</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-500 mb-4">
+              These plugins are available on disk but not yet installed.
+            </p>
+            <div className="divide-y divide-gray-200">
+              {discoveredPlugins.map((plugin) => (
+                <div key={plugin.plugin_id} className="py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <h3 className="font-medium text-gray-900">{plugin.name}</h3>
+                        {plugin.has_frontend && (
+                          <Badge variant="info" className="text-xs">
+                            Frontend
+                          </Badge>
+                        )}
+                        {plugin.has_backend && (
+                          <Badge variant="info" className="text-xs">
+                            Backend
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-500 mt-1">{plugin.description}</p>
+                      <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
+                        <span>Version: {plugin.version}</span>
+                        {plugin.author && <span>Author: {plugin.author}</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isProcessing === plugin.plugin_id ? (
+                        <Spinner className="h-5 w-5" />
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => handleInstallDiscoveredPlugin(plugin)}
+                          title="Install plugin"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Install
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Install Modal */}
       <Modal

@@ -21,6 +21,11 @@ from src.plugins.loader import (
 )
 from src.plugins.permissions import PermissionChecker
 from src.plugins.registry import PluginRegistry
+from src.plugins.router_proxy import (
+    PluginRouterManager,
+    get_plugin_router_manager,
+    reset_plugin_router_manager,
+)
 
 __all__ = [  # noqa: RUF022
     # Base classes
@@ -41,4 +46,8 @@ __all__ = [  # noqa: RUF022
     "PluginRegistry",
     # Permissions
     "PermissionChecker",
+    # Router proxy
+    "PluginRouterManager",
+    "get_plugin_router_manager",
+    "reset_plugin_router_manager",
 ]

@@ -109,17 +109,26 @@ async def test_get_location_image_flows(monkeypatch, db_session):
         fake_fetch,
     )
 
-    image = await location_image_service.get_location_image(db_session, "Vienna", "Austria")
+    image = await location_image_service.get_location_image(
+        db_session, "Vienna", "Austria"
+    )
     assert image.unsplash_id == "abc"
 
     # subsequent call should return cached result
-    cached = await location_image_service.get_location_image(db_session, "Vienna", "Austria")
+    cached = await location_image_service.get_location_image(
+        db_session, "Vienna", "Austria"
+    )
     assert cached.id == image.id
 
     # remove API key -> graceful fallback
     db_session.query(SystemSettings).delete()
     db_session.commit()
-    assert await location_image_service.get_location_image(db_session, "Vienna", "Austria") is None
+    assert (
+        await location_image_service.get_location_image(
+            db_session, "Vienna", "Austria"
+        )
+        is None
+    )
 
 
 def test_clear_expired_cache(db_session):

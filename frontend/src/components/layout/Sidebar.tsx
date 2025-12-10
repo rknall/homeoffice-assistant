@@ -64,8 +64,8 @@ export function Sidebar() {
     <>
       <div className="flex flex-col w-64 bg-gray-900 text-white">
         <div className="flex items-center h-16 px-4 border-b border-gray-800">
-          <img src={logoImage} alt="Travel Manager" className="h-10 w-10 object-contain" />
-          <h1 className="text-xl font-bold ml-2">Travel Manager</h1>
+          <img src={logoImage} alt="HomeOffice Assistant" className="h-10 w-10 object-contain" />
+          <h1 className="text-xl font-bold ml-2">HomeOffice Assistant</h1>
         </div>
         <nav className="flex-1 px-4 py-4 space-y-1">
           {navItems.map((item) => (

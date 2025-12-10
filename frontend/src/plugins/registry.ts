@@ -5,6 +5,8 @@ import { create } from 'zustand'
 import { api } from '@/api/client'
 import { pluginLoader } from './loader'
 import type {
+  DiscoveredPlugin,
+  DiscoveredPluginsResponse,
   LoadedPlugin,
   PluginEnableResponse,
   PluginInfo,
@@ -20,6 +22,7 @@ import type {
 interface PluginsState {
   // Plugin data
   plugins: PluginSummary[]
+  discoveredPlugins: DiscoveredPlugin[]
   loadedPlugins: LoadedPlugin[]
 
   // Loading state
@@ -29,9 +32,11 @@ interface PluginsState {
 
   // Actions
   fetchPlugins: () => Promise<void>
+  fetchDiscoveredPlugins: () => Promise<void>
   loadAllFrontends: () => Promise<void>
   getPluginInfo: (pluginId: string) => Promise<PluginInfo>
   installPlugin: (file: File) => Promise<PluginInstallResponse>
+  installDiscoveredPlugin: (pluginId: string) => Promise<PluginInstallResponse>
   uninstallPlugin: (pluginId: string, dropTables?: boolean) => Promise<void>
   enablePlugin: (pluginId: string) => Promise<void>
   disablePlugin: (pluginId: string) => Promise<void>
@@ -51,6 +56,7 @@ interface PluginsState {
 
 export const usePlugins = create<PluginsState>((set, get) => ({
   plugins: [],
+  discoveredPlugins: [],
   loadedPlugins: [],
   isLoading: false,
   isInitialized: false,
@@ -65,6 +71,15 @@ export const usePlugins = create<PluginsState>((set, get) => ({
       const error = e instanceof Error ? e.message : 'Failed to fetch plugins'
       set({ error, isLoading: false })
       throw e
+    }
+  },
+
+  fetchDiscoveredPlugins: async () => {
+    try {
+      const response = await api.get<DiscoveredPluginsResponse>('/plugins/discovered')
+      set({ discoveredPlugins: response.plugins })
+    } catch (e) {
+      console.error('Failed to fetch discovered plugins:', e)
     }
   },
 
@@ -109,11 +124,32 @@ export const usePlugins = create<PluginsState>((set, get) => ({
 
       const result: PluginInstallResponse = await response.json()
 
-      // Refresh plugin list
+      // Refresh plugin list and discovered plugins
       await get().fetchPlugins()
+      await get().fetchDiscoveredPlugins()
 
       set({ isLoading: false })
       return result
+    } catch (e) {
+      const error = e instanceof Error ? e.message : 'Failed to install plugin'
+      set({ error, isLoading: false })
+      throw e
+    }
+  },
+
+  installDiscoveredPlugin: async (pluginId: string) => {
+    set({ isLoading: true, error: null })
+    try {
+      const response = await api.post<PluginInstallResponse>(
+        `/plugins/discovered/${pluginId}/install`,
+      )
+
+      // Refresh plugin list and discovered plugins
+      await get().fetchPlugins()
+      await get().fetchDiscoveredPlugins()
+
+      set({ isLoading: false })
+      return response
     } catch (e) {
       const error = e instanceof Error ? e.message : 'Failed to install plugin'
       set({ error, isLoading: false })
@@ -261,6 +297,7 @@ export const usePlugins = create<PluginsState>((set, get) => ({
     pluginLoader.unloadAll()
     set({
       plugins: [],
+      discoveredPlugins: [],
       loadedPlugins: [],
       isLoading: false,
       isInitialized: false,

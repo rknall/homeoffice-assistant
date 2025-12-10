@@ -100,7 +100,7 @@ function ExamplePage() {
 
   async function fetchNotes() {
     try {
-      const response = await fetch('/api/v1/plugins/example/notes', {
+      const response = await fetch('/api/v1/plugin/example/notes', {
         credentials: 'include',
       })
       if (!response.ok) throw new Error('Failed to fetch notes')
@@ -118,7 +118,7 @@ function ExamplePage() {
     if (!newTitle.trim()) return
 
     try {
-      const response = await fetch('/api/v1/plugins/example/notes', {
+      const response = await fetch('/api/v1/plugin/example/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -135,7 +135,7 @@ function ExamplePage() {
 
   async function deleteNote(id) {
     try {
-      const response = await fetch(`/api/v1/plugins/example/notes/${id}`, {
+      const response = await fetch(`/api/v1/plugin/example/notes/${id}`, {
         method: 'DELETE',
         credentials: 'include',
       })
@@ -237,7 +237,7 @@ function DashboardWidget() {
   const [info, setInfo] = useState(null)
 
   useEffect(() => {
-    fetch('/api/v1/plugins/example/info', { credentials: 'include' })
+    fetch('/api/v1/plugin/example/info', { credentials: 'include' })
       .then((r) => r.json())
       .then(setInfo)
       .catch(console.error)

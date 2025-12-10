@@ -8,7 +8,7 @@ from datetime import datetime
 from sqlalchemy import Column, DateTime, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 
-from src.database import Base
+from src.models.base import Base
 
 
 class ExampleNote(Base):

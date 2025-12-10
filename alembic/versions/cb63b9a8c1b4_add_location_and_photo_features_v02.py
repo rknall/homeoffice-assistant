@@ -27,8 +27,13 @@ def upgrade() -> None:
     op.add_column('events', sa.Column('longitude', sa.Float(), nullable=True))
 
     # Extend photo_references with metadata fields
-    op.add_column('photo_references', sa.Column('thumbnail_url', sa.String(500), nullable=True))
-    op.add_column('photo_references', sa.Column('taken_at', sa.DateTime(), nullable=True))
+    op.add_column(
+        'photo_references',
+        sa.Column('thumbnail_url', sa.String(500), nullable=True),
+    )
+    op.add_column(
+        'photo_references', sa.Column('taken_at', sa.DateTime(), nullable=True)
+    )
     op.add_column('photo_references', sa.Column('latitude', sa.Float(), nullable=True))
     op.add_column('photo_references', sa.Column('longitude', sa.Float(), nullable=True))
 
@@ -46,7 +51,11 @@ def upgrade() -> None:
         sa.Column('fetched_at', sa.DateTime(), nullable=False),
         sa.Column('expires_at', sa.DateTime(), nullable=False),
     )
-    op.create_index('ix_location_images_city_country', 'location_images', ['city', 'country'])
+    op.create_index(
+        'ix_location_images_city_country',
+        'location_images',
+        ['city', 'country'],
+    )
 
 
 def downgrade() -> None:

@@ -21,6 +21,8 @@ from src.plugins import (
 )
 from src.plugins.loader import PLUGIN_MANIFEST_FILE, parse_manifest
 from src.schemas.plugin import (
+    DiscoveredPlugin,
+    DiscoveredPluginsResponse,
     PluginEnableResponse,
     PluginInfoResponse,
     PluginInstallResponse,
@@ -108,6 +110,127 @@ async def list_plugins(
         )
 
     return PluginListResponse(plugins=plugins)
+
+
+@router.get("/discovered", response_model=DiscoveredPluginsResponse)
+async def list_discovered_plugins(
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+) -> DiscoveredPluginsResponse:
+    """List plugins discovered on disk but not yet installed.
+
+    These are plugin directories with valid manifests that haven't been
+    registered in the database yet.
+    """
+    loader = _get_loader()
+    discovered = loader.discover_plugins()
+
+    # Get list of installed plugin IDs
+    installed_ids = {
+        config.plugin_id for config in db.query(PluginConfigModel).all()
+    }
+
+    plugins = []
+    for _plugin_path, manifest in discovered:
+        if manifest.id not in installed_ids:
+            plugins.append(
+                DiscoveredPlugin(
+                    plugin_id=manifest.id,
+                    name=manifest.name,
+                    version=manifest.version,
+                    description=manifest.description,
+                    author=manifest.author,
+                    has_frontend=loader.has_frontend(manifest.id),
+                    has_backend=loader.has_backend(manifest.id),
+                )
+            )
+
+    return DiscoveredPluginsResponse(plugins=plugins)
+
+
+@router.post("/discovered/{plugin_id}/install", response_model=PluginInstallResponse)
+async def install_discovered_plugin(
+    plugin_id: str,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_current_admin),
+) -> PluginInstallResponse:
+    """Install a plugin that was discovered on disk.
+
+    This registers the plugin in the database and enables it.
+    Requires admin privileges.
+    """
+    loader = _get_loader()
+
+    # Check if already installed
+    existing = (
+        db.query(PluginConfigModel)
+        .filter(PluginConfigModel.plugin_id == plugin_id)
+        .first()
+    )
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Plugin {plugin_id} is already installed",
+        )
+
+    # Find the plugin in discovered list
+    discovered = loader.discover_plugins()
+    plugin_info = None
+    for plugin_path, manifest in discovered:
+        if manifest.id == plugin_id:
+            plugin_info = (plugin_path, manifest)
+            break
+
+    if not plugin_info:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Plugin {plugin_id} not found in plugins directory",
+        )
+
+    plugin_path, manifest = plugin_info
+
+    try:
+        # Run migrations if plugin has them
+        from src.plugins.migrations import PluginMigrationRunner
+
+        migration_runner = PluginMigrationRunner(plugin_path, manifest.id)
+        if migration_runner.has_migrations():
+            migration_runner.run_migrations()
+
+        # Create database config record
+        db_config = PluginConfigModel(
+            plugin_id=manifest.id,
+            plugin_version=manifest.version,
+            is_enabled=True,
+            settings_encrypted=None,
+        )
+        db.add(db_config)
+        db.commit()
+
+        # Load the plugin into the registry
+        from src.plugins.base import PluginConfig
+
+        registry = PluginRegistry.get_instance()
+        config = PluginConfig(enabled=True, settings={})
+        plugin = await registry._load_single_plugin(plugin_path, manifest, config)
+
+        # Call on_install lifecycle hook
+        await plugin.on_install()
+
+        return PluginInstallResponse(
+            success=True,
+            plugin_id=manifest.id,
+            plugin_name=manifest.name,
+            version=manifest.version,
+            message=f"Plugin {manifest.name} installed successfully",
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to install discovered plugin {plugin_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to install plugin: {e}",
+        ) from e
 
 
 @router.get("/{plugin_id}", response_model=PluginInfoResponse)

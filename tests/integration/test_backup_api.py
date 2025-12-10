@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
 """Integration tests for backup API endpoints."""
+
 import io
 import shutil
 import sqlite3
@@ -125,9 +126,7 @@ def temp_backup_dirs(admin_user):
         )"""
     )
     # Insert current migration version to prevent migrations from running
-    conn.execute(
-        "INSERT INTO alembic_version (version_num) VALUES ('3a8f2c9d1e5b')"
-    )
+    conn.execute("INSERT INTO alembic_version (version_num) VALUES ('3a8f2c9d1e5b')")
 
     # Insert the admin user into the temp database so restore can find them
     conn.execute(
@@ -172,7 +171,9 @@ def mock_backup_paths(temp_backup_dirs):
         patch.object(backup_service, "AVATAR_DIR", avatar_dir),
         patch.object(backup_service, "DB_PATH", db_path),
         patch.object(
-            backup_service, "PRE_RESTORE_BACKUP_DIR", Path(temp_dir) / "backups" / "pre_restore"
+            backup_service,
+            "PRE_RESTORE_BACKUP_DIR",
+            Path(temp_dir) / "backups" / "pre_restore",
         ),
     ):
         yield temp_dir, data_dir, avatar_dir, db_path
@@ -244,7 +245,7 @@ class TestCreateBackupEndpoint:
 
         with tarfile.open(fileobj=io.BytesIO(decrypted), mode="r:gz") as tar:
             names = tar.getnames()
-            assert any("travel_manager.db" in name for name in names)
+            assert any("homeoffice_assistant.db" in name for name in names)
             assert any("manifest.json" in name for name in names)
 
     def test_rejects_short_password(self, admin_client, mock_backup_paths):
@@ -265,7 +266,13 @@ class TestValidateBackupEndpoint:
         backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
         response = client.post(
             "/api/v1/backup/validate",
-            files={"file": ("backup.tar.gz.enc", io.BytesIO(backup_bytes), "application/octet-stream")},
+            files={
+                "file": (
+                    "backup.tar.gz.enc",
+                    io.BytesIO(backup_bytes),
+                    "application/octet-stream",
+                )
+            },
             data={"password": TEST_PASSWORD},
         )
         assert response.status_code == 401
@@ -275,7 +282,13 @@ class TestValidateBackupEndpoint:
         backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
         response = authenticated_client.post(
             "/api/v1/backup/validate",
-            files={"file": ("backup.tar.gz.enc", io.BytesIO(backup_bytes), "application/octet-stream")},
+            files={
+                "file": (
+                    "backup.tar.gz.enc",
+                    io.BytesIO(backup_bytes),
+                    "application/octet-stream",
+                )
+            },
             data={"password": TEST_PASSWORD},
         )
         assert response.status_code == 403
@@ -285,7 +298,13 @@ class TestValidateBackupEndpoint:
         backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
         response = admin_client.post(
             "/api/v1/backup/validate",
-            files={"file": ("backup.tar.gz.enc", io.BytesIO(backup_bytes), "application/octet-stream")},
+            files={
+                "file": (
+                    "backup.tar.gz.enc",
+                    io.BytesIO(backup_bytes),
+                    "application/octet-stream",
+                )
+            },
             data={"password": TEST_PASSWORD},
         )
 
@@ -300,19 +319,33 @@ class TestValidateBackupEndpoint:
         """Test rejection of invalid backup file."""
         response = admin_client.post(
             "/api/v1/backup/validate",
-            files={"file": ("backup.tar.gz", io.BytesIO(b"invalid data"), "application/gzip")},
+            files={
+                "file": (
+                    "backup.tar.gz",
+                    io.BytesIO(b"invalid data"),
+                    "application/gzip",
+                )
+            },
         )
 
         assert response.status_code == 200
         data = response.json()
         assert data["valid"] is False
 
-    def test_requires_password_for_encrypted_backup(self, admin_client, mock_backup_paths):
+    def test_requires_password_for_encrypted_backup(
+        self, admin_client, mock_backup_paths
+    ):
         """Test that password is required for encrypted backups."""
         backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
         response = admin_client.post(
             "/api/v1/backup/validate",
-            files={"file": ("backup.tar.gz.enc", io.BytesIO(backup_bytes), "application/octet-stream")},
+            files={
+                "file": (
+                    "backup.tar.gz.enc",
+                    io.BytesIO(backup_bytes),
+                    "application/octet-stream",
+                )
+            },
             # No password provided
         )
 
@@ -331,7 +364,13 @@ class TestRestoreBackupEndpoint:
         backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
         response = client.post(
             "/api/v1/backup/restore",
-            files={"file": ("backup.tar.gz.enc", io.BytesIO(backup_bytes), "application/octet-stream")},
+            files={
+                "file": (
+                    "backup.tar.gz.enc",
+                    io.BytesIO(backup_bytes),
+                    "application/octet-stream",
+                )
+            },
             data={"password": TEST_PASSWORD},
         )
         assert response.status_code == 401
@@ -341,7 +380,13 @@ class TestRestoreBackupEndpoint:
         backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
         response = authenticated_client.post(
             "/api/v1/backup/restore",
-            files={"file": ("backup.tar.gz.enc", io.BytesIO(backup_bytes), "application/octet-stream")},
+            files={
+                "file": (
+                    "backup.tar.gz.enc",
+                    io.BytesIO(backup_bytes),
+                    "application/octet-stream",
+                )
+            },
             data={"password": TEST_PASSWORD},
         )
         assert response.status_code == 403
@@ -351,7 +396,13 @@ class TestRestoreBackupEndpoint:
         backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
         response = admin_client.post(
             "/api/v1/backup/restore",
-            files={"file": ("backup.tar.gz.enc", io.BytesIO(backup_bytes), "application/octet-stream")},
+            files={
+                "file": (
+                    "backup.tar.gz.enc",
+                    io.BytesIO(backup_bytes),
+                    "application/octet-stream",
+                )
+            },
             data={"password": TEST_PASSWORD},
         )
 
@@ -367,7 +418,13 @@ class TestRestoreBackupEndpoint:
         """Test rejection of invalid backup during restore."""
         response = admin_client.post(
             "/api/v1/backup/restore",
-            files={"file": ("backup.tar.gz", io.BytesIO(b"invalid data"), "application/gzip")},
+            files={
+                "file": (
+                    "backup.tar.gz",
+                    io.BytesIO(b"invalid data"),
+                    "application/gzip",
+                )
+            },
         )
 
         assert response.status_code == 200

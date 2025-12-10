@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 # Set test environment before importing app
-os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only-32chars!"
+os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only-32chars!"  # nosec - test-only secret  # noqa: S105
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 
 from src.database import get_db
@@ -38,6 +38,7 @@ def db_session():
 @pytest.fixture(scope="function")
 def client(db_session):
     """Create a test client with database override."""
+
     def override_get_db():
         try:
             yield db_session
@@ -87,7 +88,7 @@ def authenticated_client(client, test_user):
     """Create an authenticated test client."""
     response = client.post(
         "/api/v1/auth/login",
-        json={"username": "testuser", "password": "testpassword123"}
+        json={"username": "testuser", "password": "testpassword123"},
     )
     assert response.status_code == 200
     return client
@@ -97,8 +98,7 @@ def authenticated_client(client, test_user):
 def admin_client(client, admin_user):
     """Create an authenticated admin test client."""
     response = client.post(
-        "/api/v1/auth/login",
-        json={"username": "admin", "password": "adminpassword123"}
+        "/api/v1/auth/login", json={"username": "admin", "password": "adminpassword123"}
     )
     assert response.status_code == 200
     return client

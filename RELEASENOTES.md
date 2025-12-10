@@ -1,5 +1,9 @@
 # Release Notes
 
+## Version 0.3.0 (In Development)
+
+---
+
 ## Version 0.2.3
 
 ### Major Features

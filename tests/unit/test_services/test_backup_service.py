@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
 """Unit tests for backup service."""
+
 import json
 import os
 import shutil
@@ -95,7 +96,9 @@ def mock_paths(temp_data_dir):
         patch.object(backup_service, "AVATAR_DIR", avatar_dir),
         patch.object(backup_service, "DB_PATH", db_path),
         patch.object(
-            backup_service, "PRE_RESTORE_BACKUP_DIR", Path(temp_dir) / "backups" / "pre_restore"
+            backup_service,
+            "PRE_RESTORE_BACKUP_DIR",
+            Path(temp_dir) / "backups" / "pre_restore",
         ),
     ):
         yield temp_dir, data_dir, avatar_dir, db_path
@@ -139,7 +142,7 @@ class TestCreateBackup:
         """Test that create_backup creates a valid encrypted tarball."""
         backup_bytes, filename = backup_service.create_backup("testuser", TEST_PASSWORD)
 
-        assert filename.startswith("travel_manager_backup_")
+        assert filename.startswith("homeoffice_assistant_backup_")
         assert filename.endswith(".tar.gz.enc")
         assert len(backup_bytes) > 0
 
@@ -159,7 +162,23 @@ class TestCreateBackup:
 
             with tarfile.open(tarball_path, "r:gz") as tar:
                 names = tar.getnames()
-                assert any("travel_manager.db" in name for name in names)
+                assert any("homeoffice_assistant.db" in name for name in names)
+        """Test that tarball contains the database file."""
+        backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
+
+        # Decrypt backup
+        salt = backup_bytes[:16]
+        encrypted_data = backup_bytes[16:]
+        decrypted = decrypt_backup_archive(encrypted_data, TEST_PASSWORD, salt)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tarball_path = Path(temp_dir) / "backup.tar.gz"
+            with open(tarball_path, "wb") as f:
+                f.write(decrypted)
+
+            with tarfile.open(tarball_path, "r:gz") as tar:
+                names = tar.getnames()
+                assert any("homeoffice_assistant.db" in name for name in names)
 
     def test_tarball_contains_manifest(self, mock_paths):
         """Test that tarball contains manifest.json."""
@@ -267,7 +286,9 @@ class TestValidateBackup:
 
     def test_rejects_invalid_tarball(self, mock_paths):
         """Test rejection of invalid tarball data."""
-        valid, message, metadata, warnings = backup_service.validate_backup(b"not a tarball")
+        valid, message, metadata, warnings = backup_service.validate_backup(
+            b"not a tarball"
+        )
 
         assert valid is False
 
@@ -281,14 +302,16 @@ class TestValidateBackup:
             with open(tarball_path, "rb") as f:
                 backup_bytes = f.read()
 
-        valid, message, metadata, warnings = backup_service.validate_backup(backup_bytes)
+        valid, message, metadata, warnings = backup_service.validate_backup(
+            backup_bytes
+        )
 
         assert valid is False
 
     def test_rejects_missing_database(self, mock_paths):
         """Test rejection when database file is missing."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            backup_dir = Path(temp_dir) / "travel_manager_backup_test"
+            backup_dir = Path(temp_dir) / "homeoffice_assistant_backup_test"
             backup_dir.mkdir()
 
             # Create manifest but no database
@@ -297,12 +320,14 @@ class TestValidateBackup:
 
             tarball_path = Path(temp_dir) / "backup.tar.gz"
             with tarfile.open(tarball_path, "w:gz") as tar:
-                tar.add(backup_dir, arcname="travel_manager_backup_test")
+                tar.add(backup_dir, arcname="homeoffice_assistant_backup_test")
 
             with open(tarball_path, "rb") as f:
                 backup_bytes = f.read()
 
-        valid, message, metadata, warnings = backup_service.validate_backup(backup_bytes)
+        valid, message, metadata, warnings = backup_service.validate_backup(
+            backup_bytes
+        )
 
         assert valid is False
         assert "database" in message.lower()
@@ -310,23 +335,25 @@ class TestValidateBackup:
     def test_rejects_invalid_sqlite(self, mock_paths):
         """Test rejection when database is not valid SQLite."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            backup_dir = Path(temp_dir) / "travel_manager_backup_test"
+            backup_dir = Path(temp_dir) / "homeoffice_assistant_backup_test"
             backup_dir.mkdir()
 
             # Create manifest and fake database
             with open(backup_dir / "manifest.json", "w") as f:
                 json.dump({"version": "0.1.1"}, f)
-            with open(backup_dir / "travel_manager.db", "w") as f:
+            with open(backup_dir / "homeoffice_assistant.db", "w") as f:
                 f.write("not a sqlite database")
 
             tarball_path = Path(temp_dir) / "backup.tar.gz"
             with tarfile.open(tarball_path, "w:gz") as tar:
-                tar.add(backup_dir, arcname="travel_manager_backup_test")
+                tar.add(backup_dir, arcname="homeoffice_assistant_backup_test")
 
             with open(tarball_path, "rb") as f:
                 backup_bytes = f.read()
 
-        valid, message, metadata, warnings = backup_service.validate_backup(backup_bytes)
+        valid, message, metadata, warnings = backup_service.validate_backup(
+            backup_bytes
+        )
 
         assert valid is False
         assert "sqlite" in message.lower()
@@ -336,20 +363,22 @@ class TestValidateBackup:
         _, _, _, db_path = mock_paths
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            backup_dir = Path(temp_dir) / "travel_manager_backup_test"
+            backup_dir = Path(temp_dir) / "homeoffice_assistant_backup_test"
             backup_dir.mkdir()
 
             # Copy database but no manifest
-            shutil.copy(db_path, backup_dir / "travel_manager.db")
+            shutil.copy(db_path, backup_dir / "homeoffice_assistant.db")
 
             tarball_path = Path(temp_dir) / "backup.tar.gz"
             with tarfile.open(tarball_path, "w:gz") as tar:
-                tar.add(backup_dir, arcname="travel_manager_backup_test")
+                tar.add(backup_dir, arcname="homeoffice_assistant_backup_test")
 
             with open(tarball_path, "rb") as f:
                 backup_bytes = f.read()
 
-        valid, message, metadata, warnings = backup_service.validate_backup(backup_bytes)
+        valid, message, metadata, warnings = backup_service.validate_backup(
+            backup_bytes
+        )
 
         assert valid is True
         assert len(warnings) > 0
@@ -360,7 +389,9 @@ class TestValidateBackup:
         backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
 
         # Try to validate without password
-        valid, message, metadata, warnings = backup_service.validate_backup(backup_bytes)
+        valid, message, metadata, warnings = backup_service.validate_backup(
+            backup_bytes
+        )
 
         assert valid is False
         assert "password" in message.lower()

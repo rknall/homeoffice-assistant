@@ -151,7 +151,7 @@ def cache_image(
 
     # Create new cache entry
     location_image = LocationImage(
-        id=str(uuid.uuid4()),
+        id=uuid.uuid4(),
         city=city,
         country=country,
         unsplash_id=image_data["unsplash_id"],

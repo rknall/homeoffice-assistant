@@ -16,6 +16,8 @@ from src.main import app
 from src.models import User
 from src.models.base import Base
 from src.security import get_password_hash
+from src.services import rbac_service
+from src.services.rbac_seed_service import seed_rbac_data
 
 # Test database setup
 TEST_DATABASE_URL = "sqlite:///./test.db"
@@ -69,7 +71,11 @@ def test_user(db_session) -> User:
 
 @pytest.fixture
 def admin_user(db_session) -> User:
-    """Create an admin test user."""
+    """Create an admin test user with Global Admin role."""
+    # Seed RBAC data (roles and permissions)
+    seed_rbac_data(db_session)
+
+    # Create admin user
     user = User(
         username="admin",
         email="admin@example.com",
@@ -78,6 +84,15 @@ def admin_user(db_session) -> User:
         is_active=True,
     )
     db_session.add(user)
+    db_session.flush()
+
+    # Assign Global Admin role
+    global_admin_role = rbac_service.get_role_by_name(db_session, "Global Admin")
+    if global_admin_role:
+        rbac_service.assign_role_to_user(
+            db_session, user_id=user.id, role_id=global_admin_role.id
+        )
+
     db_session.commit()
     db_session.refresh(user)
     return user

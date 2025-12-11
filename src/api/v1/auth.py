@@ -103,7 +103,8 @@ def register(
         )
 
     user = auth_service.register_user(db, data)
-    token = auth_service.create_session(db, user.id)
+    user_id = user.id
+    token = auth_service.create_session(db, user_id)
 
     response.set_cookie(
         key="session",
@@ -113,6 +114,14 @@ def register(
         samesite="lax",
         max_age=86400 * 7,  # 7 days
     )
+
+    # Re-query user after session creation commit to avoid expired object error
+    user = auth_service.get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="User not found after registration",
+        )
 
     return AuthResponse(user=build_user_response(db, user))
 
@@ -132,7 +141,8 @@ def login(
             detail="Invalid credentials",
         )
 
-    token = auth_service.create_session(db, user.id)
+    user_id = user.id
+    token = auth_service.create_session(db, user_id)
 
     response.set_cookie(
         key="session",
@@ -142,6 +152,14 @@ def login(
         samesite="lax",
         max_age=86400 * 7,  # 7 days
     )
+
+    # Re-query user after session creation commit to avoid expired object error
+    user = auth_service.get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="User not found after session creation",
+        )
 
     return AuthResponse(user=build_user_response(db, user))
 

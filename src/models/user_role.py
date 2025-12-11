@@ -1,12 +1,17 @@
 # src/models/user_role.py
-import datetime
-import uuid
+import uuid as uuid_lib
+from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, ForeignKey, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy import DateTime, ForeignKey, UniqueConstraint, Uuid
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from src.models.company import Company
+    from src.models.role import Role
+    from src.models.user import User
 
 
 class UserRole(Base, TimestampMixin):
@@ -14,20 +19,36 @@ class UserRole(Base, TimestampMixin):
 
     __tablename__ = "user_roles"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    id: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        primary_key=True,
+        default=uuid_lib.uuid4,
     )
-    role_id = Column(
-        UUID(as_uuid=True), ForeignKey("roles.id", ondelete="CASCADE"), nullable=False
+    user_id: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
     )
-    company_id = Column(
-        UUID(as_uuid=True),
+    role_id: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("roles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    company_id: Mapped[uuid_lib.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
         ForeignKey("companies.id", ondelete="CASCADE"),
         nullable=True,
     )
-    assigned_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    assigned_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    assigned_by_id: Mapped[uuid_lib.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=True,
+    )
+    assigned_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+    )
 
     __table_args__ = (
         UniqueConstraint(
@@ -35,7 +56,13 @@ class UserRole(Base, TimestampMixin):
         ),
     )
 
-    user = relationship("User", back_populates="user_roles", foreign_keys=[user_id])
-    role = relationship("Role", back_populates="user_roles")
-    company = relationship("Company", back_populates="user_roles")
-    assigned_by = relationship("User", foreign_keys=[assigned_by_id])
+    user: Mapped[User] = relationship(
+        "User", back_populates="user_roles", foreign_keys=[user_id]
+    )
+    role: Mapped[Role] = relationship("Role", back_populates="user_roles")
+    company: Mapped[Company | None] = relationship(
+        "Company", back_populates="user_roles"
+    )
+    assigned_by: Mapped[User | None] = relationship(
+        "User", foreign_keys=[assigned_by_id]
+    )

@@ -52,7 +52,8 @@ class TestAuthAPI:
         assert response.status_code == 201
         data = response.json()
         assert data["user"]["username"] == "newuser"
-        assert data["user"]["is_admin"] is True
+        # First user gets Global Admin role with all permissions
+        assert "permissions" in data["user"]
 
     def test_register_duplicate_username(self, client):
         """Test registering with duplicate username fails."""

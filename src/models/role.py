@@ -1,11 +1,15 @@
 # src/models/role.py
-import uuid
+import uuid as uuid_lib
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, String, Text
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy import Boolean, String, Text, Uuid
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from src.models.role_permission import RolePermission
+    from src.models.user_role import UserRole
 
 
 class Role(Base, TimestampMixin):
@@ -13,14 +17,18 @@ class Role(Base, TimestampMixin):
 
     __tablename__ = "roles"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String(100), unique=True, nullable=False)
-    is_system = Column(Boolean, default=False, nullable=False)
-    description = Column(Text, nullable=True)
+    id: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        primary_key=True,
+        default=uuid_lib.uuid4,
+    )
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    permissions = relationship(
+    permissions: Mapped[list[RolePermission]] = relationship(
         "RolePermission", back_populates="role", cascade="all, delete-orphan"
     )
-    user_roles = relationship(
+    user_roles: Mapped[list[UserRole]] = relationship(
         "UserRole", back_populates="role", cascade="all, delete-orphan"
     )

@@ -10,6 +10,7 @@ from src.schemas.auth import RegisterRequest
 from src.security import get_password_hash
 from src.services import auth_service
 from src.services import email_template_service as email_service
+from src.services.rbac_seed_service import seed_rbac_data
 
 
 def create_user(db_session, username: str = "existing") -> User:
@@ -52,6 +53,9 @@ def test_registration_enabled_setting(db_session):
 
 
 def test_register_user_first_run_creates_admin_and_template(db_session, monkeypatch):
+    # Seed RBAC data so Global Admin role exists
+    seed_rbac_data(db_session)
+
     called = {}
 
     def fake_default(db):
@@ -73,7 +77,8 @@ def test_register_user_first_run_creates_admin_and_template(db_session, monkeypa
     user = auth_service.register_user(db_session, request)
 
     assert user.is_admin is True
-    assert user.role.value == "admin"
+    # User roles are assigned via RBAC system
+    assert len(user.user_roles) > 0
     assert called["called"] is True
 
 
@@ -89,7 +94,8 @@ def test_register_user_after_first_run(db_session):
     user = auth_service.register_user(db_session, request)
 
     assert user.is_admin is False
-    assert user.role.value == "user"
+    # Non-admin users don't get automatic role assignments
+    assert len(user.user_roles) == 0
 
 
 def test_authenticate_success_and_failures(db_session):

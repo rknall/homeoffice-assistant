@@ -4,6 +4,7 @@
 
 import datetime
 import re
+import uuid
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -64,7 +65,7 @@ class UserProfileUpdate(BaseModel):
 class UserResponse(BaseModel):
     """Schema for user response."""
 
-    id: str
+    id: uuid.UUID
     username: str
     email: str
     is_active: bool

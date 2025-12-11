@@ -3,6 +3,7 @@
 """Expense schemas."""
 
 import datetime
+import uuid
 from decimal import Decimal
 
 from pydantic import BaseModel, Field, field_validator
@@ -63,8 +64,8 @@ class ExpenseUpdate(BaseModel):
 class ExpenseResponse(BaseModel):
     """Schema for expense response."""
 
-    id: str
-    event_id: str
+    id: uuid.UUID
+    event_id: uuid.UUID
     paperless_doc_id: int | None
     date: datetime.date
     amount: Decimal
@@ -83,5 +84,5 @@ class ExpenseResponse(BaseModel):
 class ExpenseBulkUpdate(BaseModel):
     """Schema for bulk updating expense payment types."""
 
-    expense_ids: list[str]
+    expense_ids: list[uuid.UUID]
     payment_type: PaymentType

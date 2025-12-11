@@ -46,6 +46,7 @@ import type {
   ExpenseReportPreview,
   LocationImage,
   TemplatePreviewResponse,
+  UUID,
 } from '@/types'
 import { getCategoryLabel, getPaymentTypeLabel } from '@/utils/labels'
 
@@ -109,7 +110,7 @@ const statusLabels: Record<EventStatus, string> = {
 }
 
 export function EventDetail() {
-  const { id } = useParams<{ id: string }>()
+  const { id } = useParams<{ id: UUID }>()
   const navigate = useNavigate()
   const { formatDate } = useLocale()
   const { items: breadcrumbItems, setItems: setBreadcrumb, setHideGlobal } = useBreadcrumb()

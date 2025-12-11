@@ -18,6 +18,7 @@ from src.api.v1 import (
     notes,
     photos,
     plugins,
+    rbac,
     reports,
     settings,
     todos,
@@ -80,6 +81,4 @@ api_router.include_router(photos.router, prefix="/events", tags=["photos"])
 api_router.include_router(plugins.router)
 
 # RBAC routes
-from src.api.v1 import rbac
-
 api_router.include_router(rbac.router)

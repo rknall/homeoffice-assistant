@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import datetime
+import uuid
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -44,7 +45,7 @@ class CompanyUpdate(BaseModel):
 class CompanyResponse(BaseModel):
     """Schema for company response."""
 
-    id: str
+    id: uuid.UUID
     name: str
     type: CompanyType
     paperless_storage_path_id: int | None

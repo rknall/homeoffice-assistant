@@ -2,11 +2,11 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Event (trip) model."""
 
-import uuid
+import uuid as uuid_lib
 from datetime import date
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, Enum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Date, Enum, Float, ForeignKey, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, TimestampMixin
@@ -27,18 +27,18 @@ class Event(Base, TimestampMixin):
 
     __tablename__ = "events"
 
-    id: Mapped[str] = mapped_column(
-        String(36),
+    id: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid(as_uuid=True),
         primary_key=True,
-        default=lambda: str(uuid.uuid4()),
+        default=uuid_lib.uuid4,
     )
-    user_id: Mapped[str] = mapped_column(
-        String(36),
+    user_id: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    company_id: Mapped[str] = mapped_column(
-        String(36),
+    company_id: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid(as_uuid=True),
         ForeignKey("companies.id", ondelete="CASCADE"),
         nullable=False,
     )

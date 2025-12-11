@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Expense API endpoints."""
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -21,7 +23,7 @@ router = APIRouter()
 
 @router.get("/{event_id}/expenses", response_model=list[ExpenseResponse])
 def list_expenses(
-    event_id: str,
+    event_id: uuid.UUID,
     expense_status: ExpenseStatus | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -45,7 +47,7 @@ def list_expenses(
     status_code=status.HTTP_201_CREATED,
 )
 def create_expense(
-    event_id: str,
+    event_id: uuid.UUID,
     data: ExpenseCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -64,8 +66,8 @@ def create_expense(
 
 @router.get("/{event_id}/expenses/{expense_id}", response_model=ExpenseResponse)
 def get_expense(
-    event_id: str,
-    expense_id: str,
+    event_id: uuid.UUID,
+    expense_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ExpenseResponse:
@@ -89,8 +91,8 @@ def get_expense(
 
 @router.put("/{event_id}/expenses/{expense_id}", response_model=ExpenseResponse)
 def update_expense(
-    event_id: str,
-    expense_id: str,
+    event_id: uuid.UUID,
+    expense_id: uuid.UUID,
     data: ExpenseUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -118,8 +120,8 @@ def update_expense(
     "/{event_id}/expenses/{expense_id}", status_code=status.HTTP_204_NO_CONTENT
 )
 def delete_expense(
-    event_id: str,
-    expense_id: str,
+    event_id: uuid.UUID,
+    expense_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
@@ -143,7 +145,7 @@ def delete_expense(
 
 @router.post("/{event_id}/expenses/bulk-update")
 def bulk_update_expenses(
-    event_id: str,
+    event_id: uuid.UUID,
     data: ExpenseBulkUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -164,7 +166,7 @@ def bulk_update_expenses(
 
 @router.get("/{event_id}/expenses/summary")
 def get_expense_summary(
-    event_id: str,
+    event_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:

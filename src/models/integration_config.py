@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Integration configuration model."""
 
-import uuid
+import uuid as uuid_lib
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Enum, ForeignKey, String, Text
+from sqlalchemy import Boolean, Enum, ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, TimestampMixin
@@ -20,10 +20,10 @@ class IntegrationConfig(Base, TimestampMixin):
 
     __tablename__ = "integration_configs"
 
-    id: Mapped[str] = mapped_column(
-        String(36),
+    id: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid(as_uuid=True),
         primary_key=True,
-        default=lambda: str(uuid.uuid4()),
+        default=uuid_lib.uuid4,
     )
     integration_type: Mapped[IntegrationType] = mapped_column(
         Enum(IntegrationType),
@@ -32,8 +32,8 @@ class IntegrationConfig(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     config_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_by: Mapped[str] = mapped_column(
-        String(36),
+    created_by: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )

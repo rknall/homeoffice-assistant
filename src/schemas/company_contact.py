@@ -3,6 +3,7 @@
 """Company contact schemas."""
 
 import datetime
+import uuid
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -44,8 +45,8 @@ class CompanyContactUpdate(BaseModel):
 class CompanyContactResponse(BaseModel):
     """Schema for company contact response."""
 
-    id: str
-    company_id: str
+    id: uuid.UUID
+    company_id: uuid.UUID
     name: str
     email: str
     phone: str | None

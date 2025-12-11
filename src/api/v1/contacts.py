@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Contact API endpoints."""
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -15,7 +17,7 @@ router = APIRouter()
 
 @router.get("/{event_id}/contacts", response_model=list[ContactResponse])
 def list_contacts(
-    event_id: str,
+    event_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[ContactResponse]:
@@ -35,7 +37,7 @@ def list_contacts(
     status_code=status.HTTP_201_CREATED,
 )
 def create_contact(
-    event_id: str,
+    event_id: uuid.UUID,
     data: ContactCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -66,8 +68,8 @@ def create_contact(
 
 @router.get("/{event_id}/contacts/{contact_id}", response_model=ContactResponse)
 def get_contact(
-    event_id: str,
-    contact_id: str,
+    event_id: uuid.UUID,
+    contact_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ContactResponse:
@@ -94,8 +96,8 @@ def get_contact(
 
 @router.put("/{event_id}/contacts/{contact_id}", response_model=ContactResponse)
 def update_contact(
-    event_id: str,
-    contact_id: str,
+    event_id: uuid.UUID,
+    contact_id: uuid.UUID,
     data: ContactUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -130,8 +132,8 @@ def update_contact(
     "/{event_id}/contacts/{contact_id}", status_code=status.HTTP_204_NO_CONTENT
 )
 def delete_contact(
-    event_id: str,
-    contact_id: str,
+    event_id: uuid.UUID,
+    contact_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:

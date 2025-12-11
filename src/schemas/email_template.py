@@ -3,6 +3,7 @@
 """Email template schemas."""
 
 import datetime
+import uuid
 
 from pydantic import BaseModel, Field
 
@@ -24,7 +25,7 @@ class EmailTemplateBase(BaseModel):
 class EmailTemplateCreate(EmailTemplateBase):
     """Schema for creating an email template."""
 
-    company_id: str | None = None
+    company_id: uuid.UUID | None = None
 
 
 class EmailTemplateUpdate(BaseModel):
@@ -42,10 +43,10 @@ class EmailTemplateUpdate(BaseModel):
 class EmailTemplateResponse(BaseModel):
     """Schema for email template response."""
 
-    id: str
+    id: uuid.UUID
     name: str
     reason: str
-    company_id: str | None
+    company_id: uuid.UUID | None
     subject: str
     body_html: str
     body_text: str
@@ -80,7 +81,7 @@ class TemplatePreviewRequest(BaseModel):
     body_html: str
     body_text: str
     reason: str
-    event_id: str | None = None  # If provided, use real event data
+    event_id: uuid.UUID | None = None  # If provided, use real event data
 
 
 class TemplatePreviewResponse(BaseModel):

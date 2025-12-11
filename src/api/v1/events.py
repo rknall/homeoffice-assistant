@@ -3,6 +3,7 @@
 """Event API endpoints."""
 
 import contextlib
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
@@ -26,7 +27,7 @@ router = APIRouter()
 
 @router.get("", response_model=list[EventDetailResponse])
 def list_events(
-    company_id: str | None = None,
+    company_id: uuid.UUID | None = None,
     event_status: EventStatus | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -73,7 +74,7 @@ async def create_event(
 
 @router.get("/{event_id}", response_model=EventDetailResponse)
 def get_event(
-    event_id: str,
+    event_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> EventDetailResponse:
@@ -93,7 +94,7 @@ def get_event(
 
 @router.put("/{event_id}", response_model=EventResponse)
 async def update_event(
-    event_id: str,
+    event_id: uuid.UUID,
     data: EventUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -138,7 +139,7 @@ async def update_event(
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_event(
-    event_id: str,
+    event_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
@@ -154,7 +155,7 @@ def delete_event(
 
 @router.post("/{event_id}/sync-paperless")
 async def sync_event_to_paperless(
-    event_id: str,
+    event_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -177,7 +178,7 @@ async def sync_event_to_paperless(
 
 @router.get("/{event_id}/documents", response_model=list[DocumentResponse])
 async def get_event_documents(
-    event_id: str,
+    event_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[DocumentResponse]:

@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Company contact API endpoints."""
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -23,7 +25,7 @@ router = APIRouter()
     response_model=list[CompanyContactResponse],
 )
 def list_company_contacts(
-    company_id: str,
+    company_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[CompanyContactResponse]:
@@ -44,8 +46,8 @@ def list_company_contacts(
     response_model=CompanyContactResponse,
 )
 def get_company_contact(
-    company_id: str,
-    contact_id: str,
+    company_id: uuid.UUID,
+    contact_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> CompanyContactResponse:
@@ -73,7 +75,7 @@ def get_company_contact(
     status_code=status.HTTP_201_CREATED,
 )
 def create_company_contact(
-    company_id: str,
+    company_id: uuid.UUID,
     data: CompanyContactCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -99,8 +101,8 @@ def create_company_contact(
     response_model=CompanyContactResponse,
 )
 def update_company_contact(
-    company_id: str,
-    contact_id: str,
+    company_id: uuid.UUID,
+    contact_id: uuid.UUID,
     data: CompanyContactUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -129,8 +131,8 @@ def update_company_contact(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 def delete_company_contact(
-    company_id: str,
-    contact_id: str,
+    company_id: uuid.UUID,
+    contact_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
@@ -161,8 +163,8 @@ def delete_company_contact(
     response_model=CompanyContactResponse,
 )
 def set_main_contact(
-    company_id: str,
-    contact_id: str,
+    company_id: uuid.UUID,
+    contact_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> CompanyContactResponse:
@@ -190,7 +192,7 @@ def set_main_contact(
     response_model=list[CompanyContactResponse],
 )
 def get_contacts_by_type(
-    company_id: str,
+    company_id: uuid.UUID,
     contact_type: ContactType,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

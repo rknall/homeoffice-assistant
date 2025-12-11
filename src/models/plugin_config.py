@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Database models for plugin management."""
 
-import uuid
+import uuid as uuid_lib
 from typing import Any
 
-from sqlalchemy import Boolean, String, Text
+from sqlalchemy import Boolean, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.encryption import decrypt_config, encrypt_config
@@ -21,10 +21,10 @@ class PluginConfigModel(Base, TimestampMixin):
 
     __tablename__ = "plugin_configs"
 
-    id: Mapped[str] = mapped_column(
-        String(36),
+    id: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid(as_uuid=True),
         primary_key=True,
-        default=lambda: str(uuid.uuid4()),
+        default=uuid_lib.uuid4,
     )
     plugin_id: Mapped[str] = mapped_column(
         String(100),
@@ -87,10 +87,10 @@ class PluginMigrationHistory(Base):
 
     __tablename__ = "plugin_migration_history"
 
-    id: Mapped[str] = mapped_column(
-        String(36),
+    id: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid(as_uuid=True),
         primary_key=True,
-        default=lambda: str(uuid.uuid4()),
+        default=uuid_lib.uuid4,
     )
     plugin_id: Mapped[str] = mapped_column(
         String(100),

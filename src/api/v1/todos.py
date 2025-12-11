@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Todo API endpoints."""
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -15,7 +17,7 @@ router = APIRouter()
 
 @router.get("/{event_id}/todos", response_model=list[TodoResponse])
 def list_todos(
-    event_id: str,
+    event_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[TodoResponse]:
@@ -35,7 +37,7 @@ def list_todos(
     status_code=status.HTTP_201_CREATED,
 )
 def create_todo(
-    event_id: str,
+    event_id: uuid.UUID,
     data: TodoCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -64,8 +66,8 @@ def create_todo(
 
 @router.get("/{event_id}/todos/{todo_id}", response_model=TodoResponse)
 def get_todo(
-    event_id: str,
-    todo_id: str,
+    event_id: uuid.UUID,
+    todo_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TodoResponse:
@@ -88,8 +90,8 @@ def get_todo(
 
 @router.put("/{event_id}/todos/{todo_id}", response_model=TodoResponse)
 def update_todo(
-    event_id: str,
-    todo_id: str,
+    event_id: uuid.UUID,
+    todo_id: uuid.UUID,
     data: TodoUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -118,8 +120,8 @@ def update_todo(
 
 @router.delete("/{event_id}/todos/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_todo(
-    event_id: str,
-    todo_id: str,
+    event_id: uuid.UUID,
+    todo_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:

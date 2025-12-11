@@ -3,6 +3,7 @@
 """Integration schemas."""
 
 import datetime
+import uuid
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -34,11 +35,11 @@ class IntegrationConfigUpdate(BaseModel):
 class IntegrationConfigResponse(BaseModel):
     """Schema for integration config response (without secrets)."""
 
-    id: str
+    id: uuid.UUID
     integration_type: IntegrationType
     name: str
     is_active: bool
-    created_by: str
+    created_by: uuid.UUID
     created_at: datetime.datetime
     updated_at: datetime.datetime
 

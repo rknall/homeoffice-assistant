@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Company contact model for organizational contacts."""
 
-import uuid
+import uuid as uuid_lib
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, String, Text
+from sqlalchemy import Boolean, ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, TimestampMixin
@@ -25,13 +25,13 @@ class CompanyContact(Base, TimestampMixin):
 
     __tablename__ = "company_contacts"
 
-    id: Mapped[str] = mapped_column(
-        String(36),
+    id: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid(as_uuid=True),
         primary_key=True,
-        default=lambda: str(uuid.uuid4()),
+        default=uuid_lib.uuid4,
     )
-    company_id: Mapped[str] = mapped_column(
-        String(36),
+    company_id: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid(as_uuid=True),
         ForeignKey("companies.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

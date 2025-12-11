@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Note API endpoints."""
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -15,7 +17,7 @@ router = APIRouter()
 
 @router.get("/{event_id}/notes", response_model=list[NoteResponse])
 def list_notes(
-    event_id: str,
+    event_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[NoteResponse]:
@@ -35,7 +37,7 @@ def list_notes(
     status_code=status.HTTP_201_CREATED,
 )
 def create_note(
-    event_id: str,
+    event_id: uuid.UUID,
     data: NoteCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -61,8 +63,8 @@ def create_note(
 
 @router.get("/{event_id}/notes/{note_id}", response_model=NoteResponse)
 def get_note(
-    event_id: str,
-    note_id: str,
+    event_id: uuid.UUID,
+    note_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> NoteResponse:
@@ -85,8 +87,8 @@ def get_note(
 
 @router.put("/{event_id}/notes/{note_id}", response_model=NoteResponse)
 def update_note(
-    event_id: str,
-    note_id: str,
+    event_id: uuid.UUID,
+    note_id: uuid.UUID,
     data: NoteUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -115,8 +117,8 @@ def update_note(
 
 @router.delete("/{event_id}/notes/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_note(
-    event_id: str,
-    note_id: str,
+    event_id: uuid.UUID,
+    note_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:

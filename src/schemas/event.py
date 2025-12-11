@@ -3,6 +3,7 @@
 """Event schemas."""
 
 import datetime
+import uuid
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -28,7 +29,7 @@ class EventBase(BaseModel):
 class EventCreate(EventBase):
     """Schema for creating an event."""
 
-    company_id: str
+    company_id: uuid.UUID
     status: EventStatus = EventStatus.PLANNING
     paperless_custom_field_value: str | None = None
     # Location fields
@@ -50,7 +51,7 @@ class EventUpdate(BaseModel):
 
     name: str | None = Field(None, min_length=1, max_length=200)
     description: str | None = None
-    company_id: str | None = None
+    company_id: uuid.UUID | None = None
     start_date: datetime.date | None = None
     end_date: datetime.date | None = None
     status: EventStatus | None = None
@@ -72,9 +73,9 @@ class EventUpdate(BaseModel):
 class EventResponse(BaseModel):
     """Schema for event response."""
 
-    id: str
-    user_id: str
-    company_id: str
+    id: uuid.UUID
+    user_id: uuid.UUID
+    company_id: uuid.UUID
     name: str
     description: str | None
     start_date: datetime.date

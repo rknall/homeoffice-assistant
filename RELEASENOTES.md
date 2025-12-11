@@ -32,6 +32,10 @@
 - Simple notes CRUD functionality
 - Frontend module with dynamic React components
 
+### Improvements
+
+- Started UUID migration by updating ORM models to use native UUID primary and foreign keys; follow-up schemas and Alembic migration pending.
+
 ---
 
 ## Version 0.2.3

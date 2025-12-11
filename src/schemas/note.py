@@ -3,6 +3,7 @@
 """Note schemas."""
 
 import datetime
+import uuid
 
 from pydantic import BaseModel, Field
 
@@ -32,8 +33,8 @@ class NoteUpdate(BaseModel):
 class NoteResponse(BaseModel):
     """Schema for note response."""
 
-    id: str
-    event_id: str
+    id: uuid.UUID
+    event_id: uuid.UUID
     content: str
     note_type: NoteType
     created_at: datetime.datetime

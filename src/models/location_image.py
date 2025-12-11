@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Location image cache model for Unsplash images."""
 
-import uuid
+import uuid as uuid_lib
 from datetime import datetime
 
-from sqlalchemy import DateTime, Index, String
+from sqlalchemy import DateTime, Index, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base
@@ -16,10 +16,10 @@ class LocationImage(Base):
 
     __tablename__ = "location_images"
 
-    id: Mapped[str] = mapped_column(
-        String(36),
+    id: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid(as_uuid=True),
         primary_key=True,
-        default=lambda: str(uuid.uuid4()),
+        default=uuid_lib.uuid4,
     )
     city: Mapped[str | None] = mapped_column(String(200), nullable=True)
     country: Mapped[str] = mapped_column(String(200), nullable=False)

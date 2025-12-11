@@ -51,6 +51,7 @@ def is_registration_enabled(db: Session) -> bool:
 def register_user(db: Session, data: RegisterRequest) -> User:
     """Register a new user. First user becomes admin."""
     from src.services import rbac_service
+
     first_run = is_first_run(db)
 
     user = User(
@@ -70,10 +71,13 @@ def register_user(db: Session, data: RegisterRequest) -> User:
         # Assign Global Admin role
         global_admin_role = rbac_service.get_role_by_name(db, "Global Admin")
         if global_admin_role:
-            rbac_service.assign_role_to_user(db, user_id=user.id, role_id=global_admin_role.id)
+            rbac_service.assign_role_to_user(
+                db, user_id=user.id, role_id=global_admin_role.id
+            )
 
         # Create default email template during first run
         from src.services import email_template_service
+
         email_template_service.ensure_default_template_exists(db)
 
     db.commit()

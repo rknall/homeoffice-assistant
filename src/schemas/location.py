@@ -3,6 +3,7 @@
 """Location schemas for geocoding and images."""
 
 import datetime
+import uuid
 
 from pydantic import BaseModel
 
@@ -32,7 +33,7 @@ class LocationImageResponse(BaseModel):
 class LocationImageCacheResponse(BaseModel):
     """Full location image cache response."""
 
-    id: str
+    id: uuid.UUID
     city: str | None
     country: str
     unsplash_id: str

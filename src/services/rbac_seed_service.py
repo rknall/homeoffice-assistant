@@ -8,13 +8,17 @@ from src.rbac.roles import DEFAULT_ROLES
 from . import rbac_service
 
 
-def seed_rbac_data(db: Session):
+def seed_rbac_data(db: Session) -> None:
     """Seeds the database with core permissions and default roles.
+
     This function is idempotent.
+    @param db: SQLAlchemy Session object
     """
     # Seed permissions
     for perm_data in CORE_PERMISSIONS:
-        permission = db.query(Permission).filter(Permission.code == perm_data["code"]).first()
+        permission = (
+            db.query(Permission).filter(Permission.code == perm_data["code"]).first()
+        )
         if not permission:
             rbac_service.register_permission(db, **perm_data)
 
@@ -31,8 +35,12 @@ def seed_rbac_data(db: Session):
             db.flush()  # Flush to get the role ID
 
             for perm_code in role_data["permissions"]:
-                permission = db.query(Permission).filter(Permission.code == perm_code).first()
+                permission = (
+                    db.query(Permission).filter(Permission.code == perm_code).first()
+                )
                 if permission:
-                    role_permission = RolePermission(role_id=role.id, permission_code=permission.code)
+                    role_permission = RolePermission(
+                        role_id=role.id, permission_code=permission.code
+                    )
                     db.add(role_permission)
     db.commit()

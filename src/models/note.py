@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Note model."""
 
-import uuid
+import uuid as uuid_lib
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Enum, ForeignKey, String, Text
+from sqlalchemy import Enum, ForeignKey, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, TimestampMixin
@@ -20,13 +20,13 @@ class Note(Base, TimestampMixin):
 
     __tablename__ = "notes"
 
-    id: Mapped[str] = mapped_column(
-        String(36),
+    id: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid(as_uuid=True),
         primary_key=True,
-        default=lambda: str(uuid.uuid4()),
+        default=uuid_lib.uuid4,
     )
-    event_id: Mapped[str] = mapped_column(
-        String(36),
+    event_id: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid(as_uuid=True),
         ForeignKey("events.id", ondelete="CASCADE"),
         nullable=False,
     )

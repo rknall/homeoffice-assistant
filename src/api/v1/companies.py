@@ -55,7 +55,7 @@ def create_company(
 
 @router.get("/{company_id}", response_model=CompanyResponse)
 def get_company(
-    company_id: str,
+    company_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> CompanyResponse:
@@ -71,7 +71,7 @@ def get_company(
 
 @router.put("/{company_id}", response_model=CompanyResponse)
 def update_company(
-    company_id: str,
+    company_id: uuid.UUID,
     data: CompanyUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -98,7 +98,7 @@ def update_company(
 
 @router.delete("/{company_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_company(
-    company_id: str,
+    company_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
@@ -114,7 +114,7 @@ def delete_company(
 
 @router.post("/{company_id}/logo")
 async def upload_company_logo(
-    company_id: str,
+    company_id: uuid.UUID,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -181,7 +181,7 @@ async def upload_company_logo(
 
 @router.delete("/{company_id}/logo", status_code=status.HTTP_204_NO_CONTENT)
 def delete_company_logo(
-    company_id: str,
+    company_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:

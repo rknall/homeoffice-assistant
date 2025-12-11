@@ -81,18 +81,26 @@ def get_optional_user(
     return user
 
 
-def require_permission(permission_code: str, company_id_param: str | None = None):
+def require_permission(
+    permission_code: str, company_id_param: str | None = None
+) -> User:
     """Dependency for permission-based authorization."""
+
     def dependency(
         request: Request,
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
-    ):
+    ) -> User:
         company_id = None
         if company_id_param and company_id_param in request.path_params:
             company_id = request.path_params[company_id_param]
 
-        if not rbac_service.user_has_permission(db, current_user, permission_code, company_id=company_id):
-            raise HTTPException(status_code=403, detail=f"Permission denied: {permission_code}")
+        if not rbac_service.user_has_permission(
+            db, current_user, permission_code, company_id=company_id
+        ):
+            raise HTTPException(
+                status_code=403, detail=f"Permission denied: {permission_code}"
+            )
         return current_user
+
     return dependency

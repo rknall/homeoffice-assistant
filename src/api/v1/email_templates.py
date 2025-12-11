@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Email template API endpoints."""
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -25,7 +27,7 @@ router = APIRouter()
 @router.get("", response_model=list[EmailTemplateResponse])
 def list_templates(
     reason: str | None = None,
-    company_id: str | None = None,
+    company_id: uuid.UUID | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[EmailTemplateResponse]:
@@ -180,7 +182,7 @@ def create_template(
 
 @router.get("/{template_id}", response_model=EmailTemplateResponse)
 def get_template(
-    template_id: str,
+    template_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> EmailTemplateResponse:
@@ -198,7 +200,7 @@ def get_template(
 
 @router.put("/{template_id}", response_model=EmailTemplateResponse)
 def update_template(
-    template_id: str,
+    template_id: uuid.UUID,
     data: EmailTemplateUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -226,7 +228,7 @@ def update_template(
 
 @router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_template(
-    template_id: str,
+    template_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
@@ -253,8 +255,8 @@ def delete_template(
     response_model=TemplateContactValidation,
 )
 def validate_template_contacts(
-    template_id: str,
-    company_id: str,
+    template_id: uuid.UUID,
+    company_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TemplateContactValidation:

@@ -2,11 +2,11 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Session model for authentication."""
 
-import uuid
+import uuid as uuid_lib
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -20,13 +20,13 @@ class Session(Base):
 
     __tablename__ = "sessions"
 
-    id: Mapped[str] = mapped_column(
-        String(36),
+    id: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid(as_uuid=True),
         primary_key=True,
-        default=lambda: str(uuid.uuid4()),
+        default=uuid_lib.uuid4,
     )
-    user_id: Mapped[str] = mapped_column(
-        String(36),
+    user_id: Mapped[uuid_lib.UUID] = mapped_column(
+        Uuid(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )

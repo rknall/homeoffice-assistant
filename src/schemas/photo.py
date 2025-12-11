@@ -3,6 +3,7 @@
 """Photo schemas for Immich integration."""
 
 import datetime
+import uuid
 
 from pydantic import BaseModel
 
@@ -45,8 +46,8 @@ class PhotoReferenceUpdate(BaseModel):
 class PhotoReferenceResponse(BaseModel):
     """Photo reference response schema."""
 
-    id: str
-    event_id: str
+    id: uuid.UUID
+    event_id: uuid.UUID
     immich_asset_id: str
     caption: str | None
     include_in_report: bool

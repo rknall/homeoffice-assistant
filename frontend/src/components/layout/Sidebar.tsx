@@ -89,35 +89,30 @@ export function Sidebar() {
 
           {/* Plugin nav items */}
           {pluginNavItems.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-800">
-              <span className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Plugins
-              </span>
-              <div className="mt-2 space-y-1">
-                {pluginNavItems.map((item) => (
-                  <NavLink
-                    key={item.id}
-                    to={item.path}
-                    className={({ isActive }) =>
-                      cn(
-                        'flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                        isActive || (isPluginRoute && item.path.includes(location.pathname))
-                          ? 'bg-gray-800 text-white'
-                          : 'text-gray-300 hover:bg-gray-800 hover:text-white',
-                      )
-                    }
-                  >
-                    {item.icon && <item.icon className="h-5 w-5 mr-3" />}
-                    {item.label}
-                  </NavLink>
-                ))}
-              </div>
+            <div className="mt-4 pt-4 border-t border-gray-800 space-y-1">
+              {pluginNavItems.map((item) => (
+                <NavLink
+                  key={item.id}
+                  to={item.path}
+                  className={({ isActive }) =>
+                    cn(
+                      'flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                      isActive || (isPluginRoute && item.path.includes(location.pathname))
+                        ? 'bg-gray-800 text-white'
+                        : 'text-gray-300 hover:bg-gray-800 hover:text-white',
+                    )
+                  }
+                >
+                  {item.icon && <item.icon className="h-5 w-5 mr-3" />}
+                  {item.label}
+                </NavLink>
+              ))}
             </div>
           )}
 
           {/* Settings with sub-navigation */}
           {user?.is_admin && (
-            <>
+            <div className="mt-4 pt-4 border-t border-gray-800">
               <NavLink
                 to="/settings"
                 className={cn(
@@ -152,7 +147,7 @@ export function Sidebar() {
                   ))}
                 </div>
               )}
-            </>
+            </div>
           )}
         </nav>
         <div className="p-4 border-t border-gray-800">

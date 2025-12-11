@@ -169,9 +169,6 @@ def upgrade() -> None:
         # Expense management
         {"code": "expense.view", "module": "core", "description": "View expenses"},
         {"code": "expense.manage", "module": "core", "description": "Manage expenses"},
-        # Notes management
-        {"code": "notes.view", "module": "core", "description": "View notes"},
-        {"code": "notes.edit", "module": "core", "description": "Edit notes"},
         # Integration & System
         {
             "code": "integration.use",
@@ -216,13 +213,13 @@ def upgrade() -> None:
         {
             "id": company_admin_role_id,
             "name": "Company Admin",
-            "is_system": True,
+            "is_system": False,
             "description": "Grants administrative permissions for an assigned company.",
         },
         {
             "id": company_viewer_role_id,
             "name": "Company Viewer",
-            "is_system": True,
+            "is_system": False,
             "description": "Grants read-only permissions for an assigned company.",
         },
     ]
@@ -236,8 +233,6 @@ def upgrade() -> None:
         "company.manage",
         "expense.view",
         "expense.manage",
-        "notes.view",
-        "notes.edit",
         "event.read",
         "event.write",
         "event.delete",
@@ -245,7 +240,6 @@ def upgrade() -> None:
     company_viewer_permissions = [
         "company.view",
         "expense.view",
-        "notes.view",
         "event.read",
     ]
 

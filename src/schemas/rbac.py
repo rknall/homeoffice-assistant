@@ -1,30 +1,28 @@
 # src/schemas/rbac.py
 import uuid
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class PermissionSchema(BaseModel):
     """Schema representing a permission."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     code: str
     module: str
     description: str | None
-
-    class Config:
-        orm_mode = True
 
 
 class RoleSchema(BaseModel):
     """Schema representing a role."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: uuid.UUID
     name: str
     is_system: bool
     description: str | None
-
-    class Config:
-        orm_mode = True
 
 
 class RoleWithPermissionsSchema(RoleSchema):
@@ -37,35 +35,34 @@ class RoleCreateSchema(BaseModel):
     """Schema for creating a new role."""
 
     name: str
-    description: str | None
-    permissions: list[str]  # List of permission codes
+    description: str | None = None
+    permissions: list[str] = []  # List of permission codes
 
 
 class RoleUpdateSchema(BaseModel):
     """Schema for updating a role."""
 
-    name: str | None
-    description: str | None
-    permissions: list[str] | None
+    name: str | None = None
+    description: str | None = None
+    permissions: list[str] | None = None
 
 
 class UserRoleSchema(BaseModel):
     """Schema representing a user's role assignment."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     user_id: uuid.UUID
     role_id: uuid.UUID
     company_id: uuid.UUID | None
     role: RoleSchema
 
-    class Config:
-        orm_mode = True
-
 
 class UserRoleAssignmentSchema(BaseModel):
     """Schema for assigning a role to a user."""
 
     role_id: uuid.UUID
-    company_id: uuid.UUID | None
+    company_id: uuid.UUID | None = None
 
 
 class UserPermissionsSchema(BaseModel):

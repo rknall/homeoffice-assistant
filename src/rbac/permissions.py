@@ -35,9 +35,6 @@ CORE_PERMISSIONS = [
     # Expense management
     {"code": "expense.view", "module": "core", "description": "View expenses"},
     {"code": "expense.manage", "module": "core", "description": "Manage expenses"},
-    # Notes management
-    {"code": "notes.view", "module": "core", "description": "View notes"},
-    {"code": "notes.edit", "module": "core", "description": "Edit notes"},
     # Integration & System
     {"code": "integration.use", "module": "core", "description": "Use integrations"},
     {

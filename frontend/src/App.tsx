@@ -18,7 +18,8 @@ import { EmailTemplateSettings } from '@/pages/settings/EmailTemplateSettings'
 import { IntegrationSettings } from '@/pages/settings/IntegrationSettings'
 import { PluginSettings } from '@/pages/settings/PluginSettings'
 import { RegionalSettings } from '@/pages/settings/RegionalSettings'
-import { RolesSettings } from '@/pages/settings/RolesSettings'
+import { RoleDetail } from '@/pages/settings/RoleDetail'
+import { Roles } from '@/pages/settings/Roles'
 import { UserRolesSettings } from '@/pages/settings/UserRolesSettings'
 import { PluginProvider, usePluginRoutes } from '@/plugins'
 import { useAuth } from '@/stores/auth'
@@ -49,7 +50,8 @@ function AppRoutes() {
         <Route path="/settings/plugins" element={<PluginSettings />} />
         <Route path="/settings/templates" element={<EmailTemplateSettings />} />
         <Route path="/settings/backup" element={<BackupSettings />} />
-        <Route path="/settings/roles" element={<RolesSettings />} />
+        <Route path="/settings/roles" element={<Roles />} />
+        <Route path="/settings/roles/:id" element={<RoleDetail />} />
         <Route path="/settings/users" element={<UserRolesSettings />} />
         {/* Dynamic plugin routes */}
         {pluginRoutes}

@@ -77,9 +77,13 @@ def get_role(
     )
 
     # Manually construct the response to include permissions
-    role_dict = role.__dict__
-    role_dict["permissions"] = [PermissionSchema.from_orm(p) for p in permissions]
-    return RoleWithPermissionsSchema(**role_dict)
+    return RoleWithPermissionsSchema(
+        id=role.id,
+        name=role.name,
+        is_system=role.is_system,
+        description=role.description,
+        permissions=[PermissionSchema.model_validate(p) for p in permissions],
+    )
 
 
 @router.post(
@@ -97,6 +101,12 @@ def create_role(
 
     Requires system.admin permission.
     """
+    # Prevent creating a role named "Global Admin"
+    if role_in.name == "Global Admin":
+        raise HTTPException(
+            status_code=400, detail="Cannot use reserved role name 'Global Admin'"
+        )
+
     existing_role = rbac_service.get_role_by_name(db, role_in.name)
     if existing_role:
         raise HTTPException(
@@ -134,18 +144,25 @@ def update_role(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("system.admin")),
 ) -> Role:
-    """Update an existing custom role's name, description, and permissions.
+    """Update an existing role's name, description, and permissions.
 
-    System roles cannot be modified.
+    Only the Global Admin role cannot be modified.
     Requires system.admin permission.
     """
     role = db.query(Role).filter(Role.id == role_id).first()
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
-    if role.is_system:
-        raise HTTPException(status_code=403, detail="System roles cannot be modified")
+    if role.name == "Global Admin":
+        raise HTTPException(
+            status_code=403, detail="Global Admin role cannot be modified"
+        )
 
     if role_in.name:
+        # Prevent renaming any role to "Global Admin"
+        if role_in.name == "Global Admin":
+            raise HTTPException(
+                status_code=400, detail="Cannot use reserved role name 'Global Admin'"
+            )
         existing_role = rbac_service.get_role_by_name(db, role_in.name)
         if existing_role and existing_role.id != role_id:
             raise HTTPException(
@@ -190,7 +207,7 @@ def delete_role(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("system.admin")),
 ) -> None:
-    """Delete a custom role. System roles cannot be deleted.
+    """Delete a role. System roles cannot be deleted.
 
     Requires system.admin permission.
     """
@@ -198,7 +215,9 @@ def delete_role(
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
     if role.is_system:
-        raise HTTPException(status_code=403, detail="System roles cannot be deleted")
+        raise HTTPException(
+            status_code=403, detail="System roles cannot be deleted"
+        )
 
     db.delete(role)
     db.commit()

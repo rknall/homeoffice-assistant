@@ -16,8 +16,8 @@ import {
 	Settings,
 } from "lucide-react";
 import { type ComponentType, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
-import logoImage from "@/assets/logo.png";
+import { Link, NavLink, useLocation } from "react-router-dom";
+import logoMark from "@/assets/homeoffice_assistant_logo.svg";
 import { ProfileEditModal } from "@/components/ProfileEditModal";
 import { cn } from "@/lib/utils";
 import type { PluginNavItem } from "@/plugins";
@@ -90,14 +90,24 @@ export function Sidebar() {
 	return (
 		<>
 			<div className="flex flex-col w-64 bg-gray-900 text-white">
-				<div className="flex items-center h-16 px-4 border-b border-gray-800">
+				<Link
+					to="/"
+					className="flex items-center h-16 px-4 border-b border-gray-800 transition-colors hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+					aria-label="Go to dashboard"
+				>
 					<img
-						src={logoImage}
-						alt="HomeOffice Assistant"
-						className="h-10 w-10 object-contain"
+						src={logoMark}
+						alt="HomeOffice Assistant logo"
+						className="h-10 w-10 object-contain drop-shadow"
+						draggable={false}
 					/>
-					<h1 className="text-xl font-bold ml-2">HomeOffice Assistant</h1>
-				</div>
+					<div className="ml-3 leading-tight">
+						<p className="text-base font-semibold tracking-tight">
+							HomeOffice Assistant
+						</p>
+						<p className="text-xs text-emerald-200">Your homeoffice co-pilot</p>
+					</div>
+				</Link>
 				<nav className="flex-1 px-4 py-4 space-y-1">
 					{navItems.map((item) => (
 						<NavLink

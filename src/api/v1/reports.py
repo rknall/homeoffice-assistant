@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Report API endpoints."""
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 from pydantic import BaseModel, EmailStr, Field
@@ -29,7 +31,7 @@ class SendReportRequest(BaseModel):
         None,
         description="Email addresses to send report to. Uses contacts if not provided.",
     )
-    template_id: str | None = Field(
+    template_id: uuid.UUID | None = Field(
         None,
         description="Email template ID to use. If not provided, uses default template.",
     )
@@ -49,7 +51,7 @@ class SendReportResponse(BaseModel):
 
 @router.get("/{event_id}/expense-report/preview")
 async def preview_expense_report(
-    event_id: str,
+    event_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -71,7 +73,7 @@ async def preview_expense_report(
 
 @router.post("/{event_id}/expense-report/generate")
 async def generate_expense_report(
-    event_id: str,
+    event_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Response:
@@ -102,7 +104,7 @@ async def generate_expense_report(
 
 @router.post("/{event_id}/expense-report/send", response_model=SendReportResponse)
 async def send_expense_report(
-    event_id: str,
+    event_id: uuid.UUID,
     data: SendReportRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

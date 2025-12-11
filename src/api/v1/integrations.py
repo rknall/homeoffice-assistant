@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Integration API endpoints."""
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -119,7 +121,7 @@ def create_integration(
 
 @router.get("/{config_id}", response_model=IntegrationConfigResponse)
 def get_integration(
-    config_id: str,
+    config_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> IntegrationConfigResponse:
@@ -135,7 +137,7 @@ def get_integration(
 
 @router.get("/{config_id}/config", response_model=IntegrationConfigDetailResponse)
 def get_integration_config_detail(
-    config_id: str,
+    config_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ) -> IntegrationConfigDetailResponse:
@@ -161,7 +163,7 @@ def get_integration_config_detail(
 
 @router.put("/{config_id}", response_model=IntegrationConfigResponse)
 def update_integration(
-    config_id: str,
+    config_id: uuid.UUID,
     data: IntegrationConfigUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
@@ -179,7 +181,7 @@ def update_integration(
 
 @router.delete("/{config_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_integration(
-    config_id: str,
+    config_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("integration.config")),
 ) -> None:
@@ -195,7 +197,7 @@ def delete_integration(
 
 @router.post("/{config_id}/test", response_model=IntegrationTestResult)
 async def test_integration(
-    config_id: str,
+    config_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> IntegrationTestResult:
@@ -212,7 +214,7 @@ async def test_integration(
 
 @router.post("/{config_id}/test-email", response_model=TestEmailResponse)
 async def send_test_email(
-    config_id: str,
+    config_id: uuid.UUID,
     data: TestEmailRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -259,7 +261,7 @@ async def send_test_email(
 
 @router.get("/{config_id}/storage-paths", response_model=list[StoragePathResponse])
 async def list_storage_paths(
-    config_id: str,
+    config_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[StoragePathResponse]:
@@ -292,7 +294,7 @@ async def list_storage_paths(
 
 @router.get("/{config_id}/tags", response_model=list[TagResponse])
 async def list_tags(
-    config_id: str,
+    config_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[TagResponse]:
@@ -325,7 +327,7 @@ async def list_tags(
 
 @router.get("/{config_id}/custom-fields", response_model=list[CustomFieldResponse])
 async def list_custom_fields(
-    config_id: str,
+    config_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[CustomFieldResponse]:
@@ -358,7 +360,7 @@ async def list_custom_fields(
 
 @router.get("/{config_id}/custom-fields/{field_id}", response_model=CustomFieldResponse)
 async def get_custom_field(
-    config_id: str,
+    config_id: uuid.UUID,
     field_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -400,7 +402,7 @@ async def get_custom_field(
     response_model=CustomFieldChoicesResponse,
 )
 async def get_custom_field_choices(
-    config_id: str,
+    config_id: uuid.UUID,
     field_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -437,7 +439,7 @@ async def get_custom_field_choices(
     response_model=CustomFieldChoicesResponse,
 )
 async def add_custom_field_choice(
-    config_id: str,
+    config_id: uuid.UUID,
     field_id: int,
     data: AddChoiceRequest,
     db: Session = Depends(get_db),
@@ -480,7 +482,7 @@ async def add_custom_field_choice(
 
 @router.get("/{config_id}/unsplash/search", response_model=UnsplashSearchResponse)
 async def search_unsplash_images(
-    config_id: str,
+    config_id: uuid.UUID,
     query: str,
     page: int = 1,
     per_page: int = 20,
@@ -516,7 +518,7 @@ async def search_unsplash_images(
 
 @router.post("/{config_id}/unsplash/download/{image_id}")
 async def trigger_unsplash_download(
-    config_id: str,
+    config_id: uuid.UUID,
     image_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

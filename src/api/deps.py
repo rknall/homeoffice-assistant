@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """API dependencies for dependency injection."""
 
+import uuid
 from collections.abc import Generator
 
 from fastapi import Cookie, Depends, HTTPException, Request, status
@@ -93,7 +94,11 @@ def require_permission(
     ) -> User:
         company_id = None
         if company_id_param and company_id_param in request.path_params:
-            company_id = request.path_params[company_id_param]
+            company_id_raw = request.path_params[company_id_param]
+            try:
+                company_id = uuid.UUID(str(company_id_raw))
+            except (TypeError, ValueError):
+                company_id = None
 
         if not rbac_service.user_has_permission(
             db, current_user, permission_code, company_id=company_id

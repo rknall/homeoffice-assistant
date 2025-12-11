@@ -3,6 +3,7 @@
 """Company contact service."""
 
 import json
+import uuid
 
 from sqlalchemy.orm import Session
 
@@ -15,7 +16,7 @@ from src.schemas.company_contact import (
 )
 
 
-def get_contacts(db: Session, company_id: str) -> list[CompanyContact]:
+def get_contacts(db: Session, company_id: uuid.UUID) -> list[CompanyContact]:
     """Get all contacts for a company."""
     return (
         db.query(CompanyContact)
@@ -25,13 +26,13 @@ def get_contacts(db: Session, company_id: str) -> list[CompanyContact]:
     )
 
 
-def get_contact(db: Session, contact_id: str) -> CompanyContact | None:
+def get_contact(db: Session, contact_id: uuid.UUID) -> CompanyContact | None:
     """Get a single contact by ID."""
     return db.query(CompanyContact).filter(CompanyContact.id == contact_id).first()
 
 
 def get_contact_by_company(
-    db: Session, company_id: str, contact_id: str
+    db: Session, company_id: uuid.UUID, contact_id: uuid.UUID
 ) -> CompanyContact | None:
     """Get a contact by ID, ensuring it belongs to the specified company."""
     return (
@@ -45,7 +46,7 @@ def get_contact_by_company(
 
 
 def create_contact(
-    db: Session, company_id: str, data: CompanyContactCreate
+    db: Session, company_id: uuid.UUID, data: CompanyContactCreate
 ) -> CompanyContact:
     """Create a new contact for a company.
 
@@ -154,7 +155,7 @@ def delete_contact(db: Session, contact: CompanyContact) -> None:
     db.commit()
 
 
-def get_main_contact(db: Session, company_id: str) -> CompanyContact | None:
+def get_main_contact(db: Session, company_id: uuid.UUID) -> CompanyContact | None:
     """Get the main contact for a company."""
     return (
         db.query(CompanyContact)
@@ -176,7 +177,7 @@ def set_main_contact(db: Session, contact: CompanyContact) -> CompanyContact:
 
 
 def get_contacts_by_type(
-    db: Session, company_id: str, contact_types: list[ContactType]
+    db: Session, company_id: uuid.UUID, contact_types: list[ContactType]
 ) -> list[CompanyContact]:
     """Get contacts matching any of the specified types.
 
@@ -195,7 +196,7 @@ def get_contacts_by_type(
 
 
 def validate_contact_types_exist(
-    db: Session, company_id: str, required_types: list[ContactType]
+    db: Session, company_id: uuid.UUID, required_types: list[ContactType]
 ) -> tuple[bool, list[ContactType]]:
     """Check if company has contacts for all required types.
 
@@ -225,7 +226,7 @@ def validate_contact_types_exist(
     return len(missing_types) == 0, missing_types
 
 
-def _unset_main_contact(db: Session, company_id: str) -> None:
+def _unset_main_contact(db: Session, company_id: uuid.UUID) -> None:
     """Unset the main contact flag for all contacts of a company."""
     db.query(CompanyContact).filter(
         CompanyContact.company_id == company_id,

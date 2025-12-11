@@ -4,6 +4,7 @@
 
 import json
 import re
+import uuid
 from decimal import Decimal
 
 from sqlalchemy import and_, or_
@@ -123,7 +124,7 @@ HomeOffice Assistant""",
 def get_templates(
     db: Session,
     reason: str | None = None,
-    company_id: str | None = None,
+    company_id: uuid.UUID | None = None,
 ) -> list[EmailTemplate]:
     """Get all templates, optionally filtered by reason and/or company."""
     query = db.query(EmailTemplate)
@@ -155,7 +156,7 @@ def get_global_templates(db: Session, reason: str | None = None) -> list[EmailTe
 
 def get_templates_for_company(
     db: Session,
-    company_id: str,
+    company_id: uuid.UUID,
     reason: str,
 ) -> list[EmailTemplate]:
     """Get templates applicable to a company (company-specific + global)."""
@@ -177,14 +178,14 @@ def get_templates_for_company(
     )
 
 
-def get_template(db: Session, template_id: str) -> EmailTemplate | None:
+def get_template(db: Session, template_id: uuid.UUID) -> EmailTemplate | None:
     """Get a template by ID."""
     return db.query(EmailTemplate).filter(EmailTemplate.id == template_id).first()
 
 
 def get_default_template(
     db: Session,
-    company_id: str | None,
+    company_id: uuid.UUID | None,
     reason: str,
 ) -> EmailTemplate | None:
     """Get the default template for a reason.
@@ -298,8 +299,8 @@ def is_last_global_template(db: Session, template: EmailTemplate) -> bool:
 def _unset_other_defaults(
     db: Session,
     reason: str,
-    company_id: str | None,
-    exclude_id: str | None = None,
+    company_id: uuid.UUID | None,
+    exclude_id: uuid.UUID | None = None,
 ) -> None:
     """Unset is_default for other templates in the same scope."""
     query = db.query(EmailTemplate).filter(
@@ -495,7 +496,7 @@ def template_to_response_dict(template: EmailTemplate) -> dict:
 
 
 def validate_template_contacts(
-    db: Session, template: EmailTemplate, company_id: str
+    db: Session, template: EmailTemplate, company_id: uuid.UUID
 ) -> tuple[bool, list[ContactType], list]:
     """Validate that a company has the required contact types for a template.
 

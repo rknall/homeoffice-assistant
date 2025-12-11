@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Integration configuration service."""
 
+import uuid
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -33,7 +34,9 @@ def get_integration_configs(
     return query.all()
 
 
-def get_integration_config(db: Session, config_id: str) -> IntegrationConfig | None:
+def get_integration_config(
+    db: Session, config_id: uuid.UUID
+) -> IntegrationConfig | None:
     """Get a single integration configuration by ID."""
     return db.query(IntegrationConfig).filter(IntegrationConfig.id == config_id).first()
 
@@ -41,7 +44,7 @@ def get_integration_config(db: Session, config_id: str) -> IntegrationConfig | N
 def create_integration_config(
     db: Session,
     data: IntegrationConfigCreate,
-    user_id: str,
+    user_id: uuid.UUID,
 ) -> IntegrationConfig:
     """Create a new integration configuration."""
     config = IntegrationConfig(

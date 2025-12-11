@@ -228,7 +228,7 @@ async def get_event_documents(
     "/{event_id}/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT
 )
 async def delete_event_document(
-    event_id: str,
+    event_id: uuid.UUID,
     document_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -272,7 +272,7 @@ async def delete_event_document(
 
 @router.get("/{event_id}/documents/{document_id}/preview")
 async def get_document_preview(
-    event_id: str,
+    event_id: uuid.UUID,
     document_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

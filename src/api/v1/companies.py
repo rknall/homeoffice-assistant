@@ -204,7 +204,7 @@ def delete_company_logo(
 
 @router.get("/{company_id}/logo")
 def get_company_logo(
-    company_id: str,
+    company_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> FileResponse:

@@ -104,7 +104,7 @@ def authenticate(db: Session, username: str, password: str) -> User | None:
     return user
 
 
-def create_session(db: Session, user_id: str) -> str:
+def create_session(db: Session, user_id: uuid.UUID) -> str:
     """Create a new session for a user."""
     token = str(uuid.uuid4())
     expires_at = datetime.utcnow() + timedelta(days=SESSION_EXPIRY_DAYS)
@@ -148,7 +148,7 @@ def delete_session(db: Session, token: str) -> bool:
     return False
 
 
-def get_user_by_id(db: Session, user_id: str) -> User | None:
+def get_user_by_id(db: Session, user_id: uuid.UUID) -> User | None:
     """Get a user by ID."""
     return db.query(User).filter(User.id == user_id).first()
 

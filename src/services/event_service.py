@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Event service."""
 
+import uuid
+
 from sqlalchemy.orm import Session, joinedload
 
 from src.integrations.base import DocumentProvider
@@ -14,8 +16,8 @@ from src.services import integration_service
 
 def get_events(
     db: Session,
-    user_id: str | None = None,
-    company_id: str | None = None,
+    user_id: uuid.UUID | None = None,
+    company_id: uuid.UUID | None = None,
     status: EventStatus | None = None,
     include_company: bool = False,
 ) -> list[Event]:
@@ -32,13 +34,16 @@ def get_events(
     return query.order_by(Event.start_date.desc(), Event.end_date.desc()).all()
 
 
-def get_event(db: Session, event_id: str) -> Event | None:
+def get_event(db: Session, event_id: uuid.UUID) -> Event | None:
     """Get an event by ID."""
     return db.query(Event).filter(Event.id == event_id).first()
 
 
 def get_event_for_user(
-    db: Session, event_id: str, user_id: str, include_company: bool = False
+    db: Session,
+    event_id: uuid.UUID,
+    user_id: uuid.UUID,
+    include_company: bool = False,
 ) -> Event | None:
     """Get an event by ID that belongs to a specific user."""
     query = db.query(Event)
@@ -47,7 +52,7 @@ def get_event_for_user(
     return query.filter(Event.id == event_id, Event.user_id == user_id).first()
 
 
-def create_event(db: Session, data: EventCreate, user_id: str) -> Event:
+def create_event(db: Session, data: EventCreate, user_id: uuid.UUID) -> Event:
     """Create a new event."""
     event = Event(
         user_id=user_id,

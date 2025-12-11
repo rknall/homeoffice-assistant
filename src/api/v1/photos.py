@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Photo API endpoints for Immich integration."""
 
+import uuid
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -47,7 +48,7 @@ def get_immich_provider(db: Session) -> ImmichProvider | None:
 
 @router.get("/{event_id}/photos", response_model=list[PhotoAsset])
 async def get_event_photos(
-    event_id: str,
+    event_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[PhotoAsset]:
@@ -122,7 +123,7 @@ async def get_event_photos(
 
 @router.get("/{event_id}/photos/by-date", response_model=list[PhotoAsset])
 async def get_event_photos_by_date(
-    event_id: str,
+    event_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[PhotoAsset]:
@@ -199,7 +200,7 @@ async def get_event_photos_by_date(
     "/{event_id}/photos/references", response_model=list[PhotoReferenceResponse]
 )
 async def get_photo_references(
-    event_id: str,
+    event_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[PhotoReferenceResponse]:
@@ -223,7 +224,7 @@ async def get_photo_references(
 
 @router.post("/{event_id}/photos", response_model=PhotoReferenceResponse)
 async def add_photo_reference(
-    event_id: str,
+    event_id: uuid.UUID,
     photo: PhotoReferenceCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -268,8 +269,8 @@ async def add_photo_reference(
 
 @router.put("/{event_id}/photos/{photo_id}", response_model=PhotoReferenceResponse)
 async def update_photo_reference(
-    event_id: str,
-    photo_id: str,
+    event_id: uuid.UUID,
+    photo_id: uuid.UUID,
     update: PhotoReferenceUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -304,8 +305,8 @@ async def update_photo_reference(
 
 @router.delete("/{event_id}/photos/{photo_id}")
 async def delete_photo_reference(
-    event_id: str,
-    photo_id: str,
+    event_id: uuid.UUID,
+    photo_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -333,7 +334,7 @@ async def delete_photo_reference(
 
 @router.get("/{event_id}/photos/{asset_id}/thumbnail")
 async def proxy_photo_thumbnail(
-    event_id: str,
+    event_id: uuid.UUID,
     asset_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -370,7 +371,7 @@ async def proxy_photo_thumbnail(
 
 @router.get("/{event_id}/location-image", response_model=LocationImageResponse | None)
 async def get_event_location_image(
-    event_id: str,
+    event_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> LocationImageResponse | None:

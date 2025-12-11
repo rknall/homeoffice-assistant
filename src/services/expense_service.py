@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Expense service."""
 
+import uuid
+
 from sqlalchemy.orm import Session
 
 from src.models import Expense
@@ -12,7 +14,7 @@ from src.schemas.expense import ExpenseCreate, ExpenseUpdate
 
 def get_expenses(
     db: Session,
-    event_id: str,
+    event_id: uuid.UUID,
     status: ExpenseStatus | None = None,
 ) -> list[Expense]:
     """Get expenses for an event."""
@@ -22,15 +24,15 @@ def get_expenses(
     return query.order_by(Expense.date).all()
 
 
-def get_expense(db: Session, expense_id: str) -> Expense | None:
+def get_expense(db: Session, expense_id: uuid.UUID) -> Expense | None:
     """Get an expense by ID."""
     return db.query(Expense).filter(Expense.id == expense_id).first()
 
 
 def get_expense_for_event(
     db: Session,
-    expense_id: str,
-    event_id: str,
+    expense_id: uuid.UUID,
+    event_id: uuid.UUID,
 ) -> Expense | None:
     """Get an expense that belongs to a specific event."""
     return (
@@ -40,7 +42,7 @@ def get_expense_for_event(
     )
 
 
-def create_expense(db: Session, event_id: str, data: ExpenseCreate) -> Expense:
+def create_expense(db: Session, event_id: uuid.UUID, data: ExpenseCreate) -> Expense:
     """Create a new expense."""
     expense = Expense(
         event_id=event_id,
@@ -119,7 +121,7 @@ def delete_expense(db: Session, expense: Expense) -> None:
 
 def bulk_update_payment_type(
     db: Session,
-    expense_ids: list[str],
+    expense_ids: list[uuid.UUID],
     payment_type: PaymentType,
 ) -> int:
     """Bulk update payment type for multiple expenses. Returns count updated."""
@@ -132,7 +134,7 @@ def bulk_update_payment_type(
     return count
 
 
-def get_expense_summary(db: Session, event_id: str) -> dict:
+def get_expense_summary(db: Session, event_id: uuid.UUID) -> dict:
     """Get expense summary for an event."""
     expenses = get_expenses(db, event_id)
     total = sum(e.amount for e in expenses)

@@ -3,6 +3,7 @@
 """Company service."""
 
 import json
+import uuid
 
 from sqlalchemy.orm import Session
 
@@ -16,7 +17,7 @@ def get_companies(db: Session) -> list[Company]:
     return db.query(Company).order_by(Company.name).all()
 
 
-def get_company(db: Session, company_id: str) -> Company | None:
+def get_company(db: Session, company_id: uuid.UUID) -> Company | None:
     """Get a company by ID."""
     return db.query(Company).filter(Company.id == company_id).first()
 

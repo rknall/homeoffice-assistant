@@ -14,6 +14,8 @@ import {
   Mail,
   Puzzle,
   Settings,
+  Shield,
+  Users,
 } from 'lucide-react'
 import { type ComponentType, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
@@ -57,8 +59,8 @@ const settingsSubItems = [
   { to: '/settings/plugins', label: 'Plugins', icon: Puzzle },
   { to: '/settings/templates', label: 'Email Templates', icon: Mail },
   { to: '/settings/backup', label: 'Backup', icon: HardDrive },
-  { to: '/settings/roles', label: 'Roles', icon: Settings },
-  { to: '/settings/user-roles', label: 'User Roles', icon: Settings },
+  { to: '/settings/users', label: 'Users', icon: Users },
+  { to: '/settings/roles', label: 'Roles', icon: Shield },
 ]
 
 export function Sidebar() {

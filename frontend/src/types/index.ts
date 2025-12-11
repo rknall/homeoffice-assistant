@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
-export type UUID = string
+export type Uuid = string
 
 // User types
 export interface User {
-  id: UUID
+  id: Uuid
   username: string
   email: string
   is_active: boolean
@@ -53,8 +53,8 @@ export const CONTACT_TYPE_LABELS: Record<ContactType, string> = {
 
 // Company contact types
 export interface CompanyContact {
-  id: UUID
-  company_id: UUID
+  id: Uuid
+  company_id: Uuid
   name: string
   email: string
   phone: string | null
@@ -90,7 +90,7 @@ export interface CompanyContactUpdate {
 }
 
 export interface Company {
-  id: UUID
+  id: Uuid
   name: string
   type: CompanyType
   paperless_storage_path_id: number | null
@@ -128,9 +128,9 @@ export interface CompanyUpdate {
 export type EventStatus = 'planning' | 'active' | 'past'
 
 export interface Event {
-  id: UUID
-  user_id: UUID
-  company_id: UUID
+  id: Uuid
+  user_id: Uuid
+  company_id: Uuid
   name: string
   description: string | null
   start_date: string
@@ -158,7 +158,7 @@ export interface Event {
 export interface EventCreate {
   name: string
   description?: string | null
-  company_id: UUID
+  company_id: Uuid
   start_date: string
   end_date: string
   status?: EventStatus
@@ -197,8 +197,8 @@ export type ExpenseCategory =
 export type ExpenseStatus = 'pending' | 'included' | 'reimbursed'
 
 export interface Expense {
-  id: UUID
-  event_id: UUID
+  id: Uuid
+  event_id: Uuid
   paperless_doc_id: number | null
   date: string
   amount: number
@@ -227,11 +227,11 @@ export interface ExpenseCreate {
 export type IntegrationType = 'paperless' | 'immich' | 'smtp' | 'unsplash'
 
 export interface IntegrationConfig {
-  id: UUID
+  id: Uuid
   integration_type: IntegrationType
   name: string
   is_active: boolean
-  created_by: UUID
+  created_by: Uuid
   created_at: string
   updated_at: string
 }
@@ -272,7 +272,7 @@ export interface EventCustomFieldChoices {
 
 // Report types
 export interface ExpenseReportPreview {
-  event_id: UUID
+  event_id: Uuid
   event_name: string
   company_name: string | null
   start_date: string
@@ -288,8 +288,8 @@ export interface ExpenseReportPreview {
 
 // Contact types
 export interface Contact {
-  id: UUID
-  event_id: UUID
+  id: Uuid
+  event_id: Uuid
   name: string
   company: string | null
   role: string | null
@@ -305,8 +305,8 @@ export interface Contact {
 export type NoteType = 'observation' | 'todo' | 'report_section'
 
 export interface Note {
-  id: UUID
-  event_id: UUID
+  id: Uuid
+  event_id: Uuid
   content: string
   note_type: NoteType
   created_at: string
@@ -324,8 +324,8 @@ export type TodoCategory =
   | 'other'
 
 export interface Todo {
-  id: UUID
-  event_id: UUID
+  id: Uuid
+  event_id: Uuid
   title: string
   description: string | null
   due_date: string | null
@@ -347,10 +347,10 @@ export interface LocaleSettings {
 
 // Email Template types
 export interface EmailTemplate {
-  id: UUID
+  id: Uuid
   name: string
   reason: string
-  company_id: UUID | null
+  company_id: Uuid | null
   subject: string
   body_html: string
   body_text: string
@@ -363,7 +363,7 @@ export interface EmailTemplate {
 export interface EmailTemplateCreate {
   name: string
   reason: string
-  company_id?: UUID | null
+  company_id?: Uuid | null
   subject: string
   body_html: string
   body_text: string
@@ -406,7 +406,7 @@ export interface TemplatePreviewRequest {
   body_html: string
   body_text: string
   reason: string
-  event_id?: UUID
+  event_id?: Uuid
 }
 
 export interface TemplatePreviewResponse {
@@ -470,7 +470,7 @@ export interface LocationImage {
 
 // Photo types
 export interface PhotoAsset {
-  id: UUID
+  id: Uuid
   original_filename: string | null
   thumbnail_url: string | null
   taken_at: string | null
@@ -483,8 +483,8 @@ export interface PhotoAsset {
 }
 
 export interface PhotoReference {
-  id: UUID
-  event_id: UUID
+  id: Uuid
+  event_id: Uuid
   immich_asset_id: string
   caption: string | null
   include_in_report: boolean
@@ -556,7 +556,7 @@ export interface Permission {
 }
 
 export interface Role {
-  id: UUID
+  id: Uuid
   name: string
   is_system: boolean
   description?: string
@@ -579,15 +579,15 @@ export interface RoleUpdate {
 }
 
 export interface UserRole {
-  user_id: UUID
-  role_id: UUID
-  company_id?: UUID | null
+  user_id: Uuid
+  role_id: Uuid
+  company_id?: Uuid | null
   role: Role
 }
 
 export interface UserRoleAssignment {
-  role_id: UUID
-  company_id?: UUID | null
+  role_id: Uuid
+  company_id?: Uuid | null
 }
 
 export interface UserPermissions {

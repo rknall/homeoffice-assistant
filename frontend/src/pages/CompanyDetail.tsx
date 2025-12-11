@@ -21,11 +21,11 @@ import type {
   IntegrationConfig,
   StoragePath,
   TemplateReason,
-  UUID,
+  Uuid,
 } from '@/types'
 
 export function CompanyDetail() {
-  const { id } = useParams<{ id: UUID }>()
+  const { id } = useParams<{ id: Uuid }>()
   const navigate = useNavigate()
   const { setItems: setBreadcrumb } = useBreadcrumb()
   const [company, setCompany] = useState<Company | null>(null)

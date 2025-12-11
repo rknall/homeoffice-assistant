@@ -18,7 +18,25 @@ from src.schemas.auth import (
 )
 from src.schemas.user import UserProfileUpdate, UserResponse
 from src.security import get_password_hash, verify_password
-from src.services import auth_service
+from src.services import auth_service, rbac_service
+
+
+def build_user_response(db: Session, user: User) -> UserResponse:
+    """Build UserResponse with permissions from RBAC."""
+    perms = rbac_service.get_user_all_permissions(db, user)
+    return UserResponse(
+        id=str(user.id),
+        username=user.username,
+        email=user.email,
+        is_active=user.is_active,
+        full_name=user.full_name,
+        avatar_url=user.avatar_url,
+        use_gravatar=user.use_gravatar,
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+        permissions=perms["global_permissions"],
+        company_permissions=perms["company_permissions"],
+    )
 
 AVATAR_DIR = "static/avatars"
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
@@ -96,7 +114,7 @@ def register(
         max_age=86400 * 7,  # 7 days
     )
 
-    return AuthResponse(user=UserResponse.model_validate(user))
+    return AuthResponse(user=build_user_response(db, user))
 
 
 @router.post("/login", response_model=AuthResponse)
@@ -125,7 +143,7 @@ def login(
         max_age=86400 * 7,  # 7 days
     )
 
-    return AuthResponse(user=UserResponse.model_validate(user))
+    return AuthResponse(user=build_user_response(db, user))
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -142,10 +160,11 @@ def logout(
 
 @router.get("/me", response_model=AuthResponse)
 def get_current_user_info(
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> AuthResponse:
     """Get current authenticated user."""
-    return AuthResponse(user=UserResponse.model_validate(current_user))
+    return AuthResponse(user=build_user_response(db, current_user))
 
 
 @router.put("/me", response_model=AuthResponse)
@@ -178,7 +197,7 @@ def update_current_user_profile(
     db.commit()
     db.refresh(current_user)
 
-    return AuthResponse(user=UserResponse.model_validate(current_user))
+    return AuthResponse(user=build_user_response(db, current_user))
 
 
 @router.post("/me/avatar", response_model=AuthResponse)
@@ -234,7 +253,7 @@ async def upload_avatar(
     db.commit()
     db.refresh(current_user)
 
-    return AuthResponse(user=UserResponse.model_validate(current_user))
+    return AuthResponse(user=build_user_response(db, current_user))
 
 
 @router.delete("/me/avatar", response_model=AuthResponse)
@@ -253,4 +272,4 @@ def delete_avatar(
     db.commit()
     db.refresh(current_user)
 
-    return AuthResponse(user=UserResponse.model_validate(current_user))
+    return AuthResponse(user=build_user_response(db, current_user))

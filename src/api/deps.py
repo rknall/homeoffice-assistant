@@ -4,12 +4,12 @@
 
 from collections.abc import Generator
 
-from fastapi import Cookie, Depends, HTTPException, status
+from fastapi import Cookie, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from src.database import SessionLocal
 from src.models import User
-from src.services import auth_service
+from src.services import auth_service, rbac_service
 
 
 def get_db() -> Generator[Session]:
@@ -51,9 +51,10 @@ def get_current_user(
 
 def get_current_admin(
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> User:
-    """Get current user and verify they are an admin."""
-    if not current_user.is_admin:
+    """Get current user and verify they have system.admin permission."""
+    if not rbac_service.user_has_permission(db, current_user, "system.admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",
@@ -78,3 +79,20 @@ def get_optional_user(
         return None
 
     return user
+
+
+def require_permission(permission_code: str, company_id_param: str | None = None):
+    """Dependency for permission-based authorization."""
+    def dependency(
+        request: Request,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ):
+        company_id = None
+        if company_id_param and company_id_param in request.path_params:
+            company_id = request.path_params[company_id_param]
+
+        if not rbac_service.user_has_permission(db, current_user, permission_code, company_id=company_id):
+            raise HTTPException(status_code=403, detail=f"Permission denied: {permission_code}")
+        return current_user
+    return dependency

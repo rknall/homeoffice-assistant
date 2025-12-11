@@ -5,14 +5,14 @@ export interface User {
   id: string
   username: string
   email: string
-  role: 'admin' | 'user'
-  is_admin: boolean
   is_active: boolean
   full_name: string | null
   avatar_url: string | null
   use_gravatar: boolean
   created_at: string
   updated_at: string
+  permissions: string[]
+  company_permissions: Record<string, string[]>
 }
 
 export interface AuthResponse {
@@ -544,4 +544,51 @@ export interface UnsplashSearchResponse {
   total: number
   total_pages: number
   results: UnsplashImage[]
+}
+
+// RBAC types
+export interface Permission {
+  code: string
+  module: string
+  description?: string
+}
+
+export interface Role {
+  id: string
+  name: string
+  is_system: boolean
+  description?: string
+}
+
+export interface RoleWithPermissions extends Role {
+  permissions: Permission[]
+}
+
+export interface RoleCreate {
+  name: string
+  description?: string
+  permissions: string[] // List of permission codes
+}
+
+export interface RoleUpdate {
+  name?: string
+  description?: string
+  permissions?: string[]
+}
+
+export interface UserRole {
+  user_id: string
+  role_id: string
+  company_id?: string | null
+  role: Role
+}
+
+export interface UserRoleAssignment {
+  role_id: string
+  company_id?: string | null
+}
+
+export interface UserPermissions {
+  global_permissions: string[]
+  company_permissions: Record<string, string[]>
 }

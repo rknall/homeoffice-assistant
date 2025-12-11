@@ -7,8 +7,6 @@ import re
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from src.models.enums import UserRole
-
 USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9_]+$")
 
 
@@ -69,13 +67,13 @@ class UserResponse(BaseModel):
     id: str
     username: str
     email: str
-    role: UserRole
-    is_admin: bool
     is_active: bool
     full_name: str | None = None
     avatar_url: str | None = None
     use_gravatar: bool = True
     created_at: datetime.datetime
     updated_at: datetime.datetime
+    permissions: list[str] = []
+    company_permissions: dict[str, list[str]] = {}
 
     model_config = {"from_attributes": True}

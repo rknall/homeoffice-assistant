@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from src.database import SessionLocal
 from src.plugins import PluginRegistry, get_plugin_router_manager
+from src.services import rbac_seed_service
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +34,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     db = SessionLocal()
     try:
+        # Seed RBAC data first
+        logger.info("Seeding RBAC data...")
+        rbac_seed_service.seed_rbac_data(db)
+        logger.info("RBAC data seeding complete.")
+
         await registry.load_all_plugins(db)
         logger.info(f"Loaded {len(registry.get_enabled_plugins())} enabled plugins")
     except Exception as e:
-        logger.error(f"Error loading plugins: {e}")
+        logger.error(f"Error during startup: {e}")
     finally:
         db.close()
 

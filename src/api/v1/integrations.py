@@ -5,7 +5,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_admin, get_current_user, get_db
+from src.api.deps import get_current_admin, get_current_user, get_db, require_permission
 from src.integrations.base import DocumentProvider, EmailProvider, ImageSearchProvider
 from src.models import User
 from src.models.enums import IntegrationType
@@ -181,7 +181,7 @@ def update_integration(
 def delete_integration(
     config_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin),
+    current_user: User = Depends(require_permission("integration.config")),
 ) -> None:
     """Delete an integration configuration. Admin only."""
     config = integration_service.get_integration_config(db, config_id)

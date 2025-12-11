@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 import { create } from 'zustand'
 import { ApiError, api } from '@/api/client'
-import type { AuthResponse, AuthStatus, User } from '@/types'
+import type { AuthResponse, AuthStatus, User, UserPermissions } from '@/types'
 
 interface AuthState {
   user: User | null
@@ -17,9 +17,11 @@ interface AuthState {
   checkAuthStatus: () => Promise<void>
   clearError: () => void
   setUser: (user: User) => void
+  hasPermission: (code: string, companyId?: string) => boolean
+  fetchPermissions: () => Promise<void>
 }
 
-export const useAuth = create<AuthState>((set) => ({
+export const useAuth = create<AuthState>((set, get) => ({
   user: null,
   isLoading: true,
   isFirstRun: null,
@@ -89,4 +91,43 @@ export const useAuth = create<AuthState>((set) => ({
   clearError: () => set({ error: null }),
 
   setUser: (user: User) => set({ user }),
+
+  hasPermission: (code: string, companyId?: string) => {
+    const user = get().user
+    if (!user) return false
+
+    // Check global permissions
+    if (user.permissions.includes(code)) return true
+
+    // Check company-specific permissions if companyId is provided
+    if (companyId && user.company_permissions[companyId]?.includes(code)) return true
+
+    return false
+  },
+
+  fetchPermissions: async () => {
+    const user = get().user
+    if (!user) return
+
+    try {
+      const userPermissions = await api.get<UserPermissions>('/rbac/me/permissions')
+      set((state) => ({
+        user: state.user ? {
+          ...state.user,
+          permissions: userPermissions.global_permissions,
+          company_permissions: userPermissions.company_permissions,
+        } : null,
+      }))
+    } catch (e) {
+      console.error('Failed to fetch user permissions:', e)
+      // Optionally clear permissions or set an error state
+      set((state) => ({
+        user: state.user ? {
+          ...state.user,
+          permissions: [],
+          company_permissions: {},
+        } : null,
+      }))
+    }
+  },
 }))

@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 from src.models import SystemSettings, User
-from src.models.enums import UserRole
 from src.models.session import Session as SessionModel
 from src.plugins.events import AppEvent, event_bus
 from src.schemas.auth import RegisterRequest
@@ -51,27 +50,34 @@ def is_registration_enabled(db: Session) -> bool:
 
 def register_user(db: Session, data: RegisterRequest) -> User:
     """Register a new user. First user becomes admin."""
+    from src.services import rbac_service
     first_run = is_first_run(db)
 
     user = User(
         username=data.username,
         email=data.email,
         hashed_password=get_password_hash(data.password),
-        role=UserRole.ADMIN if first_run else UserRole.USER,
         is_admin=first_run,
         is_active=True,
         full_name=data.full_name,
     )
     db.add(user)
-    db.commit()
-    db.refresh(user)
+    db.flush()
 
     if first_run:
         set_first_run_complete(db)
+
+        # Assign Global Admin role
+        global_admin_role = rbac_service.get_role_by_name(db, "Global Admin")
+        if global_admin_role:
+            rbac_service.assign_role_to_user(db, user_id=user.id, role_id=global_admin_role.id)
+
         # Create default email template during first run
         from src.services import email_template_service
-
         email_template_service.ensure_default_template_exists(db)
+
+    db.commit()
+    db.refresh(user)
 
     # Publish user created event
     event_bus.publish_sync(

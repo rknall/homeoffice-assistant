@@ -61,10 +61,12 @@ const settingsSubItems = [
 	{ to: "/settings/plugins", label: "Plugins", icon: Puzzle },
 	{ to: "/settings/templates", label: "Email Templates", icon: Mail },
 	{ to: "/settings/backup", label: "Backup", icon: HardDrive },
+	{ to: "/settings/roles", label: "Roles", icon: Settings },
+	{ to: "/settings/user-roles", label: "User Roles", icon: Settings },
 ];
 
 export function Sidebar() {
-	const { user, logout, setUser } = useAuth();
+	const { user, logout, setUser, hasPermission } = useAuth();
 	const location = useLocation();
 	const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 	// Select loadedPlugins directly to avoid infinite re-renders from getNavItems()
@@ -160,7 +162,7 @@ export function Sidebar() {
 					)}
 
 					{/* Settings with sub-navigation */}
-					{user?.is_admin && (
+					{user && hasPermission('system.admin') && (
 						<div className="mt-4 pt-4 border-t border-gray-800">
 							<NavLink
 								to="/settings"

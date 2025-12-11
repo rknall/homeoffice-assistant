@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from src.models.company_contact import CompanyContact
     from src.models.email_template import EmailTemplate
     from src.models.event import Event
+    from src.models.user_role import UserRole
 
 
 class Company(Base, TimestampMixin):
@@ -60,6 +61,12 @@ class Company(Base, TimestampMixin):
     )
     contacts: Mapped[list[CompanyContact]] = relationship(
         "CompanyContact",
+        back_populates="company",
+        cascade="all, delete-orphan",
+    )
+
+    user_roles: Mapped[list[UserRole]] = relationship(
+        "UserRole",
         back_populates="company",
         cascade="all, delete-orphan",
     )

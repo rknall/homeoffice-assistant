@@ -5,7 +5,7 @@
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
 
-from src.api.deps import get_current_admin
+from src.api.deps import get_current_admin, require_permission
 from src.models import User
 from src.schemas.backup import (
     BackupCreateRequest,
@@ -108,7 +108,7 @@ async def validate_backup(
 async def restore_backup(
     file: UploadFile,
     password: str | None = Form(default=None),
-    current_user: User = Depends(get_current_admin),
+    current_user: User = Depends(require_permission("system.admin")),
 ) -> RestoreResponse:
     """Restore from an uploaded backup file.
 

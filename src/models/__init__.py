@@ -17,19 +17,22 @@ from src.models.enums import (
     NoteType,
     PaymentType,
     TodoCategory,
-    UserRole,
 )
 from src.models.event import Event
 from src.models.expense import Expense
 from src.models.integration_config import IntegrationConfig
 from src.models.location_image import LocationImage
 from src.models.note import Note
+from src.models.permission import Permission
 from src.models.photo_reference import PhotoReference
 from src.models.plugin_config import PluginConfigModel, PluginMigrationHistory
+from src.models.role import Role
+from src.models.role_permission import RolePermission
 from src.models.session import Session
 from src.models.system_settings import SystemSettings
 from src.models.todo import Todo
 from src.models.user import User
+from src.models.user_role import UserRole
 
 __all__ = [
     "Base",
@@ -50,9 +53,12 @@ __all__ = [
     "Note",
     "NoteType",
     "PaymentType",
+    "Permission",
     "PhotoReference",
     "PluginConfigModel",
     "PluginMigrationHistory",
+    "Role",
+    "RolePermission",
     "Session",
     "SystemSettings",
     "TimestampMixin",

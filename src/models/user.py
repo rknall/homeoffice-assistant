@@ -5,16 +5,16 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Enum, String
+from sqlalchemy import Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, TimestampMixin
-from src.models.enums import UserRole
 
 if TYPE_CHECKING:
     from src.models.event import Event
     from src.models.integration_config import IntegrationConfig
     from src.models.session import Session
+    from src.models.user_role import UserRole
 
 
 class User(Base, TimestampMixin):
@@ -30,11 +30,6 @@ class User(Base, TimestampMixin):
     username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole),
-        default=UserRole.USER,
-        nullable=False,
-    )
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     full_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
@@ -55,5 +50,11 @@ class User(Base, TimestampMixin):
     integration_configs: Mapped[list[IntegrationConfig]] = relationship(
         "IntegrationConfig",
         back_populates="created_by_user",
+        cascade="all, delete-orphan",
+    )
+    user_roles: Mapped[list[UserRole]] = relationship(
+        "UserRole",
+        foreign_keys="[UserRole.user_id]",
+        back_populates="user",
         cascade="all, delete-orphan",
     )

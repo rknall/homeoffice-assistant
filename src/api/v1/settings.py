@@ -5,7 +5,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_user, get_db
+from src.api.deps import get_current_user, get_db, require_permission
 from src.models import User
 from src.schemas.settings import LocaleSettingsResponse, LocaleSettingsUpdate
 from src.services import settings_service
@@ -27,17 +27,9 @@ def get_locale_settings(
 def update_locale_settings(
     data: LocaleSettingsUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("system.settings.write")),
 ) -> LocaleSettingsResponse:
     """Update locale settings. Admin only."""
-    if not current_user.is_admin:
-        from fastapi import HTTPException, status
-
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can update locale settings",
-        )
-
     settings = settings_service.update_locale_settings(
         db,
         date_format=data.date_format,

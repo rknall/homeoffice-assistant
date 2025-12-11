@@ -66,7 +66,7 @@ def test_register_user_first_run_creates_admin_and_template(db_session, monkeypa
     request = RegisterRequest(
         username="firstuser",
         email="first@example.com",
-        password="ComplexPass1!",
+        password="ComplexPass1!",  # noqa: S106
         full_name="First User",
     )
 
@@ -82,7 +82,7 @@ def test_register_user_after_first_run(db_session):
     request = RegisterRequest(
         username="lateruser",
         email="later@example.com",
-        password="ComplexPass1!",
+        password="ComplexPass1!",  # noqa: S106
         full_name="Later User",
     )
 

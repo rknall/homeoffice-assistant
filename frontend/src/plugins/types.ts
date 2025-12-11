@@ -3,6 +3,10 @@
 
 import type { ComponentType } from 'react'
 
+type IconComponent = ComponentType<{ className?: string }>
+type LucideModule = typeof import('lucide-react')
+type LucideIconName = keyof LucideModule['icons']
+
 /**
  * Plugin capabilities from manifest
  */
@@ -115,7 +119,7 @@ export interface PluginSettingsResponse {
 export interface PluginNavItem {
   id: string
   label: string
-  icon?: ComponentType<{ className?: string }>
+  icon?: IconComponent | LucideIconName
   path: string
   order?: number
 }

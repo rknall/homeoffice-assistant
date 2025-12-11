@@ -61,14 +61,12 @@ def create_event_instance(db_session) -> tuple[Event, User, Company]:
 
 
 def test_get_and_filter_events(db_session):
-    event, user, company = create_event_instance(db_session)
+    _, user, company = create_event_instance(db_session)
     results = event_service.get_events(db_session, include_company=True)
     assert len(results) == 1
     assert results[0].company is not None
 
-    assert (
-        event_service.get_events(db_session, user_id=user.id)[0].user_id == user.id
-    )
+    assert event_service.get_events(db_session, user_id=user.id)[0].user_id == user.id
     assert (
         event_service.get_events(db_session, company_id=company.id)[0].company_id
         == company.id
@@ -80,7 +78,7 @@ def test_get_and_filter_events(db_session):
 
 
 def test_event_crud_operations(db_session):
-    event, user, company = create_event_instance(db_session)
+    event, user, _ = create_event_instance(db_session)
     fetched = event_service.get_event(db_session, event.id)
     assert fetched == event
     assert (

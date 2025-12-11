@@ -17,7 +17,7 @@ from src.services import backup_service
 from src.services.backup_encryption import decrypt_backup_archive
 
 # Test password used for all backup tests
-TEST_PASSWORD = "test_password_123"
+TEST_PASSWORD = "test_password_123"  # noqa: S105
 
 
 @pytest.fixture
@@ -117,7 +117,7 @@ class TestGetBackupInfo:
 
     def test_handles_missing_database(self, mock_paths):
         """Test handling when database doesn't exist."""
-        _, data_dir, _, db_path = mock_paths
+        _, _, _, db_path = mock_paths
         os.remove(db_path)
 
         info = backup_service.get_backup_info()
@@ -213,7 +213,7 @@ class TestCreateBackup:
                 f.write(decrypted)
 
             with tarfile.open(tarball_path, "r:gz") as tar:
-                tar.extractall(temp_dir)
+                tar.extractall(temp_dir, filter="data")
 
             # Find manifest
             for root, _, files in os.walk(temp_dir):
@@ -274,7 +274,7 @@ class TestValidateBackup:
         """Test validation of a valid backup."""
         backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
 
-        valid, message, metadata, warnings = backup_service.validate_backup(
+        valid, message, metadata, _ = backup_service.validate_backup(
             backup_bytes, TEST_PASSWORD
         )
 
@@ -286,9 +286,7 @@ class TestValidateBackup:
 
     def test_rejects_invalid_tarball(self, mock_paths):
         """Test rejection of invalid tarball data."""
-        valid, message, metadata, warnings = backup_service.validate_backup(
-            b"not a tarball"
-        )
+        valid, _, _, _ = backup_service.validate_backup(b"not a tarball")
 
         assert valid is False
 
@@ -302,9 +300,7 @@ class TestValidateBackup:
             with open(tarball_path, "rb") as f:
                 backup_bytes = f.read()
 
-        valid, message, metadata, warnings = backup_service.validate_backup(
-            backup_bytes
-        )
+        valid, _, _, _ = backup_service.validate_backup(backup_bytes)
 
         assert valid is False
 
@@ -325,9 +321,7 @@ class TestValidateBackup:
             with open(tarball_path, "rb") as f:
                 backup_bytes = f.read()
 
-        valid, message, metadata, warnings = backup_service.validate_backup(
-            backup_bytes
-        )
+        valid, message, _, _ = backup_service.validate_backup(backup_bytes)
 
         assert valid is False
         assert "database" in message.lower()
@@ -351,9 +345,7 @@ class TestValidateBackup:
             with open(tarball_path, "rb") as f:
                 backup_bytes = f.read()
 
-        valid, message, metadata, warnings = backup_service.validate_backup(
-            backup_bytes
-        )
+        valid, message, _, _ = backup_service.validate_backup(backup_bytes)
 
         assert valid is False
         assert "sqlite" in message.lower()
@@ -376,9 +368,7 @@ class TestValidateBackup:
             with open(tarball_path, "rb") as f:
                 backup_bytes = f.read()
 
-        valid, message, metadata, warnings = backup_service.validate_backup(
-            backup_bytes
-        )
+        valid, _, _, warnings = backup_service.validate_backup(backup_bytes)
 
         assert valid is True
         assert len(warnings) > 0
@@ -389,9 +379,7 @@ class TestValidateBackup:
         backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
 
         # Try to validate without password
-        valid, message, metadata, warnings = backup_service.validate_backup(
-            backup_bytes
-        )
+        valid, message, metadata, _ = backup_service.validate_backup(backup_bytes)
 
         assert valid is False
         assert "password" in message.lower()
@@ -402,7 +390,7 @@ class TestValidateBackup:
         """Test rejection of wrong password."""
         backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
 
-        valid, message, metadata, warnings = backup_service.validate_backup(
+        valid, message, _, _ = backup_service.validate_backup(
             backup_bytes, "wrong_password"
         )
 
@@ -415,7 +403,7 @@ class TestPerformRestore:
 
     def test_restores_database(self, mock_paths):
         """Test that restore replaces the database."""
-        temp_dir, data_dir, _, db_path = mock_paths
+        _, _, _, db_path = mock_paths
 
         # Create a backup
         backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
@@ -434,7 +422,7 @@ class TestPerformRestore:
         assert count_before == 2
 
         # Perform restore
-        success, message, details = backup_service.perform_restore(
+        success, _, details = backup_service.perform_restore(
             backup_bytes, password=TEST_PASSWORD
         )
 
@@ -454,7 +442,7 @@ class TestPerformRestore:
         pre_restore_dir = Path(temp_dir) / "backups" / "pre_restore"
 
         backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
-        success, message, details = backup_service.perform_restore(
+        success, _, _ = backup_service.perform_restore(
             backup_bytes, password=TEST_PASSWORD
         )
 
@@ -465,7 +453,7 @@ class TestPerformRestore:
 
     def test_rejects_invalid_backup(self, mock_paths):
         """Test rejection of invalid backup during restore."""
-        success, message, details = backup_service.perform_restore(b"invalid data")
+        success, _, _ = backup_service.perform_restore(b"invalid data")
 
         assert success is False
 
@@ -484,7 +472,7 @@ class TestPerformRestore:
         (avatar_dir / "new_avatar.jpg").write_bytes(b"new avatar")
 
         # Perform restore
-        success, message, details = backup_service.perform_restore(
+        success, _, _ = backup_service.perform_restore(
             backup_bytes, password=TEST_PASSWORD
         )
 
@@ -500,7 +488,7 @@ class TestPerformRestore:
         backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
 
         # Try to restore without password
-        success, message, details = backup_service.perform_restore(backup_bytes)
+        success, message, _ = backup_service.perform_restore(backup_bytes)
 
         assert success is False
         assert "password" in message.lower()

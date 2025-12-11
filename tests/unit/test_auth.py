@@ -3,7 +3,7 @@
 import os
 
 # Set test environment
-os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only-32chars!"
+os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only-32chars!"  # noqa: S105
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 
 from src.schemas.auth import RegisterRequest
@@ -16,7 +16,7 @@ class TestPasswordHashing:
 
     def test_hash_password_produces_hash(self):
         """Test that hashing produces a bcrypt hash."""
-        password = "my-secure-password"
+        password = "my-secure-password"  # noqa: S105
         hashed = get_password_hash(password)
 
         assert hashed != password
@@ -24,7 +24,7 @@ class TestPasswordHashing:
 
     def test_hash_password_different_each_time(self):
         """Test that hashing the same password produces different hashes (salted)."""
-        password = "my-secure-password"
+        password = "my-secure-password"  # noqa: S105
 
         hash1 = get_password_hash(password)
         hash2 = get_password_hash(password)
@@ -33,21 +33,21 @@ class TestPasswordHashing:
 
     def test_verify_password_correct(self):
         """Test verifying a correct password."""
-        password = "my-secure-password"
+        password = "my-secure-password"  # noqa: S105
         hashed = get_password_hash(password)
 
         assert verify_password(password, hashed) is True
 
     def test_verify_password_incorrect(self):
         """Test verifying an incorrect password."""
-        password = "my-secure-password"
+        password = "my-secure-password"  # noqa: S105
         hashed = get_password_hash(password)
 
         assert verify_password("wrong-password", hashed) is False
 
     def test_verify_password_empty(self):
         """Test verifying an empty password."""
-        password = "my-secure-password"
+        password = "my-secure-password"  # noqa: S105
         hashed = get_password_hash(password)
 
         assert verify_password("", hashed) is False
@@ -69,7 +69,7 @@ class TestAuthService:
         request = RegisterRequest(
             username="firstuser",
             email="first@example.com",
-            password="password123",
+            password="password123",  # noqa: S106
         )
         user = auth_service.register_user(db_session, request)
 
@@ -82,7 +82,7 @@ class TestAuthService:
         first_request = RegisterRequest(
             username="firstuser",
             email="first@example.com",
-            password="password123",
+            password="password123",  # noqa: S106
         )
         auth_service.register_user(db_session, first_request)
 
@@ -90,7 +90,7 @@ class TestAuthService:
         second_request = RegisterRequest(
             username="seconduser",
             email="second@example.com",
-            password="password123",
+            password="password123",  # noqa: S106
         )
         user = auth_service.register_user(db_session, second_request)
 
@@ -102,7 +102,7 @@ class TestAuthService:
         user = auth_service.authenticate(
             db_session,
             username="testuser",
-            password="testpassword123",
+            password="testpassword123",  # noqa: S106
         )
 
         assert user is not None
@@ -113,7 +113,7 @@ class TestAuthService:
         user = auth_service.authenticate(
             db_session,
             username="wronguser",
-            password="testpassword123",
+            password="testpassword123",  # noqa: S106
         )
 
         assert user is None
@@ -123,7 +123,7 @@ class TestAuthService:
         user = auth_service.authenticate(
             db_session,
             username="testuser",
-            password="wrongpassword",
+            password="wrongpassword",  # noqa: S106
         )
 
         assert user is None

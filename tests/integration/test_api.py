@@ -3,7 +3,7 @@
 import os
 
 # Set test environment
-os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only-32chars!"
+os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only-32chars!"  # noqa: S105
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 
 

@@ -6,7 +6,7 @@ import pytest
 from cryptography.fernet import InvalidToken
 
 # Set test environment
-os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only-32chars!"
+os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only-32chars!"  # noqa: S105
 
 from src.encryption import decrypt_config, encrypt_config
 
@@ -69,6 +69,7 @@ class TestEncryption:
         decrypted = decrypt_config(encrypted)
 
         assert decrypted == config
+
     def test_decrypt_invalid_data_raises(self):
         """Test that decrypting invalid data raises an error."""
         with pytest.raises((InvalidToken, ValueError)):

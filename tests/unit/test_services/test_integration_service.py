@@ -65,14 +65,12 @@ def test_config_crud_operations(db_session):
         config={"url": "https://new.example.com", "token": ""},
         is_active=False,
     )
-    updated = integration_service.update_integration_config(
-        db_session, config, update
-    )
+    updated = integration_service.update_integration_config(db_session, config, update)
 
     assert updated.name == "Updated"
     assert updated.is_active is False
     decrypted = integration_service.get_decrypted_config(updated)
-    assert decrypted["token"] == "secret"  # preserved from old config
+    assert decrypted["token"] == "secret"  # noqa: S105
     assert decrypted["url"] == "https://new.example.com"
 
     integration_service.delete_integration_config(db_session, updated)

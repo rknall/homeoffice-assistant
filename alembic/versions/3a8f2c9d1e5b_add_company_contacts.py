@@ -7,6 +7,7 @@ Create Date: 2025-12-09
 """
 
 import json
+import logging
 import uuid
 from collections.abc import Sequence
 
@@ -19,6 +20,8 @@ revision: str = "3a8f2c9d1e5b"
 down_revision: str | None = "297d4b88fbfc"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+
+logger = logging.getLogger(__name__)
 
 
 def upgrade() -> None:
@@ -37,9 +40,7 @@ def upgrade() -> None:
         sa.Column("is_main_contact", sa.Boolean(), nullable=False, server_default="0"),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["company_id"], ["companies.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
@@ -86,6 +87,7 @@ def upgrade() -> None:
 
         # Create company contacts from existing expense recipients
         from datetime import datetime
+
         now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
         for company in companies:
@@ -116,7 +118,9 @@ def upgrade() -> None:
             )
     except Exception:
         # If companies table doesn't exist or other error, skip data migration
-        pass
+        logger.exception(
+            "Skipping company contact data migration due to an unexpected error."
+        )
 
     # Update existing expense_report templates to have billing contact type
     try:
@@ -129,7 +133,9 @@ def upgrade() -> None:
         )
     except Exception:
         # If email_templates table doesn't exist, skip
-        pass
+        logger.exception(
+            "Unable to update email template contact types due to an unexpected error."
+        )
 
 
 def downgrade() -> None:

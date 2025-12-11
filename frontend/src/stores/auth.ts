@@ -112,21 +112,25 @@ export const useAuth = create<AuthState>((set, get) => ({
     try {
       const userPermissions = await api.get<UserPermissions>('/rbac/me/permissions')
       set((state) => ({
-        user: state.user ? {
-          ...state.user,
-          permissions: userPermissions.global_permissions,
-          company_permissions: userPermissions.company_permissions,
-        } : null,
+        user: state.user
+          ? {
+              ...state.user,
+              permissions: userPermissions.global_permissions,
+              company_permissions: userPermissions.company_permissions,
+            }
+          : null,
       }))
     } catch (e) {
       console.error('Failed to fetch user permissions:', e)
       // Optionally clear permissions or set an error state
       set((state) => ({
-        user: state.user ? {
-          ...state.user,
-          permissions: [],
-          company_permissions: {},
-        } : null,
+        user: state.user
+          ? {
+              ...state.user,
+              permissions: [],
+              company_permissions: {},
+            }
+          : null,
       }))
     }
   },

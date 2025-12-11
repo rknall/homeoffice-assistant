@@ -1,19 +1,14 @@
 // frontend/src/pages/settings/UserRolesSettings.tsx
-import { useEffect, useState } from 'react';
-import { api } from '@/api/client';
-import type { Role, User, UserRole, UserRoleAssignment } from '@/types';
-import { Button } from '@/components/ui/Button';
-import { Separator } from '@/components/ui/Separator';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/SelectRadix';
-import { toast } from 'sonner';
-import { Trash2, PlusCircle } from 'lucide-react';
+
+import { zodResolver } from '@hookform/resolvers/zod'
+import { PlusCircle, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { toast } from 'sonner'
+import { z } from 'zod'
+import { api } from '@/api/client'
+import { Button } from '@/components/ui/Button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import {
   Dialog,
   DialogContent,
@@ -21,25 +16,31 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/Dialog';
-import { Label } from '@/components/ui/Label';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
+} from '@/components/ui/Dialog'
+import { Label } from '@/components/ui/Label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/SelectRadix'
+import { Separator } from '@/components/ui/Separator'
+import type { Role, User, UserRole, UserRoleAssignment } from '@/types'
 
 const assignRoleSchema = z.object({
   userId: z.string().min(1, 'User is required'),
   roleId: z.string().min(1, 'Role is required'),
   companyId: z.string().optional().nullable(),
-});
+})
 
-type AssignRoleFormValues = z.infer<typeof assignRoleSchema>;
+type AssignRoleFormValues = z.infer<typeof assignRoleSchema>
 
 export function UserRolesSettings() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [userRoles, setUserRoles] = useState<UserRole[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [users, setUsers] = useState<User[]>([])
+  const [roles, setRoles] = useState<Role[]>([])
+  const [userRoles, setUserRoles] = useState<UserRole[]>([])
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   const {
     handleSubmit,
@@ -49,83 +50,79 @@ export function UserRolesSettings() {
     formState: { errors, isSubmitting },
   } = useForm<AssignRoleFormValues>({
     resolver: zodResolver(assignRoleSchema),
-  });
+  })
 
-  const selectedUserId = watch('userId');
+  const selectedUserId = watch('userId')
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData()
+  }, [])
 
   useEffect(() => {
     if (selectedUserId) {
-      fetchUserRoles(selectedUserId);
+      fetchUserRoles(selectedUserId)
     } else {
-      setUserRoles([]);
+      setUserRoles([])
     }
-  }, [selectedUserId]);
+  }, [selectedUserId])
 
   const fetchData = async () => {
     try {
       const [usersData, rolesData] = await Promise.all([
         api.get<User[]>('/users'), // Assuming a /users endpoint exists
         api.get<Role[]>('/rbac/roles'),
-      ]);
-      setUsers(usersData);
-      setRoles(rolesData);
+      ])
+      setUsers(usersData)
+      setRoles(rolesData)
     } catch (error) {
-      console.error('Failed to fetch initial data:', error);
-      toast.error('Failed to load users or roles.');
+      console.error('Failed to fetch initial data:', error)
+      toast.error('Failed to load users or roles.')
     }
-  };
+  }
 
   const fetchUserRoles = async (userId: string) => {
     try {
-      const rolesData = await api.get<UserRole[]>(`/rbac/users/${userId}/roles`);
-      setUserRoles(rolesData);
+      const rolesData = await api.get<UserRole[]>(`/rbac/users/${userId}/roles`)
+      setUserRoles(rolesData)
     } catch (error) {
-      console.error('Failed to fetch user roles:', error);
-      toast.error('Failed to load user roles.');
+      console.error('Failed to fetch user roles:', error)
+      toast.error('Failed to load user roles.')
     }
-  };
+  }
 
   const openModal = () => {
-    reset({ userId: '', roleId: '', companyId: null });
-    setIsModalOpen(true);
-  };
+    reset({ userId: '', roleId: '', companyId: null })
+    setIsModalOpen(true)
+  }
 
   const onSubmit = async (values: AssignRoleFormValues) => {
     try {
       const assignment: UserRoleAssignment = {
         role_id: values.roleId,
         company_id: values.companyId || null,
-      };
-      await api.post(`/rbac/users/${values.userId}/roles`, assignment);
-      toast.success('Role assigned successfully.');
-      fetchUserRoles(values.userId);
-      setIsModalOpen(false);
+      }
+      await api.post(`/rbac/users/${values.userId}/roles`, assignment)
+      toast.success('Role assigned successfully.')
+      fetchUserRoles(values.userId)
+      setIsModalOpen(false)
     } catch (error) {
-      console.error('Failed to assign role:', error);
-      toast.error('Failed to assign role.');
+      console.error('Failed to assign role:', error)
+      toast.error('Failed to assign role.')
     }
-  };
+  }
 
   const onRemoveRole = async (userRole: UserRole) => {
-    if (!confirm('Are you sure you want to remove this role assignment?')) return;
+    if (!confirm('Are you sure you want to remove this role assignment?')) return
     try {
-      const companyParam = userRole.company_id
-        ? `?company_id=${userRole.company_id}`
-        : '';
-      await api.delete(
-        `/rbac/users/${userRole.user_id}/roles/${userRole.role_id}${companyParam}`,
-      );
-      toast.success('Role removed successfully.');
-      fetchUserRoles(userRole.user_id);
+      const companyParam = userRole.company_id ? `?company_id=${userRole.company_id}` : ''
+      await api.delete(`/rbac/users/${userRole.user_id}/roles/${userRole.role_id}${companyParam}`)
+      toast.success('Role removed successfully.')
+      fetchUserRoles(userRole.user_id)
     } catch (error) {
-      console.error('Failed to remove role:', error);
-      toast.error('Failed to remove role.');
+      console.error('Failed to remove role:', error)
+      toast.error('Failed to remove role.')
     }
-  };
+  }
 
   return (
     <div className="space-y-6">
@@ -156,9 +153,7 @@ export function UserRolesSettings() {
               ))}
             </SelectContent>
           </Select>
-          {errors.userId && (
-            <p className="text-sm text-red-500 mt-1">{errors.userId.message}</p>
-          )}
+          {errors.userId && <p className="text-sm text-red-500 mt-1">{errors.userId.message}</p>}
         </div>
       </div>
 
@@ -283,5 +278,5 @@ export function UserRolesSettings() {
         </DialogContent>
       </Dialog>
     </div>
-  );
+  )
 }

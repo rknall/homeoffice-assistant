@@ -1,22 +1,15 @@
 // frontend/src/pages/settings/RolesSettings.tsx
-import { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { PlusCircle, Trash2 } from 'lucide-react';
-import { api } from '@/api/client';
-import type {
-  Permission,
-  Role,
-  RoleCreate,
-  RoleUpdate,
-  RoleWithPermissions,
-} from '@/types';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Label } from '@/components/ui/Label';
-import { Textarea } from '@/components/ui/Textarea';
-import { Checkbox } from '@/components/ui/Checkbox';
+
+import { zodResolver } from '@hookform/resolvers/zod'
+import { PlusCircle, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { toast } from 'sonner'
+import { z } from 'zod'
+import { api } from '@/api/client'
+import { Button } from '@/components/ui/Button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Checkbox } from '@/components/ui/Checkbox'
 import {
   Dialog,
   DialogContent,
@@ -24,26 +17,26 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/Dialog';
-import { toast } from 'sonner';
-import { Separator } from '@/components/ui/Separator';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+} from '@/components/ui/Dialog'
+import { Input } from '@/components/ui/Input'
+import { Label } from '@/components/ui/Label'
+import { Separator } from '@/components/ui/Separator'
+import { Textarea } from '@/components/ui/Textarea'
+import type { Permission, Role, RoleCreate, RoleUpdate, RoleWithPermissions } from '@/types'
 
 const roleSchema = z.object({
   name: z.string().min(1, 'Role name is required'),
   description: z.string().optional(),
   permissions: z.array(z.string()).optional(),
-});
+})
 
-type RoleFormValues = z.infer<typeof roleSchema>;
+type RoleFormValues = z.infer<typeof roleSchema>
 
 export function RolesSettings() {
-  const [roles, setRoles] = useState<RoleWithPermissions[]>([]);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [selectedRole, setSelectedRole] = useState<RoleWithPermissions | null>(
-    null,
-  );
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [roles, setRoles] = useState<RoleWithPermissions[]>([])
+  const [permissions, setPermissions] = useState<Permission[]>([])
+  const [selectedRole, setSelectedRole] = useState<RoleWithPermissions | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   const {
     register,
@@ -54,51 +47,49 @@ export function RolesSettings() {
     formState: { errors, isSubmitting },
   } = useForm<RoleFormValues>({
     resolver: zodResolver(roleSchema),
-  });
+  })
 
-  const watchedPermissions = watch('permissions') || [];
+  const watchedPermissions = watch('permissions') || []
 
   useEffect(() => {
-    fetchRolesAndPermissions();
-  }, []);
+    fetchRolesAndPermissions()
+  }, [])
 
   const fetchRolesAndPermissions = async () => {
     try {
       const [rolesData, permissionsData] = await Promise.all([
         api.get<Role[]>('/rbac/roles'),
         api.get<Permission[]>('/rbac/permissions'),
-      ]);
+      ])
 
       // Fetch full role details with permissions for each role
       const rolesWithPermissions = await Promise.all(
-        rolesData.map((role) =>
-          api.get<RoleWithPermissions>(`/rbac/roles/${role.id}`),
-        ),
-      );
+        rolesData.map((role) => api.get<RoleWithPermissions>(`/rbac/roles/${role.id}`)),
+      )
 
-      setRoles(rolesWithPermissions);
-      setPermissions(permissionsData);
+      setRoles(rolesWithPermissions)
+      setPermissions(permissionsData)
     } catch (error) {
-      console.error('Failed to fetch roles or permissions:', error);
-      toast.error('Failed to load roles or permissions.');
+      console.error('Failed to fetch roles or permissions:', error)
+      toast.error('Failed to load roles or permissions.')
     }
-  };
+  }
 
   const openModalForCreate = () => {
-    setSelectedRole(null);
-    reset({ name: '', description: '', permissions: [] });
-    setIsModalOpen(true);
-  };
+    setSelectedRole(null)
+    reset({ name: '', description: '', permissions: [] })
+    setIsModalOpen(true)
+  }
 
   const openModalForEdit = (role: RoleWithPermissions) => {
-    setSelectedRole(role);
+    setSelectedRole(role)
     reset({
       name: role.name,
       description: role.description || '',
       permissions: role.permissions.map((p) => p.code),
-    });
-    setIsModalOpen(true);
-  };
+    })
+    setIsModalOpen(true)
+  }
 
   const onSubmit = async (values: RoleFormValues) => {
     try {
@@ -108,38 +99,38 @@ export function RolesSettings() {
           name: values.name,
           description: values.description,
           permissions: values.permissions,
-        };
-        await api.put(`/rbac/roles/${selectedRole.id}`, updateData);
-        toast.success('Role updated successfully.');
+        }
+        await api.put(`/rbac/roles/${selectedRole.id}`, updateData)
+        toast.success('Role updated successfully.')
       } else {
         // Create role
         const createData: RoleCreate = {
           name: values.name,
           description: values.description,
           permissions: values.permissions || [],
-        };
-        await api.post('/rbac/roles', createData);
-        toast.success('Role created successfully.');
+        }
+        await api.post('/rbac/roles', createData)
+        toast.success('Role created successfully.')
       }
-      fetchRolesAndPermissions();
-      setIsModalOpen(false);
+      fetchRolesAndPermissions()
+      setIsModalOpen(false)
     } catch (error) {
-      console.error('Failed to save role:', error);
-      toast.error('Failed to save role.');
+      console.error('Failed to save role:', error)
+      toast.error('Failed to save role.')
     }
-  };
+  }
 
   const onDelete = async (roleId: string) => {
-    if (!confirm('Are you sure you want to delete this role?')) return;
+    if (!confirm('Are you sure you want to delete this role?')) return
     try {
-      await api.delete(`/rbac/roles/${roleId}`);
-      toast.success('Role deleted successfully.');
-      fetchRolesAndPermissions();
+      await api.delete(`/rbac/roles/${roleId}`)
+      toast.success('Role deleted successfully.')
+      fetchRolesAndPermissions()
     } catch (error) {
-      console.error('Failed to delete role:', error);
-      toast.error('Failed to delete role.');
+      console.error('Failed to delete role:', error)
+      toast.error('Failed to delete role.')
     }
-  };
+  }
 
   return (
     <div className="space-y-6">
@@ -218,20 +209,14 @@ export function RolesSettings() {
                 disabled={selectedRole?.is_system}
               />
               {errors.name && (
-                <p className="col-span-4 col-start-2 text-sm text-red-500">
-                  {errors.name.message}
-                </p>
+                <p className="col-span-4 col-start-2 text-sm text-red-500">{errors.name.message}</p>
               )}
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="description" className="text-right">
                 Description
               </Label>
-              <Textarea
-                id="description"
-                {...register('description')}
-                className="col-span-3"
-              />
+              <Textarea id="description" {...register('description')} className="col-span-3" />
             </div>
 
             <Separator className="my-4" />
@@ -242,32 +227,25 @@ export function RolesSettings() {
                 <div key={perm.code} className="flex items-center space-x-2">
                   <Checkbox
                     id={perm.code}
-                    checked={
-                      selectedRole?.is_system ||
-                      watchedPermissions.includes(perm.code)
-                    }
+                    checked={selectedRole?.is_system || watchedPermissions.includes(perm.code)}
                     onCheckedChange={(checked: boolean) => {
                       if (checked) {
-                        setValue(
-                          'permissions',
-                          [...watchedPermissions, perm.code],
-                          { shouldValidate: true },
-                        );
+                        setValue('permissions', [...watchedPermissions, perm.code], {
+                          shouldValidate: true,
+                        })
                       } else {
                         setValue(
                           'permissions',
                           watchedPermissions.filter((p) => p !== perm.code),
                           { shouldValidate: true },
-                        );
+                        )
                       }
                     }}
                     disabled={selectedRole?.is_system}
                   />
                   <Label htmlFor={perm.code} className="flex flex-col">
                     <span className="font-medium">{perm.code}</span>
-                    <span className="text-xs text-gray-500">
-                      {perm.description}
-                    </span>
+                    <span className="text-xs text-gray-500">{perm.description}</span>
                   </Label>
                 </div>
               ))}
@@ -282,5 +260,5 @@ export function RolesSettings() {
         </DialogContent>
       </Dialog>
     </div>
-  );
+  )
 }

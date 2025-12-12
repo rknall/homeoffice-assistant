@@ -22,6 +22,7 @@ from src.api.v1 import (
     reports,
     settings,
     todos,
+    users,
 )
 
 api_router = APIRouter()
@@ -82,3 +83,6 @@ api_router.include_router(plugins.router)
 
 # RBAC routes
 api_router.include_router(rbac.router)
+
+# User management routes
+api_router.include_router(users.router, tags=["users"])

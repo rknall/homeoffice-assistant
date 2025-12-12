@@ -20,7 +20,8 @@ import { PluginSettings } from '@/pages/settings/PluginSettings'
 import { RegionalSettings } from '@/pages/settings/RegionalSettings'
 import { RoleDetail } from '@/pages/settings/RoleDetail'
 import { Roles } from '@/pages/settings/Roles'
-import { UserRolesSettings } from '@/pages/settings/UserRolesSettings'
+import { UserDetail } from '@/pages/settings/UserDetail'
+import { Users } from '@/pages/settings/Users'
 import { PluginProvider, usePluginRoutes } from '@/plugins'
 import { useAuth } from '@/stores/auth'
 import { useLocale } from '@/stores/locale'
@@ -52,7 +53,8 @@ function AppRoutes() {
         <Route path="/settings/backup" element={<BackupSettings />} />
         <Route path="/settings/roles" element={<Roles />} />
         <Route path="/settings/roles/:id" element={<RoleDetail />} />
-        <Route path="/settings/users" element={<UserRolesSettings />} />
+        <Route path="/settings/users" element={<Users />} />
+        <Route path="/settings/users/:id" element={<UserDetail />} />
         {/* Dynamic plugin routes */}
         {pluginRoutes}
       </Route>

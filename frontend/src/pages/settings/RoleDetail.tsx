@@ -247,7 +247,10 @@ export function RoleDetail() {
               placeholder="Enter role name"
             />
             <div>
-              <label htmlFor="role-description" className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="role-description"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Description
               </label>
               <textarea

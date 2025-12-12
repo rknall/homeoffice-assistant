@@ -41,6 +41,8 @@ class UserUpdate(BaseModel):
     email: EmailStr | None = None
     password: str | None = Field(None, min_length=8)
     is_active: bool | None = None
+    full_name: str | None = Field(None, max_length=200)
+    use_gravatar: bool | None = None
 
     @field_validator("username")
     @classmethod

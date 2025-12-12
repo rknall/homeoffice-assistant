@@ -48,7 +48,7 @@ def get_user_permissions(
     # Get permissions from global roles
     global_roles = (
         db.query(UserRole)
-        .filter(UserRole.user_id == user.id, UserRole.company_id is None)
+        .filter(UserRole.user_id == user.id, UserRole.company_id.is_(None))
         .all()
     )
     for user_role in global_roles:
@@ -91,10 +91,10 @@ def get_user_roles(
     user_roles_query = db.query(UserRole).filter(UserRole.user_id == user.id)
     if company_id:
         user_roles_query = user_roles_query.filter(
-            sa.or_(UserRole.company_id is None, UserRole.company_id == company_id)
+            sa.or_(UserRole.company_id.is_(None), UserRole.company_id == company_id)
         )
     else:
-        user_roles_query = user_roles_query.filter(UserRole.company_id is None)
+        user_roles_query = user_roles_query.filter(UserRole.company_id.is_(None))
 
     for user_role in user_roles_query.options(joinedload(UserRole.role)).all():
         roles.append(user_role.role)

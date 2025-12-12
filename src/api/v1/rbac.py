@@ -334,7 +334,7 @@ def get_my_permissions(
     # the user has roles for
     user_companies = (
         db.query(UserRole.company_id)
-        .filter(UserRole.user_id == current_user.id, UserRole.company_id is not None)
+        .filter(UserRole.user_id == current_user.id, UserRole.company_id.isnot(None))
         .distinct()
         .all()
     )

@@ -35,6 +35,11 @@
 ### Improvements
 
 - Started UUID migration by updating ORM models to use native UUID primary and foreign keys; follow-up schemas and Alembic migration pending.
+- Added targeted unit tests for Paperless, Immich, and SMTP providers to boost integration coverage and validate connection flows, pagination, and email handling.
+
+#### Developer Tooling
+- Added `scripts/dev_checks.py`, a combined runner for linting (`ruff check`, `npm run lint`) and tests (`pytest`, `npm run test`) with consolidated per-file issue counts and suite summaries.
+- The runner now prints short failure snippets (when not in `--verbose` mode) so you immediately see the offending error lines without digging through full logs.
 
 ---
 

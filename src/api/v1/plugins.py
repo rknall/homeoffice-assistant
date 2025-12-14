@@ -31,6 +31,7 @@ from src.schemas.plugin import (
     PluginSettingsUpdate,
     PluginSummary,
     PluginUninstallResponse,
+    ProvidedPermissionResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -89,7 +90,20 @@ async def list_plugins(
                             config=PluginCapability.CONFIG
                             in manifest_data.capabilities,
                         ),
-                        permissions=[p.value for p in manifest_data.permissions],
+                        # Legacy field for backward compatibility
+                        permissions=[
+                            p.value for p in manifest_data.required_permissions
+                        ],
+                        # New split fields
+                        required_permissions=[
+                            p.value for p in manifest_data.required_permissions
+                        ],
+                        provided_permissions=[
+                            ProvidedPermissionResponse(
+                                code=p.code, description=p.description
+                            )
+                            for p in manifest_data.provided_permissions
+                        ],
                     )
                 except Exception as e:
                     logger.warning(
@@ -192,10 +206,19 @@ async def install_discovered_plugin(
     try:
         # Run migrations if plugin has them
         from src.plugins.migrations import PluginMigrationRunner
+        from src.services.rbac_service import register_plugin_permissions
 
         migration_runner = PluginMigrationRunner(plugin_path, manifest.id)
         if migration_runner.has_migrations():
             migration_runner.run_migrations()
+
+        # Register plugin-provided permissions
+        if manifest.provided_permissions:
+            register_plugin_permissions(db, manifest.id, manifest.provided_permissions)
+            logger.info(
+                f"Registered {len(manifest.provided_permissions)} permissions "
+                f"for plugin {manifest.id}"
+            )
 
         # Create database config record
         db_config = PluginConfigModel(
@@ -274,7 +297,18 @@ async def get_plugin(
                     "min_host_version": manifest_data.min_host_version,
                     "max_host_version": manifest_data.max_host_version,
                     "capabilities": [c.value for c in manifest_data.capabilities],
-                    "permissions": [p.value for p in manifest_data.permissions],
+                    # Legacy field for backward compatibility
+                    "permissions": [
+                        p.value for p in manifest_data.required_permissions
+                    ],
+                    # New split fields
+                    "required_permissions": [
+                        p.value for p in manifest_data.required_permissions
+                    ],
+                    "provided_permissions": [
+                        {"code": p.code, "description": p.description}
+                        for p in manifest_data.provided_permissions
+                    ],
                     "dependencies": manifest_data.dependencies,
                 }
             except Exception as e:
@@ -352,6 +386,7 @@ async def install_plugin(
 async def uninstall_plugin(
     plugin_id: str,
     drop_tables: bool = False,
+    remove_permissions: bool = False,
     db: Session = Depends(get_db),
     _admin: User = Depends(get_current_admin),
 ) -> PluginUninstallResponse:
@@ -362,6 +397,7 @@ async def uninstall_plugin(
     Args:
         plugin_id: Plugin to uninstall
         drop_tables: If True, also drops the plugin's database tables
+        remove_permissions: If True, also removes plugin-provided permissions
         db: Database session
     """
     config = (
@@ -377,12 +413,15 @@ async def uninstall_plugin(
         )
 
     registry = PluginRegistry.get_instance()
-    await registry.uninstall_plugin(plugin_id, db, drop_tables=drop_tables)
+    await registry.uninstall_plugin(
+        plugin_id, db, drop_tables=drop_tables, remove_permissions=remove_permissions
+    )
 
     return PluginUninstallResponse(
         success=True,
         plugin_id=plugin_id,
         tables_dropped=drop_tables,
+        permissions_removed=remove_permissions,
         message=f"Plugin {plugin_id} uninstalled successfully",
     )
 

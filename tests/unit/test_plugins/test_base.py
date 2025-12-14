@@ -90,7 +90,9 @@ class TestPluginManifest:
         assert manifest.min_host_version == "0.1.0"
         assert manifest.max_host_version is None
         assert manifest.capabilities == set()
-        assert manifest.permissions == set()
+        assert manifest.required_permissions == set()
+        assert manifest.permissions == set()  # property alias
+        assert manifest.provided_permissions == []
         assert manifest.dependencies == []
 
     def test_create_full_manifest(self):
@@ -106,7 +108,7 @@ class TestPluginManifest:
             min_host_version="0.2.0",
             max_host_version="1.0.0",
             capabilities={PluginCapability.BACKEND, PluginCapability.FRONTEND},
-            permissions={Permission.USER_READ, Permission.EVENT_READ},
+            required_permissions={Permission.USER_READ, Permission.EVENT_READ},
             dependencies=["other-plugin"],
         )
         assert manifest.author == "Test Author"
@@ -116,7 +118,8 @@ class TestPluginManifest:
         assert manifest.max_host_version == "1.0.0"
         assert PluginCapability.BACKEND in manifest.capabilities
         assert PluginCapability.FRONTEND in manifest.capabilities
-        assert Permission.USER_READ in manifest.permissions
+        assert Permission.USER_READ in manifest.required_permissions
+        assert Permission.USER_READ in manifest.permissions  # property alias
         assert "other-plugin" in manifest.dependencies
 
 
@@ -170,7 +173,7 @@ class TestBasePlugin:
             name="Test Plugin",
             version="1.0.0",
             description="A test plugin",
-            permissions={Permission.USER_READ, Permission.EVENT_READ},
+            required_permissions={Permission.USER_READ, Permission.EVENT_READ},
         )
 
     @pytest.fixture

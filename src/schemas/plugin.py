@@ -16,6 +16,13 @@ class PluginCapabilitiesResponse(BaseModel):
     config: bool = False
 
 
+class ProvidedPermissionResponse(BaseModel):
+    """A permission provided by a plugin."""
+
+    code: str
+    description: str
+
+
 class PluginManifestResponse(BaseModel):
     """Plugin manifest in API responses."""
 
@@ -27,7 +34,11 @@ class PluginManifestResponse(BaseModel):
     homepage: str = ""
     license: str = ""
     capabilities: PluginCapabilitiesResponse
-    permissions: list[str]
+    # Legacy field - kept for backward compatibility
+    permissions: list[str] = []
+    # New fields for required vs provided permissions
+    required_permissions: list[str] = []
+    provided_permissions: list[ProvidedPermissionResponse] = []
 
 
 class PluginSummary(BaseModel):
@@ -81,6 +92,7 @@ class PluginUninstallResponse(BaseModel):
     success: bool
     plugin_id: str
     tables_dropped: bool
+    permissions_removed: bool = False
     message: str = ""
 
 

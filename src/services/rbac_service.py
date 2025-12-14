@@ -1,10 +1,14 @@
 # src/services/rbac_service.py
+import logging
 import uuid
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session, joinedload
 
 from src.models import Permission, Role, RolePermission, User, UserRole
+from src.plugins.base import ProvidedPermission
+
+logger = logging.getLogger(__name__)
 
 
 def user_has_permission(
@@ -198,3 +202,141 @@ def get_user_all_permissions(db: Session, user: User) -> dict:
         "global_permissions": list(global_permissions),
         "company_permissions": {k: list(v) for k, v in company_permissions.items()},
     }
+
+
+def register_plugin_permissions(
+    db: Session,
+    plugin_id: str,
+    permissions: list[ProvidedPermission],
+) -> list[Permission]:
+    """Register permissions provided by a plugin.
+
+    This creates permission records in the database with the plugin_id set.
+    These permissions can then be assigned to roles.
+
+    Args:
+        db: Database session
+        plugin_id: The plugin's unique identifier
+        permissions: List of permissions the plugin provides
+
+    Returns:
+        List of created/existing Permission objects
+    """
+    registered: list[Permission] = []
+
+    for prov_perm in permissions:
+        # Check if permission already exists
+        existing = (
+            db.query(Permission).filter(Permission.code == prov_perm.code).first()
+        )
+
+        if existing:
+            # Update if exists but belongs to same plugin
+            if existing.plugin_id == plugin_id:
+                existing.description = prov_perm.description
+                registered.append(existing)
+            else:
+                logger.warning(
+                    f"Permission '{prov_perm.code}' already exists "
+                    f"(plugin_id={existing.plugin_id}), skipping"
+                )
+        else:
+            # Create new permission
+            permission = Permission(
+                code=prov_perm.code,
+                module=plugin_id,  # Use plugin_id as module
+                description=prov_perm.description,
+                plugin_id=plugin_id,
+            )
+            db.add(permission)
+            registered.append(permission)
+            logger.info(f"Registered plugin permission: {prov_perm.code}")
+
+    db.commit()
+    return registered
+
+
+def unregister_plugin_permissions(
+    db: Session,
+    plugin_id: str,
+) -> int:
+    """Remove all permissions provided by a plugin.
+
+    This also removes any role-permission associations for these permissions.
+
+    Args:
+        db: Database session
+        plugin_id: The plugin's unique identifier
+
+    Returns:
+        Number of permissions removed
+    """
+    # Find all permissions for this plugin
+    plugin_permissions = (
+        db.query(Permission).filter(Permission.plugin_id == plugin_id).all()
+    )
+
+    count = len(plugin_permissions)
+
+    for permission in plugin_permissions:
+        # Remove role associations first (CASCADE should handle this, but be explicit)
+        db.query(RolePermission).filter(
+            RolePermission.permission_code == permission.code
+        ).delete(synchronize_session=False)
+
+        # Remove the permission
+        db.delete(permission)
+        logger.info(f"Unregistered plugin permission: {permission.code}")
+
+    db.commit()
+    return count
+
+
+def get_permissions_by_plugin(
+    db: Session,
+    plugin_id: str | None = None,
+) -> list[Permission]:
+    """Get permissions, optionally filtered by plugin.
+
+    Args:
+        db: Database session
+        plugin_id: If provided, only return permissions for this plugin.
+                   If None, returns all permissions.
+
+    Returns:
+        List of Permission objects
+    """
+    query = db.query(Permission)
+
+    if plugin_id is not None:
+        query = query.filter(Permission.plugin_id == plugin_id)
+
+    return query.order_by(Permission.code).all()
+
+
+def get_core_permissions(db: Session) -> list[Permission]:
+    """Get all core (non-plugin) permissions.
+
+    Returns:
+        List of Permission objects where plugin_id is NULL
+    """
+    return (
+        db.query(Permission)
+        .filter(Permission.plugin_id.is_(None))
+        .order_by(Permission.code)
+        .all()
+    )
+
+
+def get_all_plugin_permissions(db: Session) -> list[Permission]:
+    """Get all plugin-provided permissions.
+
+    Returns:
+        List of Permission objects where plugin_id is not NULL
+    """
+    return (
+        db.query(Permission)
+        .filter(Permission.plugin_id.isnot(None))
+        .order_by(Permission.plugin_id, Permission.code)
+        .all()
+    )

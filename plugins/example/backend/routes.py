@@ -5,7 +5,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_user, get_db
+from src.api.deps import get_current_user, get_db, require_permission
 from src.models import User
 
 from .models import ExampleNote
@@ -33,9 +33,12 @@ def get_plugin_info(
 @router.get("/notes", response_model=list[NoteResponse])
 def list_notes(
     db: Session = Depends(get_db),
-    _current_user: User = Depends(get_current_user),
+    _current_user: User = Depends(require_permission("example.notes.read")),
 ) -> list[NoteResponse]:
-    """List all notes."""
+    """List all notes.
+
+    Requires: example.notes.read permission
+    """
     notes = db.query(ExampleNote).order_by(ExampleNote.created_at.desc()).all()
     return [
         NoteResponse(
@@ -53,9 +56,12 @@ def list_notes(
 def create_note(
     data: NoteCreate,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(get_current_user),
+    _current_user: User = Depends(require_permission("example.notes.write")),
 ) -> NoteResponse:
-    """Create a new note."""
+    """Create a new note.
+
+    Requires: example.notes.write permission
+    """
     note = ExampleNote(title=data.title, content=data.content)
     db.add(note)
     db.commit()
@@ -73,9 +79,12 @@ def create_note(
 def get_note(
     note_id: str,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(get_current_user),
+    _current_user: User = Depends(require_permission("example.notes.read")),
 ) -> NoteResponse:
-    """Get a specific note."""
+    """Get a specific note.
+
+    Requires: example.notes.read permission
+    """
     note = db.query(ExampleNote).filter(ExampleNote.id == note_id).first()
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
@@ -93,9 +102,12 @@ def update_note(
     note_id: str,
     data: NoteUpdate,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(get_current_user),
+    _current_user: User = Depends(require_permission("example.notes.write")),
 ) -> NoteResponse:
-    """Update a note."""
+    """Update a note.
+
+    Requires: example.notes.write permission
+    """
     note = db.query(ExampleNote).filter(ExampleNote.id == note_id).first()
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
@@ -120,9 +132,12 @@ def update_note(
 def delete_note(
     note_id: str,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(get_current_user),
+    _current_user: User = Depends(require_permission("example.notes.delete")),
 ) -> None:
-    """Delete a note."""
+    """Delete a note.
+
+    Requires: example.notes.delete permission
+    """
     note = db.query(ExampleNote).filter(ExampleNote.id == note_id).first()
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")

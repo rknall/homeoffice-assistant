@@ -17,6 +17,14 @@ export interface PluginCapabilities {
 }
 
 /**
+ * A permission provided by a plugin
+ */
+export interface ProvidedPermission {
+  code: string
+  description: string
+}
+
+/**
  * Plugin manifest metadata
  */
 export interface PluginManifest {
@@ -30,7 +38,12 @@ export interface PluginManifest {
   minHostVersion?: string
   maxHostVersion?: string
   capabilities: PluginCapabilities
+  /** @deprecated Use required_permissions instead */
   permissions: string[]
+  /** Permissions the plugin requires from the host application */
+  required_permissions?: string[]
+  /** Permissions the plugin provides (adds to the system) */
+  provided_permissions?: ProvidedPermission[]
   dependencies?: string[]
 }
 
@@ -90,6 +103,7 @@ export interface PluginUninstallResponse {
   success: boolean
   plugin_id: string
   tables_dropped: boolean
+  permissions_removed?: boolean
   message: string
 }
 

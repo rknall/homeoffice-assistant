@@ -10,11 +10,27 @@
     "frontend": true,
     "config": true
   },
-  "permissions": [
-    "user.read",
-    "event.read",
-    "event.write"
-  ],
+  "permissions": {
+    "required": [
+      "user.read",
+      "event.read",
+      "event.write"
+    ],
+    "provided": [
+      {
+        "code": "example.notes.read",
+        "description": "View notes created by the example plugin"
+      },
+      {
+        "code": "example.notes.write",
+        "description": "Create and edit notes in the example plugin"
+      },
+      {
+        "code": "example.notes.delete",
+        "description": "Delete notes in the example plugin"
+      }
+    ]
+  },
   "config_schema": {
     "type": "object",
     "properties": {

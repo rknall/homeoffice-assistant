@@ -201,6 +201,7 @@ class PluginRegistry:
         """
         from src.models.plugin_config import PluginConfigModel
         from src.plugins.migrations import PluginMigrationRunner
+        from src.services.rbac_service import register_plugin_permissions
 
         # Extract and validate
         manifest = self._loader.install_from_zip(zip_path, db)
@@ -210,6 +211,16 @@ class PluginRegistry:
         migration_runner = PluginMigrationRunner(plugin_path, manifest.id)
         if migration_runner.has_migrations():
             migration_runner.run_migrations()
+
+        # Register plugin-provided permissions
+        if manifest.provided_permissions:
+            register_plugin_permissions(
+                db, manifest.id, manifest.provided_permissions
+            )
+            logger.info(
+                f"Registered {len(manifest.provided_permissions)} permissions "
+                f"for plugin {manifest.id}"
+            )
 
         # Create database config record
         db_config = PluginConfigModel(
@@ -241,6 +252,7 @@ class PluginRegistry:
         plugin_id: str,
         db: Session,
         drop_tables: bool = False,
+        remove_permissions: bool = False,
     ) -> None:
         """Uninstall a plugin.
 
@@ -248,9 +260,11 @@ class PluginRegistry:
             plugin_id: Plugin to uninstall
             db: Database session
             drop_tables: Whether to drop plugin's database tables
+            remove_permissions: Whether to remove plugin-provided permissions
         """
         from src.models.plugin_config import PluginConfigModel
         from src.plugins.migrations import PluginMigrationRunner
+        from src.services.rbac_service import unregister_plugin_permissions
 
         plugin = self._plugins.get(plugin_id)
 
@@ -271,6 +285,14 @@ class PluginRegistry:
             if plugin_path.exists():
                 migration_runner = PluginMigrationRunner(plugin_path, plugin_id)
                 migration_runner.downgrade_all()
+
+        # Remove plugin-provided permissions if requested
+        if remove_permissions:
+            removed_count = unregister_plugin_permissions(db, plugin_id)
+            if removed_count > 0:
+                logger.info(
+                    f"Removed {removed_count} permissions for plugin {plugin_id}"
+                )
 
         # Remove from database
         db.query(PluginConfigModel).filter(

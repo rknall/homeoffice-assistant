@@ -17,6 +17,7 @@ from src.plugins.base import (
     PluginCapability,
     PluginConfig,
     PluginManifest,
+    ProvidedPermission,
 )
 from src.plugins.permissions import PermissionChecker
 
@@ -98,16 +99,60 @@ def parse_manifest(manifest_path: Path) -> PluginManifest:
             except ValueError:
                 logger.warning(f"Unknown capability: {cap_name}")
 
-    # Parse permissions
-    permissions: set[Permission] = set()
+    # Parse permissions - support both old and new formats
+    required_permissions: set[Permission] = set()
+    provided_permissions: list[ProvidedPermission] = []
     checker = PermissionChecker()
-    perms_data = data.get("permissions", [])
+
+    perms_data = data.get("permissions", {})
 
     if isinstance(perms_data, list):
+        # OLD FORMAT: flat array, treat as required permissions
+        # Example: ["user.read", "event.read"]
         valid_perms, invalid_perms = checker.parse_permissions(perms_data)
-        permissions = valid_perms
+        required_permissions = valid_perms
         for invalid in invalid_perms:
             logger.warning(f"Unknown permission: {invalid}")
+    elif isinstance(perms_data, dict):
+        # NEW FORMAT: object with required/provided sections
+        # Example: {"required": ["user.read"], "provided": [...]}
+
+        # Parse required permissions
+        required_list = perms_data.get("required", [])
+        if isinstance(required_list, list):
+            valid_perms, invalid_perms = checker.parse_permissions(required_list)
+            required_permissions = valid_perms
+            for invalid in invalid_perms:
+                logger.warning(f"Unknown required permission: {invalid}")
+
+        # Parse provided permissions
+        provided_list = perms_data.get("provided", [])
+        if isinstance(provided_list, list):
+            for item in provided_list:
+                if isinstance(item, dict):
+                    code = item.get("code", "")
+                    description = item.get("description", "")
+
+                    # Validate prefix requirement
+                    if not code.startswith(f"{plugin_id}."):
+                        raise PluginValidationError(
+                            f"Provided permission '{code}' must start with "
+                            f"'{plugin_id}.' prefix"
+                        )
+
+                    provided_permissions.append(
+                        ProvidedPermission(code=code, description=description)
+                    )
+                elif isinstance(item, str):
+                    # Allow simple string format for provided permissions
+                    if not item.startswith(f"{plugin_id}."):
+                        raise PluginValidationError(
+                            f"Provided permission '{item}' must start with "
+                            f"'{plugin_id}.' prefix"
+                        )
+                    provided_permissions.append(
+                        ProvidedPermission(code=item, description="")
+                    )
 
     return PluginManifest(
         id=data["id"],
@@ -120,7 +165,8 @@ def parse_manifest(manifest_path: Path) -> PluginManifest:
         min_host_version=data.get("min_host_version", "0.1.0"),
         max_host_version=data.get("max_host_version"),
         capabilities=capabilities,
-        permissions=permissions,
+        required_permissions=required_permissions,
+        provided_permissions=provided_permissions,
         dependencies=data.get("dependencies", []),
     )
 
@@ -288,9 +334,9 @@ class PluginLoader:
                     "Uninstall it first or use upgrade."
                 )
 
-            # Validate permissions
+            # Validate required permissions
             checker = PermissionChecker()
-            dangerous = checker.get_dangerous_permissions(manifest.permissions)
+            dangerous = checker.get_dangerous_permissions(manifest.required_permissions)
             if dangerous:
                 logger.warning(
                     f"Plugin {manifest.id} requests dangerous permissions: "

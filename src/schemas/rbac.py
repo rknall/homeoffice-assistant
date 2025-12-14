@@ -12,6 +12,7 @@ class PermissionSchema(BaseModel):
     code: str
     module: str
     description: str | None
+    plugin_id: str | None = None  # Non-null means plugin-provided permission
 
 
 class RoleSchema(BaseModel):

@@ -37,8 +37,12 @@ export function RoleDetail() {
   // Only Global Admin is fully immutable
   const isGlobalAdmin = role?.name === 'Global Admin'
 
-  // Group permissions by module and sort
-  const permissionsByModule = allPermissions.reduce(
+  // Separate core permissions from plugin permissions
+  const corePermissions = allPermissions.filter((p) => !p.plugin_id)
+  const pluginPermissions = allPermissions.filter((p) => p.plugin_id)
+
+  // Group core permissions by module
+  const corePermissionsByModule = corePermissions.reduce(
     (acc, perm) => {
       if (!acc[perm.module]) {
         acc[perm.module] = []
@@ -49,12 +53,33 @@ export function RoleDetail() {
     {} as Record<string, Permission[]>,
   )
 
-  // Sort modules alphabetically
-  const sortedModules = Object.keys(permissionsByModule).sort()
+  // Sort core modules alphabetically
+  const sortedCoreModules = Object.keys(corePermissionsByModule).sort()
 
-  // Sort permissions within each module
-  for (const module of sortedModules) {
-    permissionsByModule[module].sort((a, b) => a.code.localeCompare(b.code))
+  // Sort permissions within each core module
+  for (const module of sortedCoreModules) {
+    corePermissionsByModule[module].sort((a, b) => a.code.localeCompare(b.code))
+  }
+
+  // Group plugin permissions by plugin_id
+  const pluginPermissionsByPlugin = pluginPermissions.reduce(
+    (acc, perm) => {
+      const pluginId = perm.plugin_id || 'unknown'
+      if (!acc[pluginId]) {
+        acc[pluginId] = []
+      }
+      acc[pluginId].push(perm)
+      return acc
+    },
+    {} as Record<string, Permission[]>,
+  )
+
+  // Sort plugin IDs alphabetically
+  const sortedPluginIds = Object.keys(pluginPermissionsByPlugin).sort()
+
+  // Sort permissions within each plugin
+  for (const pluginId of sortedPluginIds) {
+    pluginPermissionsByPlugin[pluginId].sort((a, b) => a.code.localeCompare(b.code))
   }
 
   const fetchRole = useCallback(async () => {
@@ -267,20 +292,20 @@ export function RoleDetail() {
         </CardContent>
       </Card>
 
-      {/* Permissions Card */}
+      {/* Core Permissions Card */}
       <Card>
         <CardHeader>
-          <CardTitle>Permissions</CardTitle>
+          <CardTitle>Core Permissions</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            {sortedModules.map((module) => (
+            {sortedCoreModules.map((module) => (
               <div key={module}>
                 <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
                   {module.replace(/_/g, ' ')}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {permissionsByModule[module].map((perm) => (
+                  {corePermissionsByModule[module].map((perm) => (
                     <div
                       key={perm.code}
                       className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 hover:border-gray-300"
@@ -305,6 +330,55 @@ export function RoleDetail() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Plugin Permissions Card - Only show if there are plugin permissions */}
+      {sortedPluginIds.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Plugin Permissions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-500 mb-4">
+              These permissions are provided by installed plugins and can be assigned to roles.
+            </p>
+            <div className="space-y-6">
+              {sortedPluginIds.map((pluginId) => (
+                <div key={pluginId}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                      {pluginId}
+                    </h3>
+                    <Badge variant="info" className="text-xs">
+                      Plugin
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {pluginPermissionsByPlugin[pluginId].map((perm) => (
+                      <div
+                        key={perm.code}
+                        className="flex items-start gap-3 p-3 rounded-lg border border-blue-100 bg-blue-50/30 hover:border-blue-200"
+                      >
+                        <Checkbox
+                          id={perm.code}
+                          checked={selectedPermissions.has(perm.code)}
+                          onCheckedChange={() => togglePermission(perm.code)}
+                          disabled={isGlobalAdmin}
+                        />
+                        <label htmlFor={perm.code} className="flex-1 cursor-pointer">
+                          <span className="block font-medium text-gray-900">{perm.code}</span>
+                          {perm.description && (
+                            <span className="block text-sm text-gray-500">{perm.description}</span>
+                          )}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary */}
       <Card className="mt-6">

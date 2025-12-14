@@ -553,6 +553,8 @@ export interface Permission {
   code: string
   module: string
   description?: string
+  /** If non-null, this permission is provided by a plugin */
+  plugin_id?: string | null
 }
 
 export interface Role {

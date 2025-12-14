@@ -7,6 +7,8 @@
 
 A self-hosted personal productivity and work management assistant with powerful integrations.
 
+If HomeOffice Assistant helps you, you can support development at [Buy Me a Coffee](https://buymeacoffee.com/TvrRmWD).
+
 ## What is HomeOffice Assistant?
 
 HomeOffice Assistant is a comprehensive solution for managing your work life. Currently focused on business travel management, it helps you:

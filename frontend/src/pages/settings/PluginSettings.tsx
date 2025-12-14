@@ -36,6 +36,7 @@ export function PluginSettings() {
   const [pluginInfo, setPluginInfo] = useState<PluginInfo | null>(null)
   const [isLoadingInfo, setIsLoadingInfo] = useState(false)
   const [dropTables, setDropTables] = useState(false)
+  const [removePermissions, setRemovePermissions] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState<string | null>(null)
@@ -122,6 +123,7 @@ export function PluginSettings() {
   const openUninstallModal = (plugin: PluginSummary) => {
     setSelectedPlugin(plugin)
     setDropTables(false)
+    setRemovePermissions(false)
     setIsUninstallModalOpen(true)
   }
 
@@ -131,7 +133,7 @@ export function PluginSettings() {
     setIsProcessing(selectedPlugin.plugin_id)
     setError(null)
     try {
-      await uninstallPlugin(selectedPlugin.plugin_id, dropTables)
+      await uninstallPlugin(selectedPlugin.plugin_id, dropTables, removePermissions)
       setSuccessMessage(
         `Plugin "${selectedPlugin.manifest?.name || selectedPlugin.plugin_id}" uninstalled`,
       )
@@ -437,12 +439,21 @@ export function PluginSettings() {
               </dl>
             </div>
 
-            {/* Permissions */}
-            {pluginInfo.manifest?.permissions && pluginInfo.manifest.permissions.length > 0 && (
+            {/* Required Permissions */}
+            {((pluginInfo.manifest?.required_permissions &&
+              pluginInfo.manifest.required_permissions.length > 0) ||
+              (pluginInfo.manifest?.permissions &&
+                pluginInfo.manifest.permissions.length > 0 &&
+                !pluginInfo.manifest?.required_permissions)) && (
               <div>
-                <h3 className="font-medium text-gray-900 mb-2">Permissions</h3>
+                <h3 className="font-medium text-gray-900 mb-2">Required Permissions</h3>
+                <p className="text-xs text-gray-500 mb-2">
+                  Permissions this plugin needs from the host application
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {pluginInfo.manifest.permissions.map((perm) => (
+                  {(
+                    pluginInfo.manifest.required_permissions || pluginInfo.manifest.permissions
+                  ).map((perm) => (
                     <Badge key={perm} variant="default" className="font-mono text-xs">
                       {perm}
                     </Badge>
@@ -450,6 +461,32 @@ export function PluginSettings() {
                 </div>
               </div>
             )}
+
+            {/* Provided Permissions */}
+            {pluginInfo.manifest?.provided_permissions &&
+              pluginInfo.manifest.provided_permissions.length > 0 && (
+                <div>
+                  <h3 className="font-medium text-gray-900 mb-2">Provided Permissions</h3>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Custom permissions this plugin adds to the system
+                  </p>
+                  <div className="space-y-2">
+                    {pluginInfo.manifest.provided_permissions.map((perm) => (
+                      <div
+                        key={perm.code}
+                        className="flex items-start gap-2 bg-gray-50 p-2 rounded"
+                      >
+                        <Badge variant="info" className="font-mono text-xs shrink-0">
+                          {perm.code}
+                        </Badge>
+                        {perm.description && (
+                          <span className="text-xs text-gray-600">{perm.description}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
             {/* Settings */}
             {Object.keys(pluginInfo.settings || {}).length > 0 && (
@@ -509,9 +546,29 @@ export function PluginSettings() {
             </span>
           </label>
 
-          {dropTables && (
+          {/* Only show remove permissions if plugin has provided permissions */}
+          {selectedPlugin?.manifest?.provided_permissions &&
+            selectedPlugin.manifest.provided_permissions.length > 0 && (
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={removePermissions}
+                  onChange={(e) => setRemovePermissions(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-sm text-gray-700">
+                  Also remove plugin-provided permissions from the system
+                </span>
+              </label>
+            )}
+
+          {(dropTables || removePermissions) && (
             <Alert variant="warning">
-              This will permanently delete all data stored by this plugin.
+              {dropTables && removePermissions
+                ? 'This will permanently delete all data stored by this plugin and remove its custom permissions from roles.'
+                : dropTables
+                  ? 'This will permanently delete all data stored by this plugin.'
+                  : 'This will remove all custom permissions provided by this plugin from roles.'}
             </Alert>
           )}
 

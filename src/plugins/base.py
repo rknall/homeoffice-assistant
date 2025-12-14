@@ -56,8 +56,28 @@ class Permission(str, Enum):
 
 
 @dataclass
+class ProvidedPermission:
+    """A permission provided by a plugin.
+
+    Plugin-provided permissions allow plugins to define their own permission
+    codes that can be assigned to roles. The code must start with the plugin
+    ID prefix (e.g., 'example.notes.read' for plugin 'example').
+    """
+
+    code: str
+    description: str
+
+
+@dataclass
 class PluginManifest:
-    """Plugin manifest containing metadata and requirements."""
+    """Plugin manifest containing metadata and requirements.
+
+    Permissions are split into two categories:
+    - required_permissions: Permissions the plugin needs from the host app
+    - provided_permissions: New permission codes the plugin adds to the system
+
+    For backward compatibility, 'permissions' maps to required_permissions.
+    """
 
     id: str
     name: str
@@ -69,8 +89,17 @@ class PluginManifest:
     min_host_version: str = "0.1.0"
     max_host_version: str | None = None
     capabilities: set[PluginCapability] = field(default_factory=set)
-    permissions: set[Permission] = field(default_factory=set)
+    # Permissions the plugin requires from the host application
+    required_permissions: set[Permission] = field(default_factory=set)
+    # Permissions the plugin provides (adds to the system)
+    provided_permissions: list[ProvidedPermission] = field(default_factory=list)
     dependencies: list[str] = field(default_factory=list)
+
+    # Backward compatibility: alias 'permissions' to 'required_permissions'
+    @property
+    def permissions(self) -> set[Permission]:
+        """Alias for required_permissions (backward compatibility)."""
+        return self.required_permissions
 
 
 @dataclass
@@ -219,7 +248,7 @@ class BasePlugin(ABC):
         """
 
     def has_permission(self, permission: Permission) -> bool:
-        """Check if plugin has a specific permission.
+        """Check if plugin has a specific required permission.
 
         Args:
             permission: Permission to check
@@ -227,10 +256,10 @@ class BasePlugin(ABC):
         Returns:
             True if plugin has the permission
         """
-        return permission in self.manifest.permissions
+        return permission in self.manifest.required_permissions
 
     def has_all_permissions(self, permissions: set[Permission]) -> bool:
-        """Check if plugin has all specified permissions.
+        """Check if plugin has all specified required permissions.
 
         Args:
             permissions: Set of permissions to check
@@ -238,4 +267,4 @@ class BasePlugin(ABC):
         Returns:
             True if plugin has all the permissions
         """
-        return permissions.issubset(self.manifest.permissions)
+        return permissions.issubset(self.manifest.required_permissions)

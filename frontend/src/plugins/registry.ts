@@ -37,7 +37,11 @@ interface PluginsState {
   getPluginInfo: (pluginId: string) => Promise<PluginInfo>
   installPlugin: (file: File) => Promise<PluginInstallResponse>
   installDiscoveredPlugin: (pluginId: string) => Promise<PluginInstallResponse>
-  uninstallPlugin: (pluginId: string, dropTables?: boolean) => Promise<void>
+  uninstallPlugin: (
+    pluginId: string,
+    dropTables?: boolean,
+    removePermissions?: boolean,
+  ) => Promise<void>
   enablePlugin: (pluginId: string) => Promise<void>
   disablePlugin: (pluginId: string) => Promise<void>
   updatePluginSettings: (
@@ -157,7 +161,7 @@ export const usePlugins = create<PluginsState>((set, get) => ({
     }
   },
 
-  uninstallPlugin: async (pluginId: string, dropTables = false) => {
+  uninstallPlugin: async (pluginId: string, dropTables = false, removePermissions = false) => {
     set({ isLoading: true, error: null })
     try {
       // Unload frontend if loaded
@@ -166,6 +170,9 @@ export const usePlugins = create<PluginsState>((set, get) => ({
       const params = new URLSearchParams()
       if (dropTables) {
         params.set('drop_tables', 'true')
+      }
+      if (removePermissions) {
+        params.set('remove_permissions', 'true')
       }
 
       await api.delete<PluginUninstallResponse>(

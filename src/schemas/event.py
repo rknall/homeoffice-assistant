@@ -120,6 +120,8 @@ class EventResponse(BaseModel):
     cover_photographer_name: str | None = None
     cover_photographer_url: str | None = None
     cover_image_position_y: int | None = None
+    # Report tracking
+    report_sent_at: datetime.datetime | None = None
     created_at: datetime.datetime
     updated_at: datetime.datetime
 

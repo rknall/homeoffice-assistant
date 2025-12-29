@@ -95,16 +95,15 @@ def get_events_needing_reports(
     user_id: uuid.UUID,
     limit: int = 5,
 ) -> list[EventNeedingReport]:
-    """Get past events that have expenses (candidates for expense reports).
-
-    Since report generation isn't tracked, we show past events with expenses
-    as events that might need an expense report.
+    """Get past events that have expenses and haven't had a report sent.
 
     Past status is computed: end_date < today
+    Events are excluded if report_sent_at is set.
     """
     today = date.today()
 
     # Query past events (end_date < today) with their expense aggregates
+    # Exclude events where report has already been sent
     results = (
         db.query(
             Event.id,
@@ -117,6 +116,7 @@ def get_events_needing_reports(
         .join(Expense, Event.id == Expense.event_id)
         .filter(Event.user_id == user_id)
         .filter(Event.end_date < today)  # Past events: end_date < today
+        .filter(Event.report_sent_at.is_(None))  # Report not yet sent
         .group_by(Event.id, Event.name, Event.company_id)
         .having(func.count(Expense.id) > 0)
         .order_by(Event.end_date.desc())

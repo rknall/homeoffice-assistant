@@ -13,6 +13,11 @@
 - Incomplete todo count badge on Todos tab
 - Sorted display: incomplete todos first (by due date), then completed
 
+#### Report Tracking
+- Events now track when expense reports were sent/exported via `report_sent_at` timestamp
+- Dashboard "Reports Due" section only shows events that haven't had a report sent
+- Sending or exporting an expense report automatically marks the event as reported
+
 #### Event Detail Page Tabs
 - Reorganized event detail page with tab navigation: Expenses | Documents | Photos | Todos
 - Cleaner separation of content sections

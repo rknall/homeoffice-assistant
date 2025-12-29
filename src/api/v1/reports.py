@@ -3,6 +3,7 @@
 """Report API endpoints."""
 
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
@@ -90,6 +91,10 @@ async def generate_expense_report(
     try:
         zip_bytes = await generator.generate(event)
         filename = generator.get_filename(event)
+
+        # Mark report as sent/exported
+        event.report_sent_at = datetime.utcnow()
+        db.commit()
 
         # Auto-complete report-related todos
         todo_service.auto_complete_report_todos(db, event_id)
@@ -241,6 +246,10 @@ async def send_expense_report(
         )
 
         if success:
+            # Mark report as sent
+            event.report_sent_at = datetime.utcnow()
+            db.commit()
+
             # Auto-complete report-related todos
             todo_service.auto_complete_report_todos(db, event_id)
 

@@ -3,10 +3,20 @@
 """Event (trip) model."""
 
 import uuid as uuid_lib
-from datetime import date
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, Enum, Float, ForeignKey, Integer, String, Text, Uuid
+from sqlalchemy import (
+    Date,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, TimestampMixin
@@ -82,6 +92,11 @@ class Event(Base, TimestampMixin):
     cover_image_position_y: Mapped[int | None] = mapped_column(
         Integer, nullable=True, default=50
     )  # 0-100, vertical position %
+
+    # Report tracking
+    report_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, default=None
+    )
 
     # Relationships
     user: Mapped[User] = relationship("User", back_populates="events")

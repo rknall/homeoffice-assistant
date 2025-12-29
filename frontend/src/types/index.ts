@@ -125,7 +125,8 @@ export interface CompanyUpdate {
 }
 
 // Event types
-export type EventStatus = 'planning' | 'active' | 'past'
+// Note: status is computed from dates on the backend, not manually set
+export type EventStatus = 'upcoming' | 'active' | 'past'
 
 export interface Event {
   id: Uuid
@@ -595,4 +596,68 @@ export interface UserRoleAssignment {
 export interface UserPermissions {
   global_permissions: string[]
   company_permissions: Record<string, string[]>
+}
+
+// Dashboard types
+export interface EventsByStatus {
+  upcoming: number
+  active: number
+  past: number
+}
+
+export interface UpcomingEvent {
+  id: Uuid
+  name: string
+  company_name: string | null
+  start_date: string
+  end_date: string
+  city: string | null
+  country: string | null
+  days_until: number
+}
+
+export interface EventNeedingReport {
+  event_id: Uuid
+  event_name: string
+  company_name: string | null
+  expense_count: number
+  total_amount: number
+  currency: string
+}
+
+export interface IncompleteTodo {
+  id: Uuid
+  title: string
+  due_date: string | null
+  event_id: Uuid
+  event_name: string
+  is_overdue: boolean
+}
+
+export interface ExpenseByCategory {
+  category: string
+  amount: number
+  percentage: number
+}
+
+export interface ExpenseSummary {
+  total: number
+  by_category: ExpenseByCategory[]
+  period_days: number
+}
+
+export interface DashboardSummary {
+  events_by_status: EventsByStatus
+  upcoming_events: UpcomingEvent[]
+  events_needing_reports: EventNeedingReport[]
+  incomplete_todos: IncompleteTodo[]
+  expense_summary: ExpenseSummary
+}
+
+// Event with summary (for enhanced event list)
+export interface EventWithSummary extends Event {
+  expense_count: number
+  expense_total: number
+  todo_count: number
+  todo_incomplete_count: number
 }

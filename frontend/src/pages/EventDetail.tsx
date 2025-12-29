@@ -97,14 +97,15 @@ const categoryOptions = [
   { value: 'other', label: 'Other' },
 ]
 
+// Status is computed from dates on the backend
 const statusColors: Record<EventStatus, 'default' | 'warning' | 'info'> = {
-  planning: 'warning',
+  upcoming: 'warning',
   active: 'info',
   past: 'default',
 }
 
 const statusLabels: Record<EventStatus, string> = {
-  planning: 'Planning',
+  upcoming: 'Upcoming',
   active: 'Active',
   past: 'Past',
 }

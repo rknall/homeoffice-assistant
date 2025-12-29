@@ -3,11 +3,14 @@
 """Event service."""
 
 import uuid
+from datetime import date
+from decimal import Decimal
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from src.integrations.base import DocumentProvider
-from src.models import Event
+from src.models import Event, Expense, Todo
 from src.models.enums import EventStatus
 from src.plugins.events import AppEvent, event_bus
 from src.schemas.event import EventCreate, EventUpdate
@@ -21,7 +24,14 @@ def get_events(
     status: EventStatus | None = None,
     include_company: bool = False,
 ) -> list[Event]:
-    """Get events with optional filters."""
+    """Get events with optional filters.
+
+    Note: Status is computed from dates, not stored. When filtering by status,
+    we translate to date-based conditions:
+    - UPCOMING: start_date > today
+    - ACTIVE: start_date <= today <= end_date
+    - PAST: end_date < today
+    """
     query = db.query(Event)
     if include_company:
         query = query.options(joinedload(Event.company))
@@ -29,8 +39,17 @@ def get_events(
         query = query.filter(Event.user_id == user_id)
     if company_id:
         query = query.filter(Event.company_id == company_id)
+
+    # Filter by computed status using date conditions
     if status:
-        query = query.filter(Event.status == status)
+        today = date.today()
+        if status == EventStatus.UPCOMING:
+            query = query.filter(Event.start_date > today)
+        elif status == EventStatus.ACTIVE:
+            query = query.filter(Event.start_date <= today, Event.end_date >= today)
+        elif status == EventStatus.PAST:
+            query = query.filter(Event.end_date < today)
+
     return query.order_by(Event.start_date.desc(), Event.end_date.desc()).all()
 
 
@@ -53,7 +72,10 @@ def get_event_for_user(
 
 
 def create_event(db: Session, data: EventCreate, user_id: uuid.UUID) -> Event:
-    """Create a new event."""
+    """Create a new event.
+
+    Note: status is computed from dates, not stored.
+    """
     event = Event(
         user_id=user_id,
         company_id=data.company_id,
@@ -61,7 +83,6 @@ def create_event(db: Session, data: EventCreate, user_id: uuid.UUID) -> Event:
         description=data.description,
         start_date=data.start_date,
         end_date=data.end_date,
-        status=data.status,
         external_tag=data.name,  # Keep for backward compat
         # Use provided custom field value if set, otherwise default to name
         paperless_custom_field_value=data.paperless_custom_field_value or data.name,
@@ -96,7 +117,10 @@ def create_event(db: Session, data: EventCreate, user_id: uuid.UUID) -> Event:
 
 
 def update_event(db: Session, event: Event, data: EventUpdate) -> Event:
-    """Update an existing event."""
+    """Update an existing event.
+
+    Note: status is computed from dates, not stored.
+    """
     if data.name is not None:
         event.name = data.name
         event.external_tag = data.name  # Keep for backward compat
@@ -108,8 +132,6 @@ def update_event(db: Session, event: Event, data: EventUpdate) -> Event:
         event.start_date = data.start_date
     if data.end_date is not None:
         event.end_date = data.end_date
-    if data.status is not None:
-        event.status = data.status
     # Handle paperless_custom_field_value - use explicit value if provided
     if data.paperless_custom_field_value is not None:
         event.paperless_custom_field_value = data.paperless_custom_field_value
@@ -237,11 +259,76 @@ async def sync_event_to_paperless_custom_field(db: Session, event: Event) -> boo
         await provider.close()
 
 
-def can_transition_status(current: EventStatus, new: EventStatus) -> bool:
-    """Check if a status transition is valid."""
-    valid_transitions = {
-        EventStatus.PLANNING: [EventStatus.ACTIVE],
-        EventStatus.ACTIVE: [EventStatus.PAST, EventStatus.PLANNING],
-        EventStatus.PAST: [EventStatus.ACTIVE],  # Allow reactivation
+
+
+def get_event_summaries(
+    db: Session,
+    event_ids: list[uuid.UUID],
+) -> dict[uuid.UUID, dict]:
+    """Get expense and todo summaries for multiple events.
+
+    Returns a dict mapping event_id to summary dict with:
+    - expense_count: number of expenses
+    - expense_total: sum of expense amounts
+    - todo_count: total number of todos
+    - todo_incomplete_count: number of incomplete todos
+    """
+    if not event_ids:
+        return {}
+
+    # Get expense summaries
+    expense_results = (
+        db.query(
+            Expense.event_id,
+            func.count(Expense.id).label("count"),
+            func.sum(Expense.amount).label("total"),
+        )
+        .filter(Expense.event_id.in_(event_ids))
+        .group_by(Expense.event_id)
+        .all()
+    )
+
+    expense_map = {
+        r.event_id: {"expense_count": r.count, "expense_total": r.total or Decimal(0)}
+        for r in expense_results
     }
-    return new in valid_transitions.get(current, [])
+
+    # Get total todo counts
+    todo_results = (
+        db.query(
+            Todo.event_id,
+            func.count(Todo.id).label("total"),
+        )
+        .filter(Todo.event_id.in_(event_ids))
+        .group_by(Todo.event_id)
+        .all()
+    )
+
+    todo_map = {r.event_id: r.total or 0 for r in todo_results}
+
+    # Get incomplete todo counts separately
+    incomplete_results = (
+        db.query(
+            Todo.event_id,
+            func.count(Todo.id).label("incomplete"),
+        )
+        .filter(Todo.event_id.in_(event_ids))
+        .filter(Todo.completed.is_(False))
+        .group_by(Todo.event_id)
+        .all()
+    )
+
+    incomplete_map = {r.event_id: r.incomplete or 0 for r in incomplete_results}
+
+    # Build result dict
+    result = {}
+    for event_id in event_ids:
+        expense_data = expense_map.get(event_id, {})
+        result[event_id] = {
+            "expense_count": expense_data.get("expense_count", 0),
+            "expense_total": expense_data.get("expense_total", Decimal(0)),
+            "todo_count": todo_map.get(event_id, 0),
+            "todo_incomplete_count": incomplete_map.get(event_id, 0),
+        }
+
+    return result

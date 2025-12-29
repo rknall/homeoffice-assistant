@@ -1,152 +1,76 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
 
-import { MapPin } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { api } from '@/api/client'
-import { Badge } from '@/components/ui/Badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { ActionItems, ExpenseBreakdown, StatsRow, UpcomingEvents } from '@/components/dashboard'
+import { Alert } from '@/components/ui/Alert'
 import { Spinner } from '@/components/ui/Spinner'
 import { useBreadcrumb } from '@/stores/breadcrumb'
-import { useLocale } from '@/stores/locale'
-import type { Event, EventStatus } from '@/types'
-
-const statusColors: Record<EventStatus, 'default' | 'warning' | 'info'> = {
-  planning: 'warning',
-  active: 'info',
-  past: 'default',
-}
+import type { DashboardSummary } from '@/types'
 
 export function Dashboard() {
-  const { formatDate } = useLocale()
   const { clear: clearBreadcrumb } = useBreadcrumb()
-  const [events, setEvents] = useState<Event[]>([])
+  const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     clearBreadcrumb()
   }, [clearBreadcrumb])
 
   useEffect(() => {
-    const fetchEvents = async () => {
+    const fetchDashboard = async () => {
       try {
-        const data = await api.get<Event[]>('/events')
-        setEvents(data)
+        const data = await api.get<DashboardSummary>('/dashboard/summary')
+        setSummary(data)
       } catch {
-        // Handle error
+        setError('Failed to load dashboard data')
       } finally {
         setIsLoading(false)
       }
     }
-    fetchEvents()
+    fetchDashboard()
   }, [])
 
-  const activeEvents = events.filter((e) => e.status === 'active')
-  const planningEvents = events.filter((e) => e.status === 'planning')
-  const pastEvents = events.filter((e) => e.status === 'past')
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-16">
+        <Spinner />
+      </div>
+    )
+  }
+
+  if (error || !summary) {
+    return (
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
+        <Alert variant="error">{error || 'Failed to load dashboard'}</Alert>
+      </div>
+    )
+  }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+
+      {/* Stats Row */}
+      <StatsRow stats={summary.events_by_status} />
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Upcoming Events */}
+        <UpcomingEvents events={summary.upcoming_events} />
+
+        {/* Action Items */}
+        <ActionItems
+          reportsNeeded={summary.events_needing_reports}
+          incompleteTodos={summary.incomplete_todos}
+        />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm font-medium text-gray-500">Active</p>
-            <p className="text-2xl font-bold text-gray-900">{activeEvents.length}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm font-medium text-gray-500">Planning</p>
-            <p className="text-2xl font-bold text-gray-900">{planningEvents.length}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm font-medium text-gray-500">Past</p>
-            <p className="text-2xl font-bold text-gray-900">{pastEvents.length}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Events</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Spinner />
-            </div>
-          ) : events.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              No events yet. Create your first event to get started.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {events.slice(0, 5).map((event) => (
-                <Link
-                  key={event.id}
-                  to={`/events/${event.id}`}
-                  className={`relative block rounded-lg overflow-hidden transition-all hover:shadow-md ${
-                    event.cover_thumbnail_url ? 'min-h-[80px]' : 'bg-gray-50 hover:bg-gray-100'
-                  }`}
-                >
-                  {event.cover_thumbnail_url && (
-                    <>
-                      <div
-                        className="absolute inset-0 bg-cover bg-center"
-                        style={{ backgroundImage: `url(${event.cover_thumbnail_url})` }}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-black/30" />
-                    </>
-                  )}
-                  <div
-                    className={`relative flex items-center justify-between p-4 ${
-                      event.cover_thumbnail_url ? 'text-white' : ''
-                    }`}
-                  >
-                    <div>
-                      <h3
-                        className={`font-medium ${event.cover_thumbnail_url ? 'text-white' : 'text-gray-900'}`}
-                      >
-                        {event.name}
-                      </h3>
-                      <p
-                        className={`text-sm ${event.cover_thumbnail_url ? 'text-white/80' : 'text-gray-500'}`}
-                      >
-                        {event.company_name && (
-                          <span
-                            className={
-                              event.cover_thumbnail_url ? 'text-white/90' : 'text-gray-600'
-                            }
-                          >
-                            {event.company_name} &middot;{' '}
-                          </span>
-                        )}
-                        {formatDate(event.start_date)} to {formatDate(event.end_date)}
-                        {(event.city || event.country) && (
-                          <span className="ml-2">
-                            <MapPin className="inline h-3 w-3" />{' '}
-                            {event.city ? `${event.city}, ${event.country}` : event.country}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    <Badge variant={statusColors[event.status]}>{event.status}</Badge>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Expense Breakdown */}
+      <ExpenseBreakdown summary={summary.expense_summary} />
     </div>
   )
 }

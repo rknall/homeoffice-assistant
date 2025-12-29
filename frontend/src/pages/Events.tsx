@@ -1,49 +1,45 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
 
-import { ChevronDown, MapPin, Pencil, Plus, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Plus } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '@/api/client'
 import { EventFormModal } from '@/components/EventFormModal'
+import { EventCard, EventFilters, type EventFiltersState, TimelineGroup } from '@/components/events'
 import { Alert } from '@/components/ui/Alert'
-import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
 import { useBreadcrumb } from '@/stores/breadcrumb'
-import { useLocale } from '@/stores/locale'
 import type {
   Company,
   Event,
   EventCustomFieldChoices as EventCustomFieldChoicesType,
   EventStatus,
+  EventWithSummary,
 } from '@/types'
 
-const statusColors: Record<EventStatus, 'default' | 'warning' | 'info'> = {
-  planning: 'warning',
-  active: 'info',
-  past: 'default',
+function calculateDaysUntil(startDate: string): number {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const start = new Date(startDate)
+  start.setHours(0, 0, 0, 0)
+  return Math.ceil((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 }
 
-const statusLabels: Record<EventStatus, string> = {
-  planning: 'Planning',
-  active: 'Active',
-  past: 'Past',
-}
-
-const validTransitions: Record<EventStatus, EventStatus[]> = {
-  planning: ['active'],
-  active: ['past', 'planning'],
-  past: ['active'],
+function isWithinDays(dateStr: string, days: number): boolean {
+  const date = new Date(dateStr)
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - days)
+  return date >= cutoff
 }
 
 export function Events() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { formatDate } = useLocale()
   const { setItems: setBreadcrumb } = useBreadcrumb()
-  const [events, setEvents] = useState<Event[]>([])
+  const [events, setEvents] = useState<EventWithSummary[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [customFieldChoices, setCustomFieldChoices] = useState<EventCustomFieldChoicesType | null>(
     null,
@@ -51,14 +47,19 @@ export function Events() {
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState<Event | null>(null)
-  const [statusDropdownOpen, setStatusDropdownOpen] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Filters state - initialize from URL params
+  const [filters, setFilters] = useState<EventFiltersState>(() => ({
+    status: (searchParams.get('status') as EventStatus | 'all') || 'all',
+    companyId: searchParams.get('company') || 'all',
+    search: searchParams.get('q') || '',
+  }))
 
   const fetchData = useCallback(async () => {
     try {
       const [eventsData, companiesData, choicesData] = await Promise.all([
-        api.get<Event[]>('/events'),
+        api.get<EventWithSummary[]>('/events?include_summary=true'),
         api.get<Company[]>('/companies'),
         api.get<EventCustomFieldChoicesType>('/integrations/event-custom-field-choices'),
       ])
@@ -80,15 +81,90 @@ export function Events() {
     fetchData()
   }, [fetchData])
 
+  // Sync filters to URL
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (filters.status !== 'all') params.set('status', filters.status)
+    if (filters.companyId !== 'all') params.set('company', filters.companyId)
+    if (filters.search) params.set('q', filters.search)
+    setSearchParams(params, { replace: true })
+  }, [filters, setSearchParams])
+
   // Open modal if navigated with ?new=true (only if companies exist)
   useEffect(() => {
     if (searchParams.get('new') === 'true' && !isLoading) {
       if (companies.length > 0) {
         setIsModalOpen(true)
       }
-      setSearchParams({}, { replace: true })
+      const newParams = new URLSearchParams(searchParams)
+      newParams.delete('new')
+      setSearchParams(newParams, { replace: true })
     }
   }, [searchParams, setSearchParams, isLoading, companies.length])
+
+  // Filter and group events
+  const { filteredEvents, groupedEvents } = useMemo(() => {
+    let filtered = events
+
+    // Apply status filter
+    if (filters.status !== 'all') {
+      filtered = filtered.filter((e) => e.status === filters.status)
+    }
+
+    // Apply company filter
+    if (filters.companyId !== 'all') {
+      filtered = filtered.filter((e) => e.company_id === filters.companyId)
+    }
+
+    // Apply search filter
+    if (filters.search) {
+      const search = filters.search.toLowerCase()
+      filtered = filtered.filter(
+        (e) =>
+          e.name.toLowerCase().includes(search) ||
+          e.company_name?.toLowerCase().includes(search) ||
+          e.city?.toLowerCase().includes(search) ||
+          e.country?.toLowerCase().includes(search),
+      )
+    }
+
+    // Group events by timeline
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    const upcoming: EventWithSummary[] = []
+    const active: EventWithSummary[] = []
+    const recentlyCompleted: EventWithSummary[] = []
+    const older: EventWithSummary[] = []
+
+    // Group based on computed status (status is derived from dates by backend)
+    for (const event of filtered) {
+      if (event.status === 'active') {
+        active.push(event)
+      } else if (event.status === 'upcoming') {
+        upcoming.push(event)
+      } else if (event.status === 'past') {
+        if (isWithinDays(event.end_date, 30)) {
+          recentlyCompleted.push(event)
+        } else {
+          older.push(event)
+        }
+      }
+    }
+
+    // Sort each group
+    upcoming.sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
+    active.sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
+    recentlyCompleted.sort(
+      (a, b) => new Date(b.end_date).getTime() - new Date(a.end_date).getTime(),
+    )
+    older.sort((a, b) => new Date(b.end_date).getTime() - new Date(a.end_date).getTime())
+
+    return {
+      filteredEvents: filtered,
+      groupedEvents: { upcoming, active, recentlyCompleted, older },
+    }
+  }, [events, filters])
 
   const deleteEvent = async (e: React.MouseEvent, eventId: string) => {
     e.preventDefault()
@@ -108,33 +184,13 @@ export function Events() {
     }
   }
 
-  const openEditModal = (e: React.MouseEvent, event: Event) => {
+  const openEditModal = (e: React.MouseEvent, event: EventWithSummary) => {
     e.preventDefault()
     e.stopPropagation()
     setEditingEvent(event)
   }
 
-  const updateEventStatus = async (
-    e: React.MouseEvent,
-    eventId: string,
-    newStatus: EventStatus,
-  ) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setStatusDropdownOpen(null)
-    try {
-      await api.put(`/events/${eventId}`, { status: newStatus })
-      await fetchData()
-    } catch {
-      setError('Failed to update status')
-    }
-  }
-
-  const toggleStatusDropdown = (e: React.MouseEvent, eventId: string) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setStatusDropdownOpen(statusDropdownOpen === eventId ? null : eventId)
-  }
+  // Note: Status is now computed from dates, no manual status updates
 
   const handleEventCreated = (event?: Event) => {
     if (event) {
@@ -170,122 +226,90 @@ export function Events() {
         </Alert>
       )}
 
+      {/* Filters */}
+      <EventFilters filters={filters} onFiltersChange={setFilters} companies={companies} />
+
       <Card>
         <CardHeader>
-          <CardTitle>All Events</CardTitle>
+          <CardTitle>
+            {filteredEvents.length} Event{filteredEvents.length !== 1 ? 's' : ''}
+            {filters.status !== 'all' && ` (${filters.status})`}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="flex justify-center py-8">
               <Spinner />
             </div>
-          ) : events.length === 0 ? (
+          ) : filteredEvents.length === 0 ? (
             <p className="text-gray-500 text-center py-8">
-              No events yet. Create your first event to get started.
+              {events.length === 0
+                ? 'No events yet. Create your first event to get started.'
+                : 'No events match your filters.'}
             </p>
           ) : (
-            <div className="space-y-3">
-              {events.map((event) => (
-                <Link
-                  key={event.id}
-                  to={`/events/${event.id}`}
-                  className={`relative block rounded-lg overflow-hidden transition-all hover:shadow-md ${
-                    event.cover_thumbnail_url ? 'min-h-[100px]' : 'bg-gray-50 hover:bg-gray-100'
-                  }`}
-                >
-                  {event.cover_thumbnail_url && (
-                    <>
-                      <div
-                        className="absolute inset-0 bg-cover bg-center"
-                        style={{ backgroundImage: `url(${event.cover_thumbnail_url})` }}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-black/30" />
-                    </>
-                  )}
-                  <div
-                    className={`relative flex items-center justify-between p-4 ${
-                      event.cover_thumbnail_url ? 'text-white' : ''
-                    }`}
-                  >
-                    <div>
-                      <h3
-                        className={`font-medium ${event.cover_thumbnail_url ? 'text-white' : 'text-gray-900'}`}
-                      >
-                        {event.name}
-                      </h3>
-                      <p
-                        className={`text-sm ${event.cover_thumbnail_url ? 'text-white/80' : 'text-gray-500'}`}
-                      >
-                        {event.company_name && (
-                          <span
-                            className={
-                              event.cover_thumbnail_url ? 'text-white/90' : 'text-gray-600'
-                            }
-                          >
-                            {event.company_name} &middot;{' '}
-                          </span>
-                        )}
-                        {formatDate(event.start_date)} to {formatDate(event.end_date)}
-                        {(event.city || event.country) && (
-                          <span className="ml-2">
-                            <MapPin className="inline h-3 w-3" />{' '}
-                            {event.city ? `${event.city}, ${event.country}` : event.country}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="relative"
-                        ref={statusDropdownOpen === event.id ? dropdownRef : null}
-                      >
-                        <button
-                          type="button"
-                          onClick={(e) => toggleStatusDropdown(e, event.id)}
-                          className="flex items-center gap-1"
-                        >
-                          <Badge variant={statusColors[event.status]}>
-                            {statusLabels[event.status]}
-                          </Badge>
-                          <ChevronDown
-                            className={`h-3 w-3 ${event.cover_thumbnail_url ? 'text-white/60' : 'text-gray-400'}`}
-                          />
-                        </button>
-                        {statusDropdownOpen === event.id && (
-                          <div className="absolute right-0 mt-1 w-32 bg-white border border-gray-200 rounded-md shadow-lg z-10">
-                            {validTransitions[event.status].map((status) => (
-                              <button
-                                type="button"
-                                key={status}
-                                onClick={(e) => updateEventStatus(e, event.id, status)}
-                                className="block w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-50"
-                              >
-                                {statusLabels[status]}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => openEditModal(e, event)}
-                        className={`p-1 ${event.cover_thumbnail_url ? 'text-white/70 hover:text-white' : 'text-gray-400 hover:text-gray-600'}`}
-                        title="Edit event"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => deleteEvent(e, event.id)}
-                        className={`p-1 ${event.cover_thumbnail_url ? 'text-white/70 hover:text-red-400' : 'text-gray-400 hover:text-red-600'}`}
-                        title="Delete event"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </Link>
-              ))}
+            <div>
+              {/* Upcoming Events */}
+              <TimelineGroup
+                title="Upcoming"
+                count={groupedEvents.upcoming.length}
+                defaultOpen={true}
+              >
+                {groupedEvents.upcoming.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    onEdit={openEditModal}
+                    onDelete={deleteEvent}
+                    daysUntil={calculateDaysUntil(event.start_date)}
+                  />
+                ))}
+              </TimelineGroup>
+
+              {/* Active Events */}
+              <TimelineGroup title="Active" count={groupedEvents.active.length} defaultOpen={true}>
+                {groupedEvents.active.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    onEdit={openEditModal}
+                    onDelete={deleteEvent}
+                  />
+                ))}
+              </TimelineGroup>
+
+              {/* Recently Completed */}
+              <TimelineGroup
+                title="Recently Completed"
+                count={groupedEvents.recentlyCompleted.length}
+                defaultOpen={true}
+              >
+                {groupedEvents.recentlyCompleted.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    onEdit={openEditModal}
+                    onDelete={deleteEvent}
+                  />
+                ))}
+              </TimelineGroup>
+
+              {/* Older Events */}
+              <TimelineGroup
+                title="Older"
+                count={groupedEvents.older.length}
+                defaultOpen={false}
+                variant="muted"
+              >
+                {groupedEvents.older.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    onEdit={openEditModal}
+                    onDelete={deleteEvent}
+                  />
+                ))}
+              </TimelineGroup>
             </div>
           )}
         </CardContent>

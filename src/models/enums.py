@@ -13,9 +13,9 @@ class CompanyType(str, Enum):
 
 
 class EventStatus(str, Enum):
-    """Event status enumeration."""
+    """Event status enumeration - computed from event dates."""
 
-    PLANNING = "planning"
+    UPCOMING = "upcoming"
     ACTIVE = "active"
     PAST = "past"
 

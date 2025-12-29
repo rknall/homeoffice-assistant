@@ -18,6 +18,7 @@ from src.schemas.event import (
     EventDetailResponse,
     EventResponse,
     EventUpdate,
+    EventWithSummary,
 )
 from src.schemas.integration import DocumentResponse
 from src.services import company_service, event_service, integration_service
@@ -29,9 +30,10 @@ router = APIRouter()
 def list_events(
     company_id: uuid.UUID | None = None,
     event_status: EventStatus | None = None,
+    include_summary: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> list[EventDetailResponse]:
+) -> list[EventDetailResponse] | list[EventWithSummary]:
     """List events for the current user with company info."""
     events = event_service.get_events(
         db,
@@ -40,6 +42,24 @@ def list_events(
         status=event_status,
         include_company=True,
     )
+
+    if include_summary:
+        # Get summaries for all events in one query
+        summaries = event_service.get_event_summaries(
+            db, [e.id for e in events]
+        )
+        result = []
+        for e in events:
+            response = EventWithSummary.model_validate(e)
+            response.company_name = e.company.name if e.company else None
+            summary = summaries.get(e.id, {})
+            response.expense_count = summary.get("expense_count", 0)
+            response.expense_total = float(summary.get("expense_total", 0))
+            response.todo_count = summary.get("todo_count", 0)
+            response.todo_incomplete_count = summary.get("todo_incomplete_count", 0)
+            result.append(response)
+        return result
+
     result = []
     for e in events:
         response = EventDetailResponse.model_validate(e)

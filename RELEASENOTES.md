@@ -4,6 +4,26 @@
 
 ### Major Features
 
+#### Dashboard Redesign
+- Action-oriented dashboard replacing the previous event list duplication
+- Stats row showing Active, Upcoming, and Past event counts with clickable filters
+- Upcoming Events timeline showing events with start date >= today, sorted chronologically
+- Action Items panel showing events needing expense reports and incomplete todos
+- Expense breakdown chart showing spending by category for the last 90 days
+- New `/dashboard/summary` API endpoint for aggregated dashboard data
+
+#### Events Page Redesign
+- Timeline-based grouping: Upcoming, Active, Recently Completed, Older
+- Filter bar with status pills (All/Upcoming/Active/Past), company dropdown, and search
+- Enhanced event cards showing expense count, total amount, and incomplete todos
+- URL state synchronization for filters (shareable filtered views)
+- Collapsible timeline sections with event counts
+
+#### Automatic Event Status
+- Event status (Upcoming/Active/Past) is now automatically computed from dates
+- Removed manual status controls - status is derived from start_date and end_date
+- UPCOMING: start_date > today, ACTIVE: start_date <= today <= end_date, PAST: end_date < today
+
 #### Plugin System
 - Extensible plugin architecture for third-party extensions
 - Backend plugin infrastructure with BasePlugin abstract class

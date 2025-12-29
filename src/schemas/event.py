@@ -4,10 +4,27 @@
 
 import datetime
 import uuid
+from typing import Self
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, computed_field, model_validator
 
 from src.models.enums import EventStatus
+
+
+def compute_event_status(start_date: datetime.date, end_date: datetime.date) -> EventStatus:
+    """Compute event status from dates.
+
+    - UPCOMING: start_date > today
+    - ACTIVE: start_date <= today <= end_date
+    - PAST: end_date < today
+    """
+    today = datetime.date.today()
+    if start_date > today:
+        return EventStatus.UPCOMING
+    elif end_date < today:
+        return EventStatus.PAST
+    else:
+        return EventStatus.ACTIVE
 
 
 class EventBase(BaseModel):
@@ -19,7 +36,7 @@ class EventBase(BaseModel):
     end_date: datetime.date
 
     @model_validator(mode="after")
-    def validate_dates(self) -> EventBase:
+    def validate_dates(self) -> Self:
         """Ensure end_date is on or after start_date."""
         if self.end_date < self.start_date:
             raise ValueError("end_date must be on or after start_date")
@@ -27,10 +44,12 @@ class EventBase(BaseModel):
 
 
 class EventCreate(EventBase):
-    """Schema for creating an event."""
+    """Schema for creating an event.
+
+    Note: status is computed from dates, not set manually.
+    """
 
     company_id: uuid.UUID
-    status: EventStatus = EventStatus.PLANNING
     paperless_custom_field_value: str | None = None
     # Location fields
     city: str | None = None
@@ -47,14 +66,16 @@ class EventCreate(EventBase):
 
 
 class EventUpdate(BaseModel):
-    """Schema for updating an event."""
+    """Schema for updating an event.
+
+    Note: status is computed from dates, not set manually.
+    """
 
     name: str | None = Field(None, min_length=1, max_length=200)
     description: str | None = None
     company_id: uuid.UUID | None = None
     start_date: datetime.date | None = None
     end_date: datetime.date | None = None
-    status: EventStatus | None = None
     paperless_custom_field_value: str | None = None
     # Location fields
     city: str | None = None
@@ -71,7 +92,10 @@ class EventUpdate(BaseModel):
 
 
 class EventResponse(BaseModel):
-    """Schema for event response."""
+    """Schema for event response.
+
+    Note: status is computed from dates, not stored.
+    """
 
     id: uuid.UUID
     user_id: uuid.UUID
@@ -80,7 +104,6 @@ class EventResponse(BaseModel):
     description: str | None
     start_date: datetime.date
     end_date: datetime.date
-    status: EventStatus
     external_tag: str | None
     paperless_custom_field_value: str | None = None
     # Location fields
@@ -100,8 +123,23 @@ class EventResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def status(self) -> EventStatus:
+        """Compute status from event dates."""
+        return compute_event_status(self.start_date, self.end_date)
+
 
 class EventDetailResponse(EventResponse):
     """Schema for detailed event response with company info."""
 
     company_name: str | None = None
+
+
+class EventWithSummary(EventDetailResponse):
+    """Event response with expense and todo summaries for list views."""
+
+    expense_count: int = 0
+    expense_total: float = 0.0
+    todo_count: int = 0
+    todo_incomplete_count: int = 0

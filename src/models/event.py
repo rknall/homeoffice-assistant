@@ -46,9 +46,11 @@ class Event(Base, TimestampMixin):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    # Note: status is computed from dates in response schemas, this column is kept
+    # for backward compatibility but the stored value is not used for filtering
     status: Mapped[EventStatus] = mapped_column(
         Enum(EventStatus),
-        default=EventStatus.PLANNING,
+        default=EventStatus.UPCOMING,
         nullable=False,
     )
     external_tag: Mapped[str | None] = mapped_column(

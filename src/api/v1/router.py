@@ -10,6 +10,7 @@ from src.api.v1 import (
     companies,
     company_contacts,
     contacts,
+    dashboard,
     email_templates,
     events,
     expenses,
@@ -29,6 +30,9 @@ api_router = APIRouter()
 
 # Auth routes
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+
+# Dashboard routes
+api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 
 # Integration routes
 api_router.include_router(

@@ -46,7 +46,13 @@ export function TodoList({ eventId, onTodoCountChange }: TodoListProps) {
     setIsSaving(true)
     setError(null)
     try {
-      await api.post(`/events/${eventId}/todos`, data)
+      // Clean up empty strings to null for optional fields
+      const cleanedData = {
+        ...data,
+        description: data.description || null,
+        due_date: data.due_date || null,
+      }
+      await api.post(`/events/${eventId}/todos`, cleanedData)
       await fetchTodos()
       setIsModalOpen(false)
     } catch {
@@ -61,7 +67,13 @@ export function TodoList({ eventId, onTodoCountChange }: TodoListProps) {
     setIsSaving(true)
     setError(null)
     try {
-      await api.put(`/events/${eventId}/todos/${editingTodo.id}`, data)
+      // Clean up empty strings to null for optional fields
+      const cleanedData = {
+        ...data,
+        description: data.description || null,
+        due_date: data.due_date || null,
+      }
+      await api.put(`/events/${eventId}/todos/${editingTodo.id}`, cleanedData)
       await fetchTodos()
       setEditingTodo(null)
     } catch {

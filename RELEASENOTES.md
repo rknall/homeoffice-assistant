@@ -1,6 +1,6 @@
 # Release Notes
 
-## Version 0.3.0-alpha3
+## Version 0.3.0-beta1
 
 ### Major Features
 

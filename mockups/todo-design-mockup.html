@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Todo Feature Mockup - HomeOffice Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .tab-active {
+      border-bottom: 2px solid #2563eb;
+      color: #2563eb;
+    }
+    .completed {
+      text-decoration: line-through;
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+  <!-- Header showing which mockup we're viewing -->
+  <div class="bg-blue-600 text-white py-2 px-4 text-sm">
+    <strong>MOCKUP:</strong> Event Detail Page with Tabs - Todo Management Feature
+  </div>
+
+  <div class="max-w-6xl mx-auto">
+
+    <!-- Event Banner -->
+    <div class="relative h-48 overflow-hidden">
+      <img
+        src="https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=1200&h=400&fit=crop"
+        alt="Paris, France"
+        class="h-full w-full object-cover"
+      />
+      <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
+
+      <!-- Breadcrumb -->
+      <nav class="absolute top-4 left-6">
+        <div class="flex items-center gap-1 px-3 py-1.5 rounded-full bg-black/30 backdrop-blur-sm text-sm">
+          <a href="#" class="text-white/80 hover:text-white">Dashboard</a>
+          <span class="text-white/50">›</span>
+          <a href="#" class="text-white/80 hover:text-white">Events</a>
+          <span class="text-white/50">›</span>
+          <a href="#" class="text-white/80 hover:text-white">Wireshark Foundation</a>
+          <span class="text-white/50">›</span>
+          <span class="text-white font-medium">SharkFest Europe 2024</span>
+        </div>
+      </nav>
+
+      <!-- Event Title -->
+      <div class="absolute bottom-4 left-6 right-6">
+        <h1 class="text-2xl font-bold text-white drop-shadow-lg">SharkFest Europe 2024</h1>
+        <p class="text-white/90 drop-shadow">
+          Wireshark Foundation · Nov 4-8, 2024
+          <span class="ml-2">📍 Paris, France</span>
+        </p>
+      </div>
+
+      <!-- Status & Actions -->
+      <div class="absolute top-4 right-6 flex items-center gap-3">
+        <span class="px-2 py-1 rounded-full bg-gray-200/90 text-gray-700 text-sm font-medium">Past</span>
+        <button class="p-2 text-white/80 hover:text-white bg-black/20 rounded-full">✏️</button>
+        <button class="p-2 text-white/80 hover:text-red-400 bg-black/20 rounded-full">🗑️</button>
+      </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="grid grid-cols-3 gap-4 p-6 -mt-6 relative z-10">
+      <div class="bg-white rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500">Total Expenses</p>
+        <p class="text-2xl font-bold text-gray-900">€1,234.56</p>
+      </div>
+      <div class="bg-white rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500">Number of Items</p>
+        <p class="text-2xl font-bold text-gray-900">12</p>
+      </div>
+      <div class="bg-white rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500">Documents Available</p>
+        <p class="text-2xl font-bold text-gray-900">8</p>
+      </div>
+    </div>
+
+    <!-- Tab Bar -->
+    <div class="px-6">
+      <div class="bg-white rounded-t-lg shadow-sm border-b">
+        <nav class="flex">
+          <button class="px-6 py-3 text-gray-600 hover:text-gray-900 font-medium" onclick="showTab('expenses')">
+            Expenses
+          </button>
+          <button class="px-6 py-3 text-gray-600 hover:text-gray-900 font-medium" onclick="showTab('documents')">
+            Documents
+          </button>
+          <button class="px-6 py-3 text-gray-600 hover:text-gray-900 font-medium" onclick="showTab('photos')">
+            Photos
+          </button>
+          <button class="px-6 py-3 text-blue-600 font-medium tab-active" onclick="showTab('todos')">
+            Todos
+            <span class="ml-1 px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded-full">3</span>
+          </button>
+        </nav>
+      </div>
+    </div>
+
+    <!-- Tab Content: Todos -->
+    <div class="px-6 pb-6">
+      <div class="bg-white rounded-b-lg shadow p-6">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-lg font-semibold text-gray-900">Todos</h2>
+          <button class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <span>+</span> Add Todo
+          </button>
+        </div>
+
+        <!-- Todo List -->
+        <div class="space-y-3">
+
+          <!-- Incomplete Todo 1 -->
+          <div class="flex items-start gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
+            <input type="checkbox" class="mt-1 h-5 w-5 rounded border-gray-300 text-blue-600 cursor-pointer">
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-gray-900">Book return flight</span>
+                <span class="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">Travel</span>
+              </div>
+              <p class="text-sm text-gray-500 mt-1">Due: Nov 10, 2024</p>
+            </div>
+            <div class="flex gap-2">
+              <button class="p-1 text-gray-400 hover:text-blue-600">✏️</button>
+              <button class="p-1 text-gray-400 hover:text-red-600">🗑️</button>
+            </div>
+          </div>
+
+          <!-- Incomplete Todo 2 (OVERDUE) -->
+          <div class="flex items-start gap-4 p-4 bg-red-50 rounded-lg border border-red-200 hover:bg-red-100 transition-colors">
+            <input type="checkbox" class="mt-1 h-5 w-5 rounded border-red-300 text-blue-600 cursor-pointer">
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-red-700">Submit expense report</span>
+                <span class="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-700">Follow-up</span>
+                <span class="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700">OVERDUE</span>
+              </div>
+              <p class="text-sm text-red-600 mt-1">Due: Nov 15, 2024</p>
+            </div>
+            <div class="flex gap-2">
+              <button class="p-1 text-gray-400 hover:text-blue-600">✏️</button>
+              <button class="p-1 text-gray-400 hover:text-red-600">🗑️</button>
+            </div>
+          </div>
+
+          <!-- Incomplete Todo 3 -->
+          <div class="flex items-start gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
+            <input type="checkbox" class="mt-1 h-5 w-5 rounded border-gray-300 text-blue-600 cursor-pointer">
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-gray-900">Follow up with speaker contacts</span>
+                <span class="px-2 py-0.5 text-xs rounded-full bg-cyan-100 text-cyan-700">Contacts</span>
+              </div>
+              <p class="text-sm text-gray-500 mt-1">Due: Nov 20, 2024</p>
+            </div>
+            <div class="flex gap-2">
+              <button class="p-1 text-gray-400 hover:text-blue-600">✏️</button>
+              <button class="p-1 text-gray-400 hover:text-red-600">🗑️</button>
+            </div>
+          </div>
+
+          <!-- Divider -->
+          <div class="border-t border-gray-200 pt-3 mt-4">
+            <p class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Completed</p>
+          </div>
+
+          <!-- Completed Todo 1 -->
+          <div class="flex items-start gap-4 p-4 bg-gray-50 rounded-lg border border-gray-100 opacity-60">
+            <input type="checkbox" checked class="mt-1 h-5 w-5 rounded border-gray-300 text-blue-600 cursor-pointer">
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-gray-500 line-through">Reserve hotel room</span>
+                <span class="px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700">Accommodation</span>
+              </div>
+              <p class="text-sm text-gray-400 mt-1">Completed</p>
+            </div>
+            <div class="flex gap-2">
+              <button class="p-1 text-gray-400 hover:text-blue-600">✏️</button>
+              <button class="p-1 text-gray-400 hover:text-red-600">🗑️</button>
+            </div>
+          </div>
+
+          <!-- Completed Todo 2 -->
+          <div class="flex items-start gap-4 p-4 bg-gray-50 rounded-lg border border-gray-100 opacity-60">
+            <input type="checkbox" checked class="mt-1 h-5 w-5 rounded border-gray-300 text-blue-600 cursor-pointer">
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-gray-500 line-through">Prepare presentation slides</span>
+                <span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700">Preparation</span>
+              </div>
+              <p class="text-sm text-gray-400 mt-1">Completed</p>
+            </div>
+            <div class="flex gap-2">
+              <button class="p-1 text-gray-400 hover:text-blue-600">✏️</button>
+              <button class="p-1 text-gray-400 hover:text-red-600">🗑️</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Mockup 2: Dashboard Action Items -->
+    <div class="px-6 pb-6 mt-8">
+      <div class="bg-blue-600 text-white py-2 px-4 text-sm rounded-t-lg">
+        <strong>MOCKUP 2:</strong> Dashboard Action Items with Quick-Complete
+      </div>
+      <div class="bg-white rounded-b-lg shadow p-6">
+        <h3 class="font-semibold text-gray-900 mb-4">Action Items</h3>
+
+        <!-- Reports Due -->
+        <div class="mb-4">
+          <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Reports Due</h4>
+          <a href="#" class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 group">
+            <div class="p-2 rounded bg-amber-100 text-amber-600">📄</div>
+            <div class="flex-1">
+              <p class="text-sm font-medium text-gray-900 group-hover:text-blue-600">SharkFest Europe 2024</p>
+              <p class="text-xs text-gray-500">12 expenses · EUR 1,234.56</p>
+            </div>
+            <span class="text-gray-400">→</span>
+          </a>
+        </div>
+
+        <!-- Pending Tasks -->
+        <div>
+          <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Pending Tasks</h4>
+          <div class="space-y-2">
+
+            <!-- Task 1 -->
+            <div class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 group">
+              <input type="checkbox" class="h-5 w-5 rounded border-gray-300 text-blue-600 cursor-pointer flex-shrink-0" title="Click to mark complete">
+              <div class="flex-1 cursor-pointer">
+                <p class="text-sm font-medium text-gray-900 group-hover:text-blue-600">Book return flight</p>
+                <p class="text-xs text-gray-500">SharkFest Europe · Due Nov 10</p>
+              </div>
+              <span class="text-gray-400">→</span>
+            </div>
+
+            <!-- Task 2 (Overdue) -->
+            <div class="flex items-center gap-3 p-3 rounded-lg bg-red-50 hover:bg-red-100 group">
+              <input type="checkbox" class="h-5 w-5 rounded border-red-300 text-blue-600 cursor-pointer flex-shrink-0" title="Click to mark complete">
+              <div class="flex-1 cursor-pointer">
+                <p class="text-sm font-medium text-red-700 group-hover:text-red-800">Submit expense report</p>
+                <p class="text-xs text-red-500">SharkFest Europe · Due Nov 15 <span class="font-medium">(OVERDUE)</span></p>
+              </div>
+              <span class="text-red-400">→</span>
+            </div>
+
+            <!-- Task 3 -->
+            <div class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 group">
+              <input type="checkbox" class="h-5 w-5 rounded border-gray-300 text-blue-600 cursor-pointer flex-shrink-0" title="Click to mark complete">
+              <div class="flex-1 cursor-pointer">
+                <p class="text-sm font-medium text-gray-900 group-hover:text-blue-600">Follow up with speaker contacts</p>
+                <p class="text-xs text-gray-500">SharkFest Europe · Due Nov 20</p>
+              </div>
+              <span class="text-gray-400">→</span>
+            </div>
+
+          </div>
+        </div>
+
+        <p class="mt-4 text-xs text-gray-400 italic">
+          Click checkbox to mark complete instantly · Click row to navigate to event
+        </p>
+      </div>
+    </div>
+
+    <!-- Mockup 3: Add Todo Modal -->
+    <div class="px-6 pb-6 mt-8">
+      <div class="bg-blue-600 text-white py-2 px-4 text-sm rounded-t-lg">
+        <strong>MOCKUP 3:</strong> Add Todo Modal
+      </div>
+      <div class="bg-gray-800/50 p-8 rounded-b-lg">
+        <div class="bg-white rounded-lg shadow-xl max-w-md mx-auto">
+          <!-- Modal Header -->
+          <div class="flex items-center justify-between p-4 border-b">
+            <h3 class="text-lg font-semibold">Add Todo</h3>
+            <button class="text-gray-400 hover:text-gray-600">✕</button>
+          </div>
+
+          <!-- Modal Body -->
+          <div class="p-4 space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+              <input type="text" value="Submit expense report" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <textarea rows="2" placeholder="Optional description..." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">Email report to accounting@company.com</textarea>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <select class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                  <option>Travel</option>
+                  <option>Accommodation</option>
+                  <option>Preparation</option>
+                  <option>Equipment</option>
+                  <option>Contacts</option>
+                  <option selected>Follow-up</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                <input type="date" value="2024-11-15" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+              </div>
+            </div>
+          </div>
+
+          <!-- Modal Footer -->
+          <div class="flex justify-end gap-3 p-4 border-t bg-gray-50 rounded-b-lg">
+            <button class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Cancel</button>
+            <button class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Todo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="px-6 pb-8">
+      <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <h4 class="font-medium text-yellow-800 mb-2">Category Color Legend</h4>
+        <div class="flex flex-wrap gap-2">
+          <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">Travel</span>
+          <span class="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-700">Accommodation</span>
+          <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">Preparation</span>
+          <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">Equipment</span>
+          <span class="px-2 py-1 text-xs rounded-full bg-cyan-100 text-cyan-700">Contacts</span>
+          <span class="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-700">Follow-up</span>
+          <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">Other</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function showTab(tab) {
+      // In real implementation, this would switch tab content
+      console.log('Switch to tab:', tab);
+    }
+  </script>
+</body>
+</html>

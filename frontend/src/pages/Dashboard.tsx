@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
 import { ActionItems, ExpenseBreakdown, StatsRow, UpcomingEvents } from '@/components/dashboard'
 import { Alert } from '@/components/ui/Alert'
@@ -19,19 +19,20 @@ export function Dashboard() {
     clearBreadcrumb()
   }, [clearBreadcrumb])
 
-  useEffect(() => {
-    const fetchDashboard = async () => {
-      try {
-        const data = await api.get<DashboardSummary>('/dashboard/summary')
-        setSummary(data)
-      } catch {
-        setError('Failed to load dashboard data')
-      } finally {
-        setIsLoading(false)
-      }
+  const fetchDashboard = useCallback(async () => {
+    try {
+      const data = await api.get<DashboardSummary>('/dashboard/summary')
+      setSummary(data)
+    } catch {
+      setError('Failed to load dashboard data')
+    } finally {
+      setIsLoading(false)
     }
-    fetchDashboard()
   }, [])
+
+  useEffect(() => {
+    fetchDashboard()
+  }, [fetchDashboard])
 
   if (isLoading) {
     return (
@@ -66,6 +67,7 @@ export function Dashboard() {
         <ActionItems
           reportsNeeded={summary.events_needing_reports}
           incompleteTodos={summary.incomplete_todos}
+          onTodoCompleted={fetchDashboard}
         />
       </div>
 

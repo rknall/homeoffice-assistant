@@ -18,6 +18,7 @@ from src.services import (
     email_template_service,
     event_service,
     integration_service,
+    todo_service,
 )
 from src.services.report_generator import create_report_generator
 
@@ -89,6 +90,9 @@ async def generate_expense_report(
     try:
         zip_bytes = await generator.generate(event)
         filename = generator.get_filename(event)
+
+        # Auto-complete report-related todos
+        todo_service.auto_complete_report_todos(db, event_id)
 
         return Response(
             content=zip_bytes,
@@ -237,6 +241,9 @@ async def send_expense_report(
         )
 
         if success:
+            # Auto-complete report-related todos
+            todo_service.auto_complete_report_todos(db, event_id)
+
             recipients_str = ", ".join(recipient_emails)
             return SendReportResponse(
                 success=True,

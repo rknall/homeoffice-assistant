@@ -70,8 +70,10 @@ def test_get_and_filter_events(db_session):
         event_service.get_events(db_session, company_id=company.id)[0].company_id
         == company.id
     )
-    # Status filtering uses computed dates: May 1-5, 2025 is in the past (end_date < today)
-    # Note: Event.status column stores default value (UPCOMING), but filtering uses dates
+    # Status filtering uses computed dates: May 1-5, 2025 is in the past
+    # (end_date < today)
+    # Note: Event.status column stores default value (UPCOMING),
+    # but filtering uses dates
     past_events = event_service.get_events(db_session, status=EventStatus.PAST)
     assert len(past_events) == 1
     assert past_events[0].name == "Expo"

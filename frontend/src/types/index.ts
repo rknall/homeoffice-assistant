@@ -324,6 +324,26 @@ export type TodoCategory =
   | 'followup'
   | 'other'
 
+export const TODO_CATEGORY_LABELS: Record<TodoCategory, string> = {
+  travel: 'Travel',
+  accommodation: 'Accommodation',
+  preparation: 'Preparation',
+  equipment: 'Equipment',
+  contacts: 'Contacts',
+  followup: 'Follow-up',
+  other: 'Other',
+}
+
+export const TODO_CATEGORY_COLORS: Record<TodoCategory, { bg: string; text: string }> = {
+  travel: { bg: 'bg-blue-100', text: 'text-blue-700' },
+  accommodation: { bg: 'bg-purple-100', text: 'text-purple-700' },
+  preparation: { bg: 'bg-green-100', text: 'text-green-700' },
+  equipment: { bg: 'bg-gray-100', text: 'text-gray-700' },
+  contacts: { bg: 'bg-cyan-100', text: 'text-cyan-700' },
+  followup: { bg: 'bg-amber-100', text: 'text-amber-700' },
+  other: { bg: 'bg-gray-100', text: 'text-gray-600' },
+}
+
 export interface Todo {
   id: Uuid
   event_id: Uuid
@@ -334,6 +354,21 @@ export interface Todo {
   category: TodoCategory
   created_at: string
   updated_at: string
+}
+
+export interface TodoCreate {
+  title: string
+  description?: string | null
+  due_date?: string | null
+  category?: TodoCategory
+}
+
+export interface TodoUpdate {
+  title?: string
+  description?: string | null
+  due_date?: string | null
+  completed?: boolean
+  category?: TodoCategory
 }
 
 // Locale settings types

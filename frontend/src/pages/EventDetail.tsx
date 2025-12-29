@@ -25,14 +25,16 @@ import { z } from 'zod'
 import { api, downloadFile } from '@/api/client'
 import { EventFormModal } from '@/components/EventFormModal'
 import { PhotoGallery } from '@/components/PhotoGallery'
+import { TodoList } from '@/components/TodoList'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Card, CardContent } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
 import { Spinner } from '@/components/ui/Spinner'
+import { Tab, TabList, TabPanel, Tabs } from '@/components/ui/Tabs'
 import { useBreadcrumb } from '@/stores/breadcrumb'
 import { useLocale } from '@/stores/locale'
 import type {
@@ -152,6 +154,7 @@ export function EventDetail() {
   const [isSaving, setIsSaving] = useState(false)
   const [locationImage, setLocationImage] = useState<LocationImage | null>(null)
   const [photoCount, setPhotoCount] = useState(0)
+  const [todoIncompleteCount, setTodoIncompleteCount] = useState(0)
   const [isAdjustingPosition, setIsAdjustingPosition] = useState(false)
   const [imagePosition, setImagePosition] = useState<number>(50)
 
@@ -842,25 +845,34 @@ export function EventDetail() {
         </Card>
       </div>
 
-      <Card className="mb-6">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Expenses</CardTitle>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={generateReport} isLoading={isGenerating}>
-              <Download className="h-4 w-4 mr-2" />
-              Export Report
-            </Button>
-            <Button variant="secondary" onClick={openEmailModal}>
-              <Mail className="h-4 w-4 mr-2" />
-              Email Report
-            </Button>
-            <Button onClick={() => setIsModalOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Expense
-            </Button>
+      <Tabs defaultTab="expenses" className="mb-6">
+        <TabList className="rounded-t-lg">
+          <Tab value="expenses">Expenses</Tab>
+          <Tab value="documents">Documents</Tab>
+          <Tab value="photos">Photos</Tab>
+          <Tab value="todos" badge={todoIncompleteCount || undefined}>
+            Todos
+          </Tab>
+        </TabList>
+
+        <TabPanel value="expenses" className="bg-white rounded-b-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Expenses</h3>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={generateReport} isLoading={isGenerating}>
+                <Download className="h-4 w-4 mr-2" />
+                Export Report
+              </Button>
+              <Button variant="secondary" onClick={openEmailModal}>
+                <Mail className="h-4 w-4 mr-2" />
+                Email Report
+              </Button>
+              <Button onClick={() => setIsModalOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Expense
+              </Button>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent>
           {expenses.length === 0 ? (
             <p className="text-gray-500 text-center py-8">
               No expenses yet. Add your first expense to get started.
@@ -916,26 +928,24 @@ export function EventDetail() {
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </TabPanel>
 
-      <Card className="mb-6">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Documents from Paperless
-          </CardTitle>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={fetchDocuments}
-            isLoading={isLoadingDocuments}
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-        </CardHeader>
-        <CardContent>
+        <TabPanel value="documents" className="bg-white rounded-b-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Documents from Paperless
+            </h3>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={fetchDocuments}
+              isLoading={isLoadingDocuments}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
           {isLoadingDocuments ? (
             <div className="flex justify-center py-8">
               <Spinner />
@@ -997,12 +1007,10 @@ export function EventDetail() {
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </TabPanel>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+        <TabPanel value="photos" className="bg-white rounded-b-lg shadow p-6">
+          <h3 className="text-lg font-semibold flex items-center gap-2 mb-4">
             <Camera className="h-5 w-5" />
             Photos from Immich
             {photoCount > 0 && (
@@ -1010,17 +1018,22 @@ export function EventDetail() {
                 {photoCount} linked
               </span>
             )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+          </h3>
           <PhotoGallery
             eventId={id!}
             hasLocation={!!(event.latitude && event.longitude)}
             eventStartDate={event.start_date}
             onPhotoCountChange={setPhotoCount}
           />
-        </CardContent>
-      </Card>
+        </TabPanel>
+
+        <TabPanel value="todos" className="bg-white rounded-b-lg shadow p-6">
+          <TodoList
+            eventId={id!}
+            onTodoCountChange={(_, incomplete) => setTodoIncompleteCount(incomplete)}
+          />
+        </TabPanel>
+      </Tabs>
 
       <Modal
         isOpen={isModalOpen}

@@ -4,6 +4,20 @@
 
 ### Major Features
 
+#### Todo Management
+- Full todo CRUD on event detail page with tabbed interface
+- Category-based organization (Travel, Accommodation, Preparation, Equipment, Contacts, Follow-up, Other)
+- Due date tracking with overdue highlighting
+- Quick-complete from dashboard Action Items with checkbox
+- Auto-complete: Report-related todos automatically marked done when expense reports are sent or exported
+- Incomplete todo count badge on Todos tab
+- Sorted display: incomplete todos first (by due date), then completed
+
+#### Event Detail Page Tabs
+- Reorganized event detail page with tab navigation: Expenses | Documents | Photos | Todos
+- Cleaner separation of content sections
+- Tab badges showing relevant counts (e.g., incomplete todos)
+
 #### Dashboard Redesign
 - Action-oriented dashboard replacing the previous event list duplication
 - Stats row showing Active, Upcoming, and Past event counts with clickable filters

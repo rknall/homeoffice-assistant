@@ -1,20 +1,40 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
 
-import { AlertCircle, CheckSquare, FileText } from 'lucide-react'
+import { AlertCircle, FileText } from 'lucide-react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { api } from '@/api/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Checkbox } from '@/components/ui/Checkbox'
 import { useLocale } from '@/stores/locale'
 import type { EventNeedingReport, IncompleteTodo } from '@/types'
 
 interface ActionItemsProps {
   reportsNeeded: EventNeedingReport[]
   incompleteTodos: IncompleteTodo[]
+  onTodoCompleted?: () => void
 }
 
-export function ActionItems({ reportsNeeded, incompleteTodos }: ActionItemsProps) {
+export function ActionItems({ reportsNeeded, incompleteTodos, onTodoCompleted }: ActionItemsProps) {
   const { formatDate } = useLocale()
+  const [completingTodos, setCompletingTodos] = useState<Set<string>>(new Set())
   const hasItems = reportsNeeded.length > 0 || incompleteTodos.length > 0
+
+  const handleCompleteTodo = async (todo: IncompleteTodo) => {
+    setCompletingTodos((prev) => new Set(prev).add(todo.id))
+    try {
+      await api.put(`/events/${todo.event_id}/todos/${todo.id}`, { completed: true })
+      onTodoCompleted?.()
+    } catch {
+      // Error handling - remove from completing state
+      setCompletingTodos((prev) => {
+        const next = new Set(prev)
+        next.delete(todo.id)
+        return next
+      })
+    }
+  }
 
   if (!hasItems) {
     return (
@@ -73,46 +93,51 @@ export function ActionItems({ reportsNeeded, incompleteTodos }: ActionItemsProps
               Pending Tasks
             </h4>
             <div className="space-y-2">
-              {incompleteTodos.map((todo) => (
-                <Link
-                  key={todo.id}
-                  to={`/events/${todo.event_id}`}
-                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 group"
-                >
+              {incompleteTodos.map((todo) => {
+                const isCompleting = completingTodos.has(todo.id)
+                return (
                   <div
-                    className={`p-1.5 rounded ${
-                      todo.is_overdue ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
+                    key={todo.id}
+                    className={`flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 group ${
+                      isCompleting ? 'opacity-50' : ''
                     }`}
                   >
-                    {todo.is_overdue ? (
-                      <AlertCircle className="w-4 h-4" />
-                    ) : (
-                      <CheckSquare className="w-4 h-4" />
+                    <Checkbox
+                      checked={isCompleting}
+                      onCheckedChange={() => handleCompleteTodo(todo)}
+                      disabled={isCompleting}
+                      className={`h-5 w-5 flex-shrink-0 ${todo.is_overdue ? 'border-red-300' : ''}`}
+                      aria-label={`Mark "${todo.title}" as complete`}
+                    />
+                    {todo.is_overdue && (
+                      <div className="p-1 rounded bg-red-100 text-red-600 flex-shrink-0">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                      </div>
                     )}
+                    <Link to={`/events/${todo.event_id}`} className="flex-1 min-w-0">
+                      <p
+                        className={`text-sm font-medium truncate group-hover:text-blue-600 ${
+                          todo.is_overdue ? 'text-red-700' : 'text-gray-900'
+                        }`}
+                      >
+                        {todo.title}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {todo.event_name}
+                        {todo.due_date && (
+                          <>
+                            {' '}
+                            &middot;{' '}
+                            <span className={todo.is_overdue ? 'text-red-500' : ''}>
+                              Due {formatDate(todo.due_date)}
+                            </span>
+                          </>
+                        )}
+                      </p>
+                    </Link>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p
-                      className={`text-sm font-medium truncate group-hover:text-blue-600 ${
-                        todo.is_overdue ? 'text-red-700' : 'text-gray-900'
-                      }`}
-                    >
-                      {todo.title}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {todo.event_name}
-                      {todo.due_date && (
-                        <>
-                          {' '}
-                          &middot;{' '}
-                          <span className={todo.is_overdue ? 'text-red-500' : ''}>
-                            Due {formatDate(todo.due_date)}
-                          </span>
-                        </>
-                      )}
-                    </p>
-                  </div>
-                </Link>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}

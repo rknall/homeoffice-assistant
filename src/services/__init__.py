@@ -9,6 +9,7 @@ from src.services import (
     event_service,
     expense_service,
     integration_service,
+    todo_service,
 )
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "event_service",
     "expense_service",
     "integration_service",
+    "todo_service",
 ]

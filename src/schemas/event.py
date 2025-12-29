@@ -11,7 +11,9 @@ from pydantic import BaseModel, Field, computed_field, model_validator
 from src.models.enums import EventStatus
 
 
-def compute_event_status(start_date: datetime.date, end_date: datetime.date) -> EventStatus:
+def compute_event_status(
+    start_date: datetime.date, end_date: datetime.date
+) -> EventStatus:
     """Compute event status from dates.
 
     - UPCOMING: start_date > today

@@ -10,7 +10,9 @@ from typing import Annotated
 from pydantic import BaseModel, PlainSerializer
 
 # Annotated type that serializes Decimal as float for JSON responses
-SerializedDecimal = Annotated[Decimal, PlainSerializer(lambda x: float(x), return_type=float)]
+SerializedDecimal = Annotated[
+    Decimal, PlainSerializer(lambda x: float(x), return_type=float)
+]
 
 
 class EventsByStatus(BaseModel):

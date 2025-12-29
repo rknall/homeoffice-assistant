@@ -235,7 +235,8 @@ class TestEventsAPI:
         assert response.status_code == 201
         data = response.json()
         assert data["name"] == "Test Event"
-        assert data["status"] == "planning"
+        # Status is computed from dates: Jan 15-20, 2024 is in the past
+        assert data["status"] == "past"
         assert "id" in data
 
     def test_list_events(self, authenticated_client):

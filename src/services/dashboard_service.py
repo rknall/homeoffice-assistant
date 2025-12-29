@@ -10,7 +10,6 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import Session, joinedload
 
 from src.models import Event, Expense, Todo
-from src.models.enums import EventStatus
 from src.schemas.dashboard import (
     DashboardSummary,
     EventNeedingReport,

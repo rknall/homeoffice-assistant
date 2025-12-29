@@ -8,7 +8,6 @@ from decimal import Decimal
 from src.models import Company, Event, User
 from src.models.enums import (
     CompanyType,
-    EventStatus,
     ExpenseCategory,
     ExpenseStatus,
     PaymentType,
@@ -50,7 +49,6 @@ def create_event(db_session) -> Event:
         description="Desc",
         start_date=date(2025, 5, 1),
         end_date=date(2025, 5, 2),
-        status=EventStatus.PLANNING,
     )
     db_session.add(event)
     db_session.commit()

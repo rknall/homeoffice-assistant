@@ -18,18 +18,20 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     # Convert old status values to new simplified statuses:
-    # SQLAlchemy stores enum member NAMES (uppercase): PLANNING, ACTIVE, PAST
-    # draft/DRAFT -> PLANNING
-    # preparation/PREPARATION -> PLANNING
+    # SQLAlchemy stores enum member NAMES (uppercase): UPCOMING, ACTIVE, PAST
+    # Status is now computed from dates, so we use UPCOMING as default for future events
+    # draft/DRAFT -> UPCOMING
+    # preparation/PREPARATION -> UPCOMING
+    # planning/PLANNING -> UPCOMING (in case migration ran with old value)
     # active/ACTIVE -> ACTIVE
     # completed/COMPLETED -> PAST
     # archived/ARCHIVED -> PAST
     op.execute(
-        "UPDATE events SET status = 'PLANNING' "
-        "WHERE status IN ('draft', 'DRAFT')"
+        "UPDATE events SET status = 'UPCOMING' "
+        "WHERE status IN ('draft', 'DRAFT', 'planning', 'PLANNING')"
     )
     op.execute(
-        "UPDATE events SET status = 'PLANNING' "
+        "UPDATE events SET status = 'UPCOMING' "
         "WHERE status IN ('preparation', 'PREPARATION')"
     )
     op.execute(

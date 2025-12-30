@@ -28,6 +28,7 @@ class CompanyCreate(CompanyBase):
     webpage: str | None = Field(None, max_length=500)
     address: str | None = None
     country: str | None = Field(None, max_length=100)
+    base_currency: str = Field(default="EUR", min_length=3, max_length=3)
 
 
 class CompanyUpdate(BaseModel):
@@ -40,6 +41,7 @@ class CompanyUpdate(BaseModel):
     webpage: str | None = Field(None, max_length=500)
     address: str | None = None
     country: str | None = Field(None, max_length=100)
+    base_currency: str | None = Field(None, min_length=3, max_length=3)
 
 
 class CompanyResponse(BaseModel):
@@ -54,6 +56,7 @@ class CompanyResponse(BaseModel):
     address: str | None = None
     country: str | None = None
     logo_path: str | None = None
+    base_currency: str
     contacts: list[Any] = []  # CompanyContactResponse, forward reference
     created_at: datetime.datetime
     updated_at: datetime.datetime

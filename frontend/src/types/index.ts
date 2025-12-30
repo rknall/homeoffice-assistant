@@ -26,6 +26,12 @@ export interface AuthStatus {
   registration_enabled: boolean
 }
 
+// Currency types
+export interface Currency {
+  code: string
+  name: string
+}
+
 // Company types
 export type CompanyType = 'employer' | 'third_party'
 
@@ -99,6 +105,7 @@ export interface Company {
   address: string | null
   country: string | null
   logo_path: string | null
+  base_currency: string
   contacts: CompanyContact[]
   created_at: string
   updated_at: string
@@ -112,6 +119,7 @@ export interface CompanyCreate {
   webpage?: string | null
   address?: string | null
   country?: string | null
+  base_currency?: string
 }
 
 export interface CompanyUpdate {
@@ -122,6 +130,7 @@ export interface CompanyUpdate {
   webpage?: string | null
   address?: string | null
   country?: string | null
+  base_currency?: string
 }
 
 // Event types
@@ -209,6 +218,10 @@ export interface Expense {
   description: string | null
   status: ExpenseStatus
   original_filename: string | null
+  // Currency conversion fields
+  converted_amount: number | null
+  exchange_rate: number | null
+  rate_date: string | null
   created_at: string
   updated_at: string
 }
@@ -679,6 +692,7 @@ export interface ExpenseSummary {
   total: number
   by_category: ExpenseByCategory[]
   period_days: number
+  base_currency: string
 }
 
 export interface DashboardSummary {

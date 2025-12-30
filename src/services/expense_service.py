@@ -135,23 +135,45 @@ def bulk_update_payment_type(
 
 
 def get_expense_summary(db: Session, event_id: uuid.UUID) -> dict:
-    """Get expense summary for an event."""
+    """Get expense summary for an event.
+
+    Uses converted_amount for proper multi-currency totals.
+    Returns the event's company base_currency.
+    """
+    from src.models import Event
+
     expenses = get_expenses(db, event_id)
-    total = sum(e.amount for e in expenses)
+
+    # Get the event's company base currency
+    event = db.query(Event).filter(Event.id == event_id).first()
+    base_currency = event.company.base_currency if event and event.company else "EUR"
+
+    # Sum converted amounts (or raw amount if no conversion yet)
+    total = sum(
+        e.converted_amount if e.converted_amount is not None else e.amount
+        for e in expenses
+    )
     by_category = {}
     by_payment_type = {}
 
     for expense in expenses:
+        # Use converted amount for aggregations
+        amount = float(
+            expense.converted_amount
+            if expense.converted_amount is not None
+            else expense.amount
+        )
+
         cat = expense.category.value
-        by_category[cat] = by_category.get(cat, 0) + float(expense.amount)
+        by_category[cat] = by_category.get(cat, 0) + amount
 
         pt = expense.payment_type.value
-        by_payment_type[pt] = by_payment_type.get(pt, 0) + float(expense.amount)
+        by_payment_type[pt] = by_payment_type.get(pt, 0) + amount
 
     return {
         "total": float(total),
         "count": len(expenses),
         "by_category": by_category,
         "by_payment_type": by_payment_type,
-        "currency": expenses[0].currency if expenses else "EUR",
+        "currency": base_currency,
     }

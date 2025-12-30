@@ -30,6 +30,7 @@ import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
+import { CurrencySelect } from '@/components/ui/CurrencySelect'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
@@ -1054,7 +1055,11 @@ export function EventDetail() {
               {...register('amount')}
               error={errors.amount?.message}
             />
-            <Input label="Currency" {...register('currency')} error={errors.currency?.message} />
+            <CurrencySelect
+                  label="Currency"
+                  {...register('currency')}
+                  error={errors.currency?.message}
+                />
           </div>
           <Select
             label="Payment Type"
@@ -1295,7 +1300,7 @@ export function EventDetail() {
                   {...registerDocExpense('amount')}
                   error={docExpenseErrors.amount?.message}
                 />
-                <Input
+                <CurrencySelect
                   label="Currency"
                   {...registerDocExpense('currency')}
                   error={docExpenseErrors.currency?.message}
@@ -1394,7 +1399,7 @@ export function EventDetail() {
                   {...registerEditExpense('amount')}
                   error={editExpenseErrors.amount?.message}
                 />
-                <Input
+                <CurrencySelect
                   label="Currency"
                   {...registerEditExpense('currency')}
                   error={editExpenseErrors.currency?.message}

@@ -54,7 +54,7 @@ export function ExpenseBreakdown({ summary }: ExpenseBreakdownProps) {
             Expenses <span className="text-sm font-normal text-gray-500">(Last 90 days)</span>
           </CardTitle>
           <span className="text-lg font-semibold text-gray-900">
-            EUR {summary.total.toFixed(2)}
+            {summary.base_currency} {summary.total.toFixed(2)}
           </span>
         </div>
       </CardHeader>

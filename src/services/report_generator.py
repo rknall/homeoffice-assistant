@@ -53,18 +53,31 @@ class ExpenseReportGenerator:
         """Return summary without generating files."""
         expenses = expense_service.get_expenses(self.db, event.id)
 
-        total = sum(e.amount for e in expenses)
+        # Use converted amounts for totals, fall back to original if not converted
+        total = sum(
+            e.converted_amount if e.converted_amount is not None else e.amount
+            for e in expenses
+        )
         documents_available = sum(1 for e in expenses if e.paperless_doc_id)
 
         by_category: dict[str, Decimal] = {}
         by_payment_type: dict[str, Decimal] = {}
 
         for expense in expenses:
+            # Use converted amount for aggregations
+            amount = (
+                expense.converted_amount
+                if expense.converted_amount is not None
+                else expense.amount
+            )
             cat = expense.category.value
-            by_category[cat] = by_category.get(cat, Decimal(0)) + expense.amount
+            by_category[cat] = by_category.get(cat, Decimal(0)) + amount
 
             pt = expense.payment_type.value
-            by_payment_type[pt] = by_payment_type.get(pt, Decimal(0)) + expense.amount
+            by_payment_type[pt] = by_payment_type.get(pt, Decimal(0)) + amount
+
+        # Get base currency from company
+        base_currency = event.company.base_currency if event.company else "EUR"
 
         return {
             "event_id": event.id,
@@ -75,7 +88,7 @@ class ExpenseReportGenerator:
             "expense_count": len(expenses),
             "documents_available": documents_available,
             "total": float(total),
-            "currency": expenses[0].currency if expenses else "EUR",
+            "currency": base_currency,
             "by_category": {k: float(v) for k, v in by_category.items()},
             "by_payment_type": {k: float(v) for k, v in by_payment_type.items()},
             "paperless_configured": self.paperless is not None,
@@ -86,10 +99,13 @@ class ExpenseReportGenerator:
         event: Event,
         expenses: list[Expense],
     ) -> bytes:
-        """Create Excel spreadsheet for expenses."""
+        """Create Excel spreadsheet for expenses with currency conversion info."""
         wb = Workbook()
         ws = wb.active
         ws.title = "Expenses"
+
+        # Get base currency from company
+        base_currency = event.company.base_currency if event.company else "EUR"
 
         # Styles
         header_font = Font(bold=True, color="FFFFFF")
@@ -103,11 +119,12 @@ class ExpenseReportGenerator:
             top=Side(style="thin"),
             bottom=Side(style="thin"),
         )
-        currency_format = '#,##0.00 "€"'
+        amount_format = "#,##0.00"
+        rate_format = "0.000000"
         date_format = "YYYY-MM-DD"
 
         # Title row
-        ws.merge_cells("A1:G1")
+        ws.merge_cells("A1:L1")
         title_cell = ws["A1"]
         title_cell.value = f"Expense Report: {event.name}"
         title_cell.font = Font(bold=True, size=14)
@@ -119,18 +136,24 @@ class ExpenseReportGenerator:
         end = _format_date(event.end_date)
         ws["A3"] = f"Period: {start} to {end}"
         ws["A4"] = f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        ws["A5"] = f"Base Currency: {base_currency}"
 
-        # Headers
+        # Headers - expanded for currency conversion
         headers = [
             "#",
             "Date",
             "Description",
             "Category",
-            "Payment Type",
+            "Payment",
             "Amount",
+            "Currency",
+            "Converted",
+            "Base Curr",
+            "Rate",
+            "Rate Date",
             "Document",
         ]
-        header_row = 6
+        header_row = 7
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=header_row, column=col, value=header)
             cell.font = header_font
@@ -139,32 +162,72 @@ class ExpenseReportGenerator:
             cell.border = border
 
         # Data rows
-        total = Decimal(0)
+        total_original = Decimal(0)
+        total_converted = Decimal(0)
         for idx, expense in enumerate(expenses, 1):
             row = header_row + idx
             ws.cell(row=row, column=1, value=idx).border = border
+
             date_cell = ws.cell(row=row, column=2, value=expense.date)
             date_cell.number_format = date_format
             date_cell.border = border
+
             ws.cell(row=row, column=3, value=expense.description or "").border = border
             ws.cell(row=row, column=4, value=expense.category.value).border = border
             ws.cell(row=row, column=5, value=expense.payment_type.value).border = border
+
+            # Original amount and currency
             amount_cell = ws.cell(row=row, column=6, value=float(expense.amount))
-            amount_cell.number_format = currency_format
+            amount_cell.number_format = amount_format
             amount_cell.border = border
+            ws.cell(row=row, column=7, value=expense.currency).border = border
+
+            # Converted amount (or original if same currency)
+            converted = (
+                expense.converted_amount
+                if expense.converted_amount is not None
+                else expense.amount
+            )
+            conv_cell = ws.cell(row=row, column=8, value=float(converted))
+            conv_cell.number_format = amount_format
+            conv_cell.border = border
+
+            ws.cell(row=row, column=9, value=base_currency).border = border
+
+            # Exchange rate
+            rate = expense.exchange_rate if expense.exchange_rate else Decimal(1)
+            rate_cell = ws.cell(row=row, column=10, value=float(rate))
+            rate_cell.number_format = rate_format
+            rate_cell.border = border
+
+            # Rate date
+            rate_date = expense.rate_date if expense.rate_date else expense.date
+            rate_date_cell = ws.cell(row=row, column=11, value=rate_date)
+            rate_date_cell.number_format = date_format
+            rate_date_cell.border = border
+
             doc_ref = f"{idx:02d}_*.pdf" if expense.paperless_doc_id else "N/A"
-            ws.cell(row=row, column=7, value=doc_ref).border = border
-            total += expense.amount
+            ws.cell(row=row, column=12, value=doc_ref).border = border
+
+            total_original += expense.amount
+            total_converted += converted
 
         # Total row
         total_row = header_row + len(expenses) + 1
-        ws.cell(row=total_row, column=5, value="Total:").font = Font(bold=True)
-        total_cell = ws.cell(row=total_row, column=6, value=float(total))
-        total_cell.font = Font(bold=True)
-        total_cell.number_format = currency_format
+        ws.cell(row=total_row, column=5, value="Totals:").font = Font(bold=True)
+
+        orig_total_cell = ws.cell(row=total_row, column=6, value=float(total_original))
+        orig_total_cell.font = Font(bold=True)
+        orig_total_cell.number_format = amount_format
+
+        conv_total_cell = ws.cell(row=total_row, column=8, value=float(total_converted))
+        conv_total_cell.font = Font(bold=True)
+        conv_total_cell.number_format = amount_format
+
+        ws.cell(row=total_row, column=9, value=base_currency).font = Font(bold=True)
 
         # Adjust column widths
-        column_widths = [5, 12, 40, 15, 15, 15, 15]
+        column_widths = [5, 12, 35, 14, 12, 12, 8, 12, 8, 12, 12, 12]
         for col, width in enumerate(column_widths, 1):
             ws.column_dimensions[get_column_letter(col)].width = width
 

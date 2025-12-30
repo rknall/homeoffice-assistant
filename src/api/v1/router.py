@@ -10,6 +10,7 @@ from src.api.v1 import (
     companies,
     company_contacts,
     contacts,
+    currencies,
     dashboard,
     email_templates,
     events,
@@ -34,6 +35,9 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 
 # Dashboard routes
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
+
+# Currency routes
+api_router.include_router(currencies.router, tags=["currencies"])
 
 # Integration routes
 api_router.include_router(

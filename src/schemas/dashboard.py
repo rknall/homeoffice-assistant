@@ -72,6 +72,7 @@ class ExpenseSummary(BaseModel):
     total: SerializedDecimal
     by_category: list[ExpenseByCategory]
     period_days: int = 90
+    base_currency: str = "EUR"
 
 
 class DashboardSummary(BaseModel):

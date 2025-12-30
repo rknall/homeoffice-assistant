@@ -75,6 +75,10 @@ class ExpenseResponse(BaseModel):
     description: str | None
     status: ExpenseStatus
     original_filename: str | None
+    # Currency conversion fields
+    converted_amount: Decimal | None
+    exchange_rate: Decimal | None
+    rate_date: datetime.date | None
     created_at: datetime.datetime
     updated_at: datetime.datetime
 

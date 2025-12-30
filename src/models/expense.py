@@ -52,5 +52,14 @@ class Expense(Base, TimestampMixin):
     )
     original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
+    # Currency conversion fields
+    converted_amount: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 2), nullable=True
+    )
+    exchange_rate: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 6), nullable=True
+    )
+    rate_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
     # Relationships
     event: Mapped[Event] = relationship("Event", back_populates="expenses")

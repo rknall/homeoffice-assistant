@@ -4,6 +4,18 @@
 
 ### Major Features
 
+#### Multi-Currency Support
+- Automatic currency conversion for expenses using ECB exchange rates via frankfurter.app
+- Company base currency setting that flows to all expense calculations
+- Each expense stores original amount, converted amount, exchange rate, and rate date for full audit trail
+- Currency selector populated from supported currencies API (no invalid currency codes)
+- Dashboard expense breakdown now shows totals in the company's base currency
+- Exchange rates cached locally to minimize API calls
+- Falls back to nearest available rate for weekends/holidays
+- Excel expense reports now include both original and converted amounts with exchange rate info
+- `GET /api/v1/currencies` endpoint returns list of supported currencies
+- New CurrencyCache model for storing historical exchange rates
+
 #### Todo Management
 - Full todo CRUD on event detail page with tabbed interface
 - Category-based organization (Travel, Accommodation, Preparation, Equipment, Contacts, Follow-up, Other)

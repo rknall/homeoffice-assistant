@@ -48,6 +48,9 @@ class Company(Base, TimestampMixin):
     country: Mapped[str | None] = mapped_column(String(100), nullable=True)
     logo_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
+    # Currency for expense reports
+    base_currency: Mapped[str] = mapped_column(String(3), default="EUR", nullable=False)
+
     # Relationships
     events: Mapped[list[Event]] = relationship(
         "Event",

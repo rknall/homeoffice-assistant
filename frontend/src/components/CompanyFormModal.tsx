@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { api, getCompanyLogoUrl, uploadCompanyLogo } from '@/api/client'
 import { CountryAutocomplete } from '@/components/CountryAutocomplete'
 import { Button } from '@/components/ui/Button'
+import { CurrencySelect } from '@/components/ui/CurrencySelect'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
@@ -21,6 +22,7 @@ const companySchema = z.object({
   address: z.string().max(1000).optional(),
   country: z.string().max(100).optional(),
   paperless_storage_path_id: z.string().optional(),
+  base_currency: z.string().length(3, 'Currency must be 3 characters').optional(),
 })
 
 type CompanyFormData = z.infer<typeof companySchema>
@@ -60,6 +62,7 @@ export function CompanyFormModal({ isOpen, onClose, onSuccess, company }: Compan
   })
 
   const currentCountry = watch('country')
+  const currentBaseCurrency = watch('base_currency')
 
   // Fetch storage paths for Paperless integration
   const fetchStoragePaths = useCallback(async () => {
@@ -116,6 +119,7 @@ export function CompanyFormModal({ isOpen, onClose, onSuccess, company }: Compan
           address: company.address || '',
           country: company.country || '',
           paperless_storage_path_id: company.paperless_storage_path_id?.toString() || '',
+          base_currency: company.base_currency || 'EUR',
         })
         setLogoPreview(company.logo_path ? getCompanyLogoUrl(company.id) : null)
       } else {
@@ -127,6 +131,7 @@ export function CompanyFormModal({ isOpen, onClose, onSuccess, company }: Compan
           address: '',
           country: detectedCountry,
           paperless_storage_path_id: '',
+          base_currency: 'EUR',
         })
         setLogoPreview(null)
       }
@@ -188,6 +193,7 @@ export function CompanyFormModal({ isOpen, onClose, onSuccess, company }: Compan
         paperless_storage_path_id: data.paperless_storage_path_id
           ? parseInt(data.paperless_storage_path_id, 10)
           : null,
+        base_currency: data.base_currency || 'EUR',
       }
 
       let savedCompany: Company
@@ -308,6 +314,13 @@ export function CompanyFormModal({ isOpen, onClose, onSuccess, company }: Compan
           value={currentCountry || ''}
           onChange={(value) => setValue('country', value)}
           error={errors.country?.message}
+        />
+
+        <CurrencySelect
+          label="Base Currency"
+          defaultValue={currentBaseCurrency || 'EUR'}
+          {...register('base_currency')}
+          error={errors.base_currency?.message}
         />
 
         {storagePaths.length > 0 && (

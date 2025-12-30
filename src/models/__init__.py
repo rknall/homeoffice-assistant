@@ -15,6 +15,7 @@ from src.models.enums import (
     ExpenseStatus,
     IntegrationType,
     NoteType,
+    OffsetReference,
     PaymentType,
     TodoCategory,
 )
@@ -31,6 +32,7 @@ from src.models.role_permission import RolePermission
 from src.models.session import Session
 from src.models.system_settings import SystemSettings
 from src.models.todo import Todo
+from src.models.todo_template import TodoTemplate
 from src.models.user import User
 from src.models.user_role import UserRole
 
@@ -52,6 +54,7 @@ __all__ = [
     "LocationImage",
     "Note",
     "NoteType",
+    "OffsetReference",
     "PaymentType",
     "Permission",
     "PhotoReference",
@@ -64,6 +67,7 @@ __all__ = [
     "TimestampMixin",
     "Todo",
     "TodoCategory",
+    "TodoTemplate",
     "User",
     "UserRole",
 ]

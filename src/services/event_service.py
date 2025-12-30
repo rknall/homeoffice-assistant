@@ -259,8 +259,6 @@ async def sync_event_to_paperless_custom_field(db: Session, event: Event) -> boo
         await provider.close()
 
 
-
-
 def get_event_summaries(
     db: Session,
     event_ids: list[uuid.UUID],

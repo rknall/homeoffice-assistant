@@ -10,7 +10,12 @@ from sqlalchemy.orm import Session
 from src.api.deps import get_current_user, get_db
 from src.models import Todo, User
 from src.schemas.todo import TodoCreate, TodoResponse, TodoUpdate
-from src.services import event_service
+from src.schemas.todo_template import (
+    ApplyTemplatesRequest,
+    ApplyTemplatesResponse,
+    TemplateSetWithComputedDates,
+)
+from src.services import event_service, todo_template_service
 
 router = APIRouter()
 
@@ -29,6 +34,57 @@ def list_todos(
             detail="Event not found",
         )
     return [TodoResponse.model_validate(t) for t in event.todos]
+
+
+@router.get(
+    "/{event_id}/todos/templates",
+    response_model=list[TemplateSetWithComputedDates],
+)
+def get_templates_for_event(
+    event_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[TemplateSetWithComputedDates]:
+    """Get template sets with computed due dates for an event."""
+    event = event_service.get_event_for_user(db, event_id, current_user.id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    return todo_template_service.get_template_sets_with_computed_dates(
+        db, current_user.id, event_id
+    )
+
+
+@router.post(
+    "/{event_id}/todos/from-templates",
+    response_model=ApplyTemplatesResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def apply_templates_to_event(
+    event_id: uuid.UUID,
+    data: ApplyTemplatesRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ApplyTemplatesResponse:
+    """Apply selected templates to an event, creating todos."""
+    event = event_service.get_event_for_user(db, event_id, current_user.id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    count, created_ids = todo_template_service.apply_templates_to_event(
+        db, event_id, data.template_ids
+    )
+
+    return ApplyTemplatesResponse(
+        created_count=count,
+        todos_created=created_ids,
+    )
 
 
 @router.post(

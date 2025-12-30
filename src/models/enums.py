@@ -72,6 +72,13 @@ class TodoCategory(str, Enum):
     OTHER = "other"
 
 
+class OffsetReference(str, Enum):
+    """Reference date for todo template due date calculation."""
+
+    START_DATE = "start_date"
+    END_DATE = "end_date"
+
+
 class IntegrationType(str, Enum):
     """Integration type enumeration."""
 

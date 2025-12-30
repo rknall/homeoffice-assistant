@@ -1,26 +1,29 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
 
-import { Plus } from 'lucide-react'
+import { ClipboardList, Plus } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
 import { TodoFormModal } from '@/components/TodoFormModal'
 import { TodoItem } from '@/components/TodoItem'
+import { TodoTemplatePickerModal } from '@/components/TodoTemplatePickerModal'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
-import type { Todo, TodoCreate, TodoUpdate, Uuid } from '@/types'
+import type { Event, Todo, TodoCreate, TodoUpdate, Uuid } from '@/types'
 
 interface TodoListProps {
   eventId: Uuid
+  event?: Event
   onTodoCountChange?: (total: number, incomplete: number) => void
 }
 
-export function TodoList({ eventId, onTodoCountChange }: TodoListProps) {
+export function TodoList({ eventId, event, onTodoCountChange }: TodoListProps) {
   const [todos, setTodos] = useState<Todo[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -145,10 +148,18 @@ export function TodoList({ eventId, onTodoCountChange }: TodoListProps) {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold">Todos</h3>
-        <Button onClick={() => setIsModalOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Todo
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setIsModalOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Todo
+          </Button>
+          {event && (
+            <Button variant="secondary" onClick={() => setIsTemplateModalOpen(true)}>
+              <ClipboardList className="h-4 w-4 mr-2" />
+              Add from Template
+            </Button>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -204,6 +215,19 @@ export function TodoList({ eventId, onTodoCountChange }: TodoListProps) {
         todo={editingTodo}
         isLoading={isSaving}
       />
+
+      {/* Template Picker Modal */}
+      {event && (
+        <TodoTemplatePickerModal
+          isOpen={isTemplateModalOpen}
+          onClose={() => setIsTemplateModalOpen(false)}
+          event={event}
+          onApply={() => {
+            fetchTodos()
+            setIsTemplateModalOpen(false)
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -4,6 +4,7 @@
 import {
   Building2,
   Calendar,
+  ClipboardList,
   FileText,
   Globe,
   HardDrive,
@@ -57,6 +58,7 @@ const settingsSubItems = [
   { to: '/settings/integrations', label: 'Integrations', icon: Link2 },
   { to: '/settings/plugins', label: 'Plugins', icon: Puzzle },
   { to: '/settings/templates', label: 'Email Templates', icon: Mail },
+  { to: '/settings/todo-templates', label: 'Todo Templates', icon: ClipboardList },
   { to: '/settings/backup', label: 'Backup', icon: HardDrive },
   { to: '/settings/users', label: 'Users', icon: Users },
   { to: '/settings/roles', label: 'Roles', icon: Shield },

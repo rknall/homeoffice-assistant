@@ -159,3 +159,43 @@ export async function uploadCompanyLogo(companyId: string, file: File) {
 export function getCompanyLogoUrl(companyId: string): string {
   return `${API_BASE}/companies/${companyId}/logo`
 }
+
+// Todo Template API functions
+import type {
+  ApplyTemplatesRequest,
+  ApplyTemplatesResponse,
+  TemplateSet,
+  TemplateSetWithComputedDates,
+  TodoTemplate,
+  TodoTemplateCreate,
+  TodoTemplateUpdate,
+} from '../types'
+
+export const todoTemplatesApi = {
+  /** Get all template sets (global + user's) */
+  getTemplateSets: () => api.get<TemplateSet[]>('/todo-templates'),
+
+  /** Get all templates as a flat list */
+  getAllTemplates: () => api.get<TodoTemplate[]>('/todo-templates/all'),
+
+  /** Get a specific template */
+  getTemplate: (id: string) => api.get<TodoTemplate>(`/todo-templates/${id}`),
+
+  /** Create a new user template */
+  createTemplate: (data: TodoTemplateCreate) => api.post<TodoTemplate>('/todo-templates', data),
+
+  /** Update a user template */
+  updateTemplate: (id: string, data: TodoTemplateUpdate) =>
+    api.put<TodoTemplate>(`/todo-templates/${id}`, data),
+
+  /** Delete a user template */
+  deleteTemplate: (id: string) => api.delete<void>(`/todo-templates/${id}`),
+
+  /** Get templates with computed due dates for an event */
+  getTemplatesForEvent: (eventId: string) =>
+    api.get<TemplateSetWithComputedDates[]>(`/events/${eventId}/todos/templates`),
+
+  /** Apply selected templates to an event */
+  applyTemplatesToEvent: (eventId: string, data: ApplyTemplatesRequest) =>
+    api.post<ApplyTemplatesResponse>(`/events/${eventId}/todos/from-templates`, data),
+}

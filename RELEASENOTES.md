@@ -13,6 +13,15 @@
 - Incomplete todo count badge on Todos tab
 - Sorted display: incomplete todos first (by due date), then completed
 
+#### Todo Templates
+- Predefined todo templates that users can apply to events with a single click
+- Templates include calculated due dates relative to event start/end dates (e.g., "14 days before start")
+- Global system templates seeded on first run: Business Trip and Conference Event sets
+- User-defined custom templates manageable in Settings > Todo Templates
+- "Add from Template" button on event Todos tab for multi-select template application
+- Template picker modal shows computed due dates before applying
+- Template sets group related todos (e.g., "Business Trip" includes flight, accommodation, documents, expenses)
+
 #### Report Tracking
 - Events now track when expense reports were sent/exported via `report_sent_at` timestamp
 - Dashboard "Reports Due" section only shows events that haven't had a report sent

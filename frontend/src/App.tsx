@@ -20,6 +20,7 @@ import { PluginSettings } from '@/pages/settings/PluginSettings'
 import { RegionalSettings } from '@/pages/settings/RegionalSettings'
 import { RoleDetail } from '@/pages/settings/RoleDetail'
 import { Roles } from '@/pages/settings/Roles'
+import { TodoTemplateSettings } from '@/pages/settings/TodoTemplateSettings'
 import { UserDetail } from '@/pages/settings/UserDetail'
 import { Users } from '@/pages/settings/Users'
 import { PluginProvider, usePluginRoutes } from '@/plugins'
@@ -50,6 +51,7 @@ function AppRoutes() {
         <Route path="/settings/integrations" element={<IntegrationSettings />} />
         <Route path="/settings/plugins" element={<PluginSettings />} />
         <Route path="/settings/templates" element={<EmailTemplateSettings />} />
+        <Route path="/settings/todo-templates" element={<TodoTemplateSettings />} />
         <Route path="/settings/backup" element={<BackupSettings />} />
         <Route path="/settings/roles" element={<Roles />} />
         <Route path="/settings/roles/:id" element={<RoleDetail />} />

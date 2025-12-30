@@ -22,6 +22,7 @@ from src.api.v1 import (
     rbac,
     reports,
     settings,
+    todo_templates,
     todos,
     users,
 )
@@ -61,6 +62,11 @@ api_router.include_router(notes.router, prefix="/events", tags=["notes"])
 
 # Todo routes (nested under events)
 api_router.include_router(todos.router, prefix="/events", tags=["todos"])
+
+# Todo template routes
+api_router.include_router(
+    todo_templates.router, prefix="/todo-templates", tags=["todo-templates"]
+)
 
 # Report routes (nested under events)
 api_router.include_router(reports.router, prefix="/events", tags=["reports"])

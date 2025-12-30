@@ -45,9 +45,7 @@ def list_events(
 
     if include_summary:
         # Get summaries for all events in one query
-        summaries = event_service.get_event_summaries(
-            db, [e.id for e in events]
-        )
+        summaries = event_service.get_event_summaries(db, [e.id for e in events])
         result = []
         for e in events:
             response = EventWithSummary.model_validate(e)
@@ -135,17 +133,6 @@ async def update_event(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Company not found",
             )
-
-    # Validate status transition
-    if (
-        data.status
-        and data.status != event.status
-        and not event_service.can_transition_status(event.status, data.status)
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid: {event.status.value} -> {data.status.value}",
-        )
 
     event = event_service.update_event(db, event, data)
 

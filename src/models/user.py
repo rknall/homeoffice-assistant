@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from src.models.event import Event
     from src.models.integration_config import IntegrationConfig
     from src.models.session import Session
+    from src.models.todo_template import TodoTemplate
     from src.models.user_role import UserRole
 
 
@@ -55,6 +56,11 @@ class User(Base, TimestampMixin):
     user_roles: Mapped[list[UserRole]] = relationship(
         "UserRole",
         foreign_keys="[UserRole.user_id]",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    todo_templates: Mapped[list[TodoTemplate]] = relationship(
+        "TodoTemplate",
         back_populates="user",
         cascade="all, delete-orphan",
     )

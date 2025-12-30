@@ -10,6 +10,7 @@ from src.services import (
     expense_service,
     integration_service,
     todo_service,
+    todo_template_service,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "expense_service",
     "integration_service",
     "todo_service",
+    "todo_template_service",
 ]

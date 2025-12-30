@@ -696,3 +696,71 @@ export interface EventWithSummary extends Event {
   todo_count: number
   todo_incomplete_count: number
 }
+
+// Todo Template types
+export type OffsetReference = 'start_date' | 'end_date'
+
+export const OFFSET_REFERENCE_LABELS: Record<OffsetReference, string> = {
+  start_date: 'Start Date',
+  end_date: 'End Date',
+}
+
+export interface TodoTemplate {
+  id: Uuid
+  title: string
+  description: string | null
+  category: TodoCategory
+  days_offset: number
+  offset_reference: OffsetReference
+  template_set_name: string
+  is_global: boolean
+  user_id: Uuid | null
+  display_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface TodoTemplateWithComputedDate extends TodoTemplate {
+  computed_due_date: string | null
+}
+
+export interface TodoTemplateCreate {
+  title: string
+  description?: string | null
+  category?: TodoCategory
+  days_offset?: number
+  offset_reference?: OffsetReference
+  template_set_name: string
+  display_order?: number
+}
+
+export interface TodoTemplateUpdate {
+  title?: string
+  description?: string | null
+  category?: TodoCategory
+  days_offset?: number
+  offset_reference?: OffsetReference
+  template_set_name?: string
+  display_order?: number
+}
+
+export interface TemplateSet {
+  name: string
+  templates: TodoTemplate[]
+  is_global: boolean
+}
+
+export interface TemplateSetWithComputedDates {
+  name: string
+  templates: TodoTemplateWithComputedDate[]
+  is_global: boolean
+}
+
+export interface ApplyTemplatesRequest {
+  template_ids: Uuid[]
+}
+
+export interface ApplyTemplatesResponse {
+  created_count: number
+  todos_created: Uuid[]
+}

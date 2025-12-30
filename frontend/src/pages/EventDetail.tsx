@@ -1030,6 +1030,7 @@ export function EventDetail() {
         <TabPanel value="todos" className="bg-white rounded-b-lg shadow p-6">
           <TodoList
             eventId={id!}
+            event={event ?? undefined}
             onTodoCountChange={(_, incomplete) => setTodoIncompleteCount(incomplete)}
           />
         </TabPanel>

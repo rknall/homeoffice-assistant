@@ -80,6 +80,16 @@ from src.schemas.todo import (
     TodoResponse,
     TodoUpdate,
 )
+from src.schemas.todo_template import (
+    ApplyTemplatesRequest,
+    ApplyTemplatesResponse,
+    TemplateSetResponse,
+    TemplateSetWithComputedDates,
+    TodoTemplateCreate,
+    TodoTemplateResponse,
+    TodoTemplateUpdate,
+    TodoTemplateWithComputedDate,
+)
 from src.schemas.user import (
     UserCreate,
     UserResponse,
@@ -87,6 +97,9 @@ from src.schemas.user import (
 )
 
 __all__ = [
+    # Todo Template
+    "ApplyTemplatesRequest",
+    "ApplyTemplatesResponse",
     "AuthResponse",
     "AuthStatusResponse",
     # Company Contact
@@ -147,10 +160,16 @@ __all__ = [
     "TemplatePreviewRequest",
     "TemplatePreviewResponse",
     "TemplateReason",
+    "TemplateSetResponse",
+    "TemplateSetWithComputedDates",
     "TemplateVariableInfo",
     # Todo
     "TodoCreate",
     "TodoResponse",
+    "TodoTemplateCreate",
+    "TodoTemplateResponse",
+    "TodoTemplateUpdate",
+    "TodoTemplateWithComputedDate",
     "TodoUpdate",
     # User
     "UserCreate",

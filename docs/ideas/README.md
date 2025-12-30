@@ -4,14 +4,27 @@ This folder contains ideas for future features. Each idea is documented in its o
 
 ## Ideas
 
+### Core Features
 | Idea | Status | Description |
 |------|--------|-------------|
+| [Company Documents](company-documents.md) | Not Started | Attach contracts, NDAs, policies to companies with expiry tracking |
+| [Travel Report Generation](travel-report-generation.md) | Partially Planned | Generate narrative trip reports with photos |
+| [Recurring Events](recurring-events.md) | Not Started | Event templates and optional recurrence patterns |
+
+### Plugins
+| Idea | Status | Description |
+|------|--------|-------------|
+| [Time/Working Hours Tracking](time-tracking.md) | Not Started | Track working hours per event/company/project (plugin) |
+| [Business Card Scanner](business-card-scanner.md) | Not Started | Vision-based contact extraction from business cards (plugin) |
 | [Local OCR for Expenses](local-ocr-expense-recognition.md) | Not Started | Use Ollama vision models to extract expense data from receipts |
+
+### Infrastructure & Integrations
+| Idea | Status | Description |
+|------|--------|-------------|
 | [OAuth2/OIDC Authentication](oauth2-oidc-authentication.md) | Planned v0.3+ | Single sign-on with Keycloak, Authentik, etc. |
 | [File Storage Integrations](file-storage-integrations.md) | Not Started | S3, WebDAV, Nextcloud for document storage |
 | [Calendar Integration](calendar-integration.md) | Not Started | Sync events with calendar apps (ICS, CalDAV) |
 | [Task Management Integration](task-management-integration.md) | Not Started | Sync todos with Todoist, Things, etc. |
-| [Travel Report Generation](travel-report-generation.md) | Partially Planned | Generate narrative trip reports with photos |
 
 ## Contributing Ideas
 

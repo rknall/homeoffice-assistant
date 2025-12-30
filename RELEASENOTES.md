@@ -42,6 +42,7 @@
 - Event status (Upcoming/Active/Past) is now automatically computed from dates
 - Removed manual status controls - status is derived from start_date and end_date
 - UPCOMING: start_date > today, ACTIVE: start_date <= today <= end_date, PAST: end_date < today
+- Removed legacy `status` column from database (migration included)
 
 #### Plugin System
 - Extensible plugin architecture for third-party extensions

@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 from sqlalchemy import (
     Date,
     DateTime,
-    Enum,
     Float,
     ForeignKey,
     Integer,
@@ -20,7 +19,6 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, TimestampMixin
-from src.models.enums import EventStatus
 
 if TYPE_CHECKING:
     from src.models.company import Company
@@ -56,13 +54,7 @@ class Event(Base, TimestampMixin):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
-    # Note: status is computed from dates in response schemas, this column is kept
-    # for backward compatibility but the stored value is not used for filtering
-    status: Mapped[EventStatus] = mapped_column(
-        Enum(EventStatus),
-        default=EventStatus.UPCOMING,
-        nullable=False,
-    )
+    # Note: status is computed from dates in response schemas (not stored)
     external_tag: Mapped[str | None] = mapped_column(
         String(200),
         nullable=True,

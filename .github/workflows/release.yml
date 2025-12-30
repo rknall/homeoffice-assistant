@@ -32,15 +32,47 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Parse version info
+        id: version
+        env:
+          # GITHUB_REF_NAME is safe - it's the git tag name, not user input
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          # Extract version from tag (remove 'v' prefix)
+          VERSION="${REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          # Check if this is a prerelease (contains alpha, beta, or rc)
+          if [[ "$VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-(alpha|beta|rc)([0-9]+)$ ]]; then
+            BASE_VERSION="${BASH_REMATCH[1]}"
+            PRERELEASE_TYPE="${BASH_REMATCH[2]}"
+            echo "base_version=$BASE_VERSION" >> "$GITHUB_OUTPUT"
+            echo "prerelease_type=$PRERELEASE_TYPE" >> "$GITHUB_OUTPUT"
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            # Channel tag: 0.3.0-beta (without the number)
+            echo "channel_tag=$BASE_VERSION-$PRERELEASE_TYPE" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+            # For stable releases, extract major.minor
+            if [[ "$VERSION" =~ ^([0-9]+\.[0-9]+)\.[0-9]+$ ]]; then
+              echo "minor_tag=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable={{is_default_branch}}
+            # Always include the exact version
+            type=raw,value=${{ steps.version.outputs.version }}
+            # For prereleases: add channel tag (e.g., 0.3.0-beta) and type tag (e.g., beta)
+            type=raw,value=${{ steps.version.outputs.channel_tag }},enable=${{ steps.version.outputs.is_prerelease == 'true' }}
+            type=raw,value=${{ steps.version.outputs.prerelease_type }},enable=${{ steps.version.outputs.is_prerelease == 'true' }}
+            # For stable releases: add minor tag (e.g., 0.3) and latest
+            type=raw,value=${{ steps.version.outputs.minor_tag }},enable=${{ steps.version.outputs.is_prerelease == 'false' && steps.version.outputs.minor_tag != '' }}
+            type=raw,value=latest,enable=${{ steps.version.outputs.is_prerelease == 'false' }}
 
       - name: Build and push
         uses: docker/build-push-action@v5

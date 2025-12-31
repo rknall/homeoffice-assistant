@@ -1,8 +1,18 @@
 # Release Notes
 
-## Version 0.3.0-rc2
+## Version 0.3.0
 
 ### Major Features
+
+#### Document References
+- Link Paperless documents to events without creating expenses (for contracts, itineraries, confirmations, etc.)
+- Redesigned Documents tab with two sections: "Linked Documents" and "Available from Paperless"
+- Document type categorization (Contract, Itinerary, Confirmation, Other) with styled badges
+- Notes field for adding context to linked documents
+- "Include in reports" option for document references
+- Consistent action buttons: View, Edit, Unlink (no dangerous delete from Paperless)
+- Documents linked to expenses or as references are hidden from the available list
+- Collapsible "Available from Paperless" section showing unlinked document count
 
 #### Multi-Currency Support
 - Automatic currency conversion for expenses using ECB exchange rates via frankfurter.app
@@ -126,6 +136,10 @@
 #### Developer Tooling
 - Added `scripts/dev_checks.py`, a combined runner for linting (`ruff check`, `npm run lint`) and tests (`pytest`, `npm run test`) with consolidated per-file issue counts and suite summaries.
 - The runner now prints short failure snippets (when not in `--verbose` mode) so you immediately see the offending error lines without digging through full logs.
+
+### Bug Fixes
+
+- Currency dropdown now shows saved value instead of defaulting to first option when editing expenses
 
 ---
 

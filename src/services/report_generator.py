@@ -253,11 +253,16 @@ class ExpenseReportGenerator:
         if expense_ids:
             # Get specific expenses
             expenses = expense_service.get_expenses_by_ids(self.db, expense_ids)
-            # Filter to only expenses for this event
-            expenses = [e for e in expenses if e.event_id == event.id]
+            # Filter to only expenses for this event and exclude private expenses
+            expenses = [
+                e for e in expenses if e.event_id == event.id and not e.is_private
+            ]
         else:
-            # Get all expenses for the event
-            expenses = expense_service.get_expenses(self.db, event.id)
+            # Get all non-private expenses for the event
+            expenses = [
+                e for e in expense_service.get_expenses(self.db, event.id)
+                if not e.is_private
+            ]
 
         expenses.sort(key=lambda e: e.date)
 

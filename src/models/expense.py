@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    Boolean,
     Date,
     DateTime,
     Enum,
@@ -75,6 +76,9 @@ class Expense(Base, TimestampMixin):
     # Submission tracking fields
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Private expense flag - excluded from reports but visible for tracking
+    is_private: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Relationships
     event: Mapped[Event] = relationship("Event", back_populates="expenses")

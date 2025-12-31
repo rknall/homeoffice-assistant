@@ -95,6 +95,8 @@ def update_expense(db: Session, expense: Expense, data: ExpenseUpdate) -> Expens
         expense.paperless_doc_id = data.paperless_doc_id
     if data.original_filename is not None:
         expense.original_filename = data.original_filename
+    if data.is_private is not None:
+        expense.is_private = data.is_private
 
     db.commit()
     db.refresh(expense)

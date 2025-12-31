@@ -152,6 +152,7 @@ export function EventDetail() {
   const [isCreatingFromDoc, setIsCreatingFromDoc] = useState(false)
   const [isEditExpenseModalOpen, setIsEditExpenseModalOpen] = useState(false)
   const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null)
+  const [editIsPrivate, setEditIsPrivate] = useState(false)
   const [editExpensePreviewUrl, setEditExpensePreviewUrl] = useState<string | null>(null)
   const [isLoadingEditPreview, setIsLoadingEditPreview] = useState(false)
   const [isUpdatingExpense, setIsUpdatingExpense] = useState(false)
@@ -541,6 +542,7 @@ export function EventDetail() {
 
   const openEditExpenseModal = async (expense: Expense) => {
     setExpenseToEdit(expense)
+    setEditIsPrivate(expense.is_private)
     setIsEditExpenseModalOpen(true)
 
     // Pre-fill form with expense data
@@ -595,6 +597,7 @@ export function EventDetail() {
         ...data,
         amount: parseFloat(data.amount),
         description: data.description || null,
+        is_private: editIsPrivate,
       })
       await fetchData()
       closeEditExpenseModal()
@@ -1056,11 +1059,18 @@ export function EventDetail() {
                         </td>
                         <td className="py-3 px-4">{getPaymentTypeLabel(expense.payment_type)}</td>
                         <td className="py-3 px-4">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${statusConfig.bgColor} ${statusConfig.textColor}`}
-                          >
-                            {statusConfig.label}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            <span
+                              className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${statusConfig.bgColor} ${statusConfig.textColor}`}
+                            >
+                              {statusConfig.label}
+                            </span>
+                            {expense.is_private && (
+                              <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-purple-100 text-purple-700">
+                                Private
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-right font-medium">
                           {Number(expense.amount).toFixed(2)} {expense.currency}
@@ -1589,6 +1599,20 @@ export function EventDetail() {
                 {...registerEditExpense('description')}
                 error={editExpenseErrors.description?.message}
               />
+              <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                <input
+                  type="checkbox"
+                  checked={editIsPrivate}
+                  onChange={(e) => setEditIsPrivate(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <div className="flex-1">
+                  <span className="font-medium">Private expense</span>
+                  <p className="text-sm text-gray-500">
+                    Excluded from official reports, visible only to you
+                  </p>
+                </div>
+              </label>
               <div className="flex justify-end gap-3 pt-4">
                 <Button type="button" variant="secondary" onClick={closeEditExpenseModal}>
                   Cancel

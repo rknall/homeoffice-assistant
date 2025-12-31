@@ -218,6 +218,7 @@ export interface Expense {
   description: string | null
   status: ExpenseStatus
   original_filename: string | null
+  is_private: boolean
   // Currency conversion fields
   converted_amount: number | null
   exchange_rate: number | null
@@ -287,6 +288,7 @@ export interface ExpenseCreate {
   description?: string | null
   paperless_doc_id?: number | null
   original_filename?: string | null
+  is_private?: boolean
 }
 
 // Integration types

@@ -35,6 +35,7 @@ class ExpenseCreate(ExpenseBase):
 
     paperless_doc_id: int | None = None
     original_filename: str | None = Field(None, max_length=255)
+    is_private: bool = False
 
 
 class ExpenseUpdate(BaseModel):
@@ -49,6 +50,7 @@ class ExpenseUpdate(BaseModel):
     status: ExpenseStatus | None = None
     paperless_doc_id: int | None = None
     original_filename: str | None = Field(None, max_length=255)
+    is_private: bool | None = None
 
     @field_validator("amount")
     @classmethod
@@ -75,6 +77,7 @@ class ExpenseResponse(BaseModel):
     description: str | None
     status: ExpenseStatus
     original_filename: str | None
+    is_private: bool
     # Currency conversion fields
     converted_amount: Decimal | None
     exchange_rate: Decimal | None

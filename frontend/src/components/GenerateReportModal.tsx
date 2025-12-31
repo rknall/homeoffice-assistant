@@ -35,20 +35,23 @@ export function GenerateReportModal({
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Categorize expenses by status
-  const pendingExpenses = expenses.filter((e) => e.status === 'pending')
-  const submittedExpenses = expenses.filter((e) => e.status === 'submitted')
-  const rejectedExpenses = expenses.filter((e) => e.status === 'rejected')
+  // Filter out private expenses (they are excluded from official reports)
+  const reportableExpenses = expenses.filter((e) => !e.is_private)
 
-  // Get expenses based on selection mode
+  // Categorize expenses by status (only non-private expenses)
+  const pendingExpenses = reportableExpenses.filter((e) => e.status === 'pending')
+  const submittedExpenses = reportableExpenses.filter((e) => e.status === 'submitted')
+  const rejectedExpenses = reportableExpenses.filter((e) => e.status === 'rejected')
+
+  // Get expenses based on selection mode (only non-private expenses)
   const getSelectedExpenses = (): Expense[] => {
     switch (selectionMode) {
       case 'pending':
         return pendingExpenses
       case 'all':
-        return expenses
+        return reportableExpenses
       case 'selected':
-        return expenses.filter((e) => selectedExpenses.has(e.id))
+        return reportableExpenses.filter((e) => selectedExpenses.has(e.id))
     }
   }
 
@@ -182,7 +185,7 @@ export function GenerateReportModal({
               />
               <div className="flex-1">
                 <span className="font-medium">All expenses</span>
-                <span className="text-gray-500 ml-2">({expenses.length})</span>
+                <span className="text-gray-500 ml-2">({reportableExpenses.length})</span>
               </div>
             </label>
           </div>
@@ -198,22 +201,26 @@ export function GenerateReportModal({
               <button
                 type="button"
                 onClick={() => {
-                  if (selectedExpenses.size === expenses.length) {
+                  if (selectedExpenses.size === reportableExpenses.length) {
                     setSelectedExpenses(new Set())
                   } else {
-                    setSelectedExpenses(new Set(expenses.map((e) => e.id)))
+                    setSelectedExpenses(new Set(reportableExpenses.map((e) => e.id)))
                   }
                 }}
                 className="text-xs text-blue-600 hover:text-blue-800"
               >
-                {selectedExpenses.size === expenses.length ? 'Deselect all' : 'Select all'}
+                {selectedExpenses.size === reportableExpenses.length
+                  ? 'Deselect all'
+                  : 'Select all'}
               </button>
             </div>
             <div className="max-h-64 overflow-y-auto">
-              {expenses.length === 0 ? (
-                <p className="p-4 text-center text-gray-500">No expenses available</p>
+              {reportableExpenses.length === 0 ? (
+                <p className="p-4 text-center text-gray-500">
+                  No expenses available (private expenses are excluded)
+                </p>
               ) : (
-                expenses.map((expense) => (
+                reportableExpenses.map((expense) => (
                   <label
                     key={expense.id}
                     className="flex items-center gap-3 px-4 py-2 border-b last:border-b-0 hover:bg-gray-50 cursor-pointer"

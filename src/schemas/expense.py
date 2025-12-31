@@ -79,6 +79,9 @@ class ExpenseResponse(BaseModel):
     converted_amount: Decimal | None
     exchange_rate: Decimal | None
     rate_date: datetime.date | None
+    # Submission tracking fields
+    submitted_at: datetime.datetime | None
+    rejection_reason: str | None
     created_at: datetime.datetime
     updated_at: datetime.datetime
 
@@ -90,3 +93,73 @@ class ExpenseBulkUpdate(BaseModel):
 
     expense_ids: list[uuid.UUID]
     payment_type: PaymentType
+
+
+class ExpenseBulkStatusUpdate(BaseModel):
+    """Schema for bulk updating expense statuses."""
+
+    expense_ids: list[uuid.UUID]
+    status: ExpenseStatus
+    rejection_reason: str | None = None
+
+
+class ExpenseStatusUpdate(BaseModel):
+    """Schema for updating a single expense status."""
+
+    status: ExpenseStatus
+    rejection_reason: str | None = None
+
+
+# Submission schemas
+
+
+class ExpenseSubmissionCreate(BaseModel):
+    """Schema for creating an expense submission."""
+
+    expense_ids: list[uuid.UUID]
+    submission_method: str = "download"
+    notes: str | None = None
+    mark_as_submitted: bool = True
+
+
+class ExpenseSubmissionItemResponse(BaseModel):
+    """Schema for expense submission item response."""
+
+    id: uuid.UUID
+    expense_id: uuid.UUID | None
+    amount: Decimal
+    converted_amount: Decimal | None
+    currency: str
+    description: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class ExpenseSubmissionResponse(BaseModel):
+    """Schema for expense submission response."""
+
+    id: uuid.UUID
+    event_id: uuid.UUID
+    submitted_at: datetime.datetime
+    submission_method: str
+    reference_number: str | None
+    notes: str | None
+    total_amount: Decimal
+    currency: str
+    expense_count: int
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+    items: list[ExpenseSubmissionItemResponse] = []
+
+    model_config = {"from_attributes": True}
+
+
+class ExpenseSubmissionSummary(BaseModel):
+    """Schema for expense submission summary."""
+
+    submission_count: int
+    total_submitted: float
+    total_reimbursed: float
+    total_pending: float
+    total_awaiting_reimbursement: float
+    currency: str

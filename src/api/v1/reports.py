@@ -19,6 +19,7 @@ from src.services import (
     email_template_service,
     event_service,
     integration_service,
+    submission_service,
     todo_service,
 )
 from src.services.report_generator import create_report_generator
@@ -26,9 +27,48 @@ from src.services.report_generator import create_report_generator
 router = APIRouter()
 
 
+class GenerateReportRequest(BaseModel):
+    """Schema for generating expense report with expense selection."""
+
+    expense_ids: list[uuid.UUID] | None = Field(
+        None,
+        description=(
+            "Specific expense IDs to include. "
+            "If not provided, includes all expenses."
+        ),
+    )
+    mark_as_submitted: bool = Field(
+        True,
+        description="Mark selected expenses as SUBMITTED after generation.",
+    )
+    submission_method: str = Field(
+        "download",
+        description="How the report is being submitted (download, email, portal).",
+    )
+    notes: str | None = Field(
+        None,
+        description="Optional notes about this submission.",
+    )
+
+
 class SendReportRequest(BaseModel):
     """Schema for sending expense report via email."""
 
+    expense_ids: list[uuid.UUID] | None = Field(
+        None,
+        description=(
+            "Specific expense IDs to include. "
+            "If not provided, includes all expenses."
+        ),
+    )
+    mark_as_submitted: bool = Field(
+        True,
+        description="Mark selected expenses as SUBMITTED after sending.",
+    )
+    notes: str | None = Field(
+        None,
+        description="Optional notes about this submission.",
+    )
     recipient_emails: list[EmailStr] | None = Field(
         None,
         description="Email addresses to send report to. Uses contacts if not provided.",
@@ -76,10 +116,15 @@ async def preview_expense_report(
 @router.post("/{event_id}/expense-report/generate")
 async def generate_expense_report(
     event_id: uuid.UUID,
+    data: GenerateReportRequest | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Response:
-    """Generate and download expense report as ZIP file."""
+    """Generate and download expense report as ZIP file.
+
+    Optionally accepts a request body to specify which expenses to include
+    and whether to mark them as submitted.
+    """
     event = event_service.get_event_for_user(db, event_id, current_user.id)
     if not event:
         raise HTTPException(
@@ -87,10 +132,28 @@ async def generate_expense_report(
             detail="Event not found",
         )
 
+    # Use defaults if no request body provided
+    expense_ids = data.expense_ids if data else None
+    mark_as_submitted = data.mark_as_submitted if data else True
+    submission_method = data.submission_method if data else "download"
+    notes = data.notes if data else None
+
     generator = await create_report_generator(db, event)
     try:
-        zip_bytes = await generator.generate(event)
+        zip_bytes, included_expenses = await generator.generate(event, expense_ids)
         filename = generator.get_filename(event)
+
+        # Create submission record if marking as submitted
+        if mark_as_submitted and included_expenses:
+            included_ids = [e.id for e in included_expenses]
+            submission_service.create_submission(
+                db,
+                event_id,
+                included_ids,
+                submission_method,
+                notes,
+                mark_as_submitted=True,
+            )
 
         # Mark report as sent/exported
         event.report_sent_at = datetime.utcnow()
@@ -219,8 +282,22 @@ async def send_expense_report(
         # Generate the report
         generator = await create_report_generator(db, event)
         try:
-            zip_bytes = await generator.generate(event)
+            zip_bytes, included_expenses = await generator.generate(
+                event, data.expense_ids
+            )
             filename = generator.get_filename(event)
+
+            # Create submission record if marking as submitted
+            if data.mark_as_submitted and included_expenses:
+                included_ids = [e.id for e in included_expenses]
+                submission_service.create_submission(
+                    db,
+                    event_id,
+                    included_ids,
+                    "email",
+                    data.notes,
+                    mark_as_submitted=True,
+                )
         finally:
             if generator.paperless:
                 await generator.paperless.close()

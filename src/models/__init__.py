@@ -22,6 +22,7 @@ from src.models.enums import (
 )
 from src.models.event import Event
 from src.models.expense import Expense
+from src.models.expense_submission import ExpenseSubmission, ExpenseSubmissionItem
 from src.models.integration_config import IntegrationConfig
 from src.models.location_image import LocationImage
 from src.models.note import Note
@@ -51,6 +52,8 @@ __all__ = [
     "Expense",
     "ExpenseCategory",
     "ExpenseStatus",
+    "ExpenseSubmission",
+    "ExpenseSubmissionItem",
     "IntegrationConfig",
     "IntegrationType",
     "LocationImage",

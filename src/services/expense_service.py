@@ -134,6 +134,70 @@ def bulk_update_payment_type(
     return count
 
 
+def bulk_update_status(
+    db: Session,
+    expense_ids: list[uuid.UUID],
+    status: ExpenseStatus,
+    rejection_reason: str | None = None,
+) -> int:
+    """Bulk update status for multiple expenses.
+
+    Args:
+        db: Database session
+        expense_ids: List of expense IDs to update
+        status: New status to set
+        rejection_reason: Required if status is REJECTED
+
+    Returns:
+        Count of updated expenses
+    """
+    from datetime import datetime
+
+    update_values: dict = {"status": status}
+
+    # Set submitted_at when marking as submitted
+    if status == ExpenseStatus.SUBMITTED:
+        update_values["submitted_at"] = datetime.utcnow()
+        update_values["rejection_reason"] = None  # Clear any previous rejection
+
+    # Set rejection reason when marking as rejected
+    elif status == ExpenseStatus.REJECTED:
+        update_values["rejection_reason"] = rejection_reason
+
+    # Clear rejection reason when moving to other statuses
+    elif status in (ExpenseStatus.PENDING, ExpenseStatus.REIMBURSED):
+        update_values["rejection_reason"] = None
+
+    count = (
+        db.query(Expense)
+        .filter(Expense.id.in_(expense_ids))
+        .update(update_values, synchronize_session=False)
+    )
+    db.commit()
+    return count
+
+
+def get_expenses_by_ids(
+    db: Session,
+    expense_ids: list[uuid.UUID],
+) -> list[Expense]:
+    """Get expenses by a list of IDs."""
+    return db.query(Expense).filter(Expense.id.in_(expense_ids)).all()
+
+
+def get_pending_expenses(db: Session, event_id: uuid.UUID) -> list[Expense]:
+    """Get all pending expenses for an event."""
+    return (
+        db.query(Expense)
+        .filter(
+            Expense.event_id == event_id,
+            Expense.status == ExpenseStatus.PENDING,
+        )
+        .order_by(Expense.date)
+        .all()
+    )
+
+
 def get_expense_summary(db: Session, event_id: uuid.UUID) -> dict:
     """Get expense summary for an event.
 

@@ -204,7 +204,7 @@ export type ExpenseCategory =
   | 'equipment'
   | 'communication'
   | 'other'
-export type ExpenseStatus = 'pending' | 'included' | 'reimbursed'
+export type ExpenseStatus = 'pending' | 'submitted' | 'reimbursed' | 'rejected'
 
 export interface Expense {
   id: Uuid
@@ -222,8 +222,60 @@ export interface Expense {
   converted_amount: number | null
   exchange_rate: number | null
   rate_date: string | null
+  // Submission tracking fields
+  submitted_at: string | null
+  rejection_reason: string | null
   created_at: string
   updated_at: string
+}
+
+// Expense status display constants
+export const EXPENSE_STATUS_CONFIG: Record<
+  ExpenseStatus,
+  { label: string; bgColor: string; textColor: string }
+> = {
+  pending: { label: 'Pending', bgColor: 'bg-gray-100', textColor: 'text-gray-700' },
+  submitted: { label: 'Submitted', bgColor: 'bg-blue-100', textColor: 'text-blue-700' },
+  reimbursed: {
+    label: 'Reimbursed',
+    bgColor: 'bg-green-100',
+    textColor: 'text-green-700',
+  },
+  rejected: { label: 'Rejected', bgColor: 'bg-red-100', textColor: 'text-red-700' },
+}
+
+// Expense submission types
+export interface ExpenseSubmission {
+  id: Uuid
+  event_id: Uuid
+  submitted_at: string
+  submission_method: string
+  reference_number: string | null
+  notes: string | null
+  total_amount: number
+  currency: string
+  expense_count: number
+  created_at: string
+  updated_at: string
+  items: ExpenseSubmissionItem[]
+}
+
+export interface ExpenseSubmissionItem {
+  id: Uuid
+  expense_id: Uuid | null
+  amount: number
+  converted_amount: number | null
+  currency: string
+  description: string | null
+}
+
+export interface ExpenseSubmissionSummary {
+  submission_count: number
+  total_submitted: number
+  total_reimbursed: number
+  total_pending: number
+  total_awaiting_reimbursement: number
+  currency: string
 }
 
 export interface ExpenseCreate {

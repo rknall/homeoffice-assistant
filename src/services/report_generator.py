@@ -236,9 +236,29 @@ class ExpenseReportGenerator:
         wb.save(output)
         return output.getvalue()
 
-    async def generate(self, event: Event) -> bytes:
-        """Generate ZIP with Excel and documents."""
-        expenses = expense_service.get_expenses(self.db, event.id)
+    async def generate(
+        self,
+        event: Event,
+        expense_ids: list | None = None,
+    ) -> tuple[bytes, list[Expense]]:
+        """Generate ZIP with Excel and documents.
+
+        Args:
+            event: The event to generate a report for.
+            expense_ids: Optional list of expense IDs to include. If None, includes all.
+
+        Returns:
+            Tuple of (zip_bytes, included_expenses)
+        """
+        if expense_ids:
+            # Get specific expenses
+            expenses = expense_service.get_expenses_by_ids(self.db, expense_ids)
+            # Filter to only expenses for this event
+            expenses = [e for e in expenses if e.event_id == event.id]
+        else:
+            # Get all expenses for the event
+            expenses = expense_service.get_expenses(self.db, event.id)
+
         expenses.sort(key=lambda e: e.date)
 
         # Create the Excel file
@@ -283,7 +303,7 @@ class ExpenseReportGenerator:
                             pass
 
         zip_buffer.seek(0)
-        return zip_buffer.getvalue()
+        return zip_buffer.getvalue(), expenses
 
     def get_filename(self, event: Event) -> str:
         """Get the filename for the ZIP file."""

@@ -3,11 +3,21 @@
 """Expense model."""
 
 import uuid as uuid_lib
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, Enum, ForeignKey, Integer, Numeric, String, Text, Uuid
+from sqlalchemy import (
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, TimestampMixin
@@ -15,6 +25,7 @@ from src.models.enums import ExpenseCategory, ExpenseStatus, PaymentType
 
 if TYPE_CHECKING:
     from src.models.event import Event
+    from src.models.expense_submission import ExpenseSubmissionItem
 
 
 class Expense(Base, TimestampMixin):
@@ -61,5 +72,13 @@ class Expense(Base, TimestampMixin):
     )
     rate_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
+    # Submission tracking fields
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Relationships
     event: Mapped[Event] = relationship("Event", back_populates="expenses")
+    submission_items: Mapped[list[ExpenseSubmissionItem]] = relationship(
+        "ExpenseSubmissionItem",
+        back_populates="expense",
+    )

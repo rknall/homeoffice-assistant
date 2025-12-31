@@ -23,6 +23,7 @@ from src.api.v1 import (
     rbac,
     reports,
     settings,
+    submissions,
     todo_templates,
     todos,
     users,
@@ -57,6 +58,9 @@ api_router.include_router(events.router, prefix="/events", tags=["events"])
 
 # Expense routes (nested under events)
 api_router.include_router(expenses.router, prefix="/events", tags=["expenses"])
+
+# Submission routes (nested under events)
+api_router.include_router(submissions.router, prefix="/events", tags=["submissions"])
 
 # Contact routes (nested under events)
 api_router.include_router(contacts.router, prefix="/events", tags=["contacts"])

@@ -43,10 +43,11 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 }
 
-export async function downloadFile(path: string, filename: string) {
+export async function downloadFile(path: string, filename: string, options?: RequestInit) {
   const response = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
     credentials: 'include',
+    ...options,
   })
 
   if (!response.ok) {

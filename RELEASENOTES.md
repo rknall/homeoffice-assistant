@@ -39,8 +39,26 @@
 - Dashboard "Reports Due" section only shows events that haven't had a report sent
 - Sending or exporting an expense report automatically marks the event as reported
 
+#### Incremental Expense Submission
+- Submit expenses incrementally instead of all at once
+- New expense status workflow: PENDING → SUBMITTED → REIMBURSED (with REJECTED as alternate path)
+- Status badges in expense table with color-coded indicators (gray/blue/green/red)
+- Filter expenses by status (All/Pending/Submitted/Reimbursed/Rejected)
+- Bulk selection and status update for multiple expenses
+- Generate Report modal with three selection modes:
+  - All pending expenses
+  - Select specific expenses
+  - All expenses
+- Option to automatically mark selected expenses as submitted when generating reports
+- Rejection reason tracking with display in expense table
+- Submissions tab showing complete submission history
+- Submission summary cards showing total submitted, awaiting reimbursement, reimbursed, and pending amounts
+- Expandable submission details showing individual expense items
+- New database models: ExpenseSubmission and ExpenseSubmissionItem for full audit trail
+- New API endpoints: POST/GET submissions, bulk status update, submission summary
+
 #### Event Detail Page Tabs
-- Reorganized event detail page with tab navigation: Expenses | Documents | Photos | Todos
+- Reorganized event detail page with tab navigation: Expenses | Submissions | Documents | Photos | Todos
 - Cleaner separation of content sections
 - Tab badges showing relevant counts (e.g., incomplete todos)
 

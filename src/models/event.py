@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from src.models.company import Company
     from src.models.contact import Contact
     from src.models.expense import Expense
+    from src.models.expense_submission import ExpenseSubmission
     from src.models.note import Note
     from src.models.photo_reference import PhotoReference
     from src.models.todo import Todo
@@ -115,6 +116,11 @@ class Event(Base, TimestampMixin):
     )
     photo_references: Mapped[list[PhotoReference]] = relationship(
         "PhotoReference",
+        back_populates="event",
+        cascade="all, delete-orphan",
+    )
+    submissions: Mapped[list[ExpenseSubmission]] = relationship(
+        "ExpenseSubmission",
         back_populates="event",
         cascade="all, delete-orphan",
     )

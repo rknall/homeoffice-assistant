@@ -45,11 +45,18 @@ class ExpenseCategory(str, Enum):
 
 
 class ExpenseStatus(str, Enum):
-    """Expense status enumeration."""
+    """Expense status enumeration.
 
-    PENDING = "pending"
-    INCLUDED = "included"
-    REIMBURSED = "reimbursed"
+    Status flow:
+        PENDING → SUBMITTED → REIMBURSED
+                      ↓
+                  REJECTED → (edit) → PENDING
+    """
+
+    PENDING = "pending"  # Not yet submitted
+    SUBMITTED = "submitted"  # Sent, awaiting reimbursement
+    REIMBURSED = "reimbursed"  # Complete
+    REJECTED = "rejected"  # Needs correction
 
 
 class NoteType(str, Enum):

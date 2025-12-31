@@ -7,6 +7,7 @@ This folder contains ideas for future features. Each idea is documented in its o
 ### Core Features
 | Idea | Status | Description |
 |------|--------|-------------|
+| [Incremental Expense Submission](incremental-expense-submission.md) | Not Started | Submit expenses in stages, track submission status |
 | [Company Documents](company-documents.md) | Not Started | Attach contracts, NDAs, policies to companies with expiry tracking |
 | [Travel Report Generation](travel-report-generation.md) | Partially Planned | Generate narrative trip reports with photos |
 | [Recurring Events](recurring-events.md) | Not Started | Event templates and optional recurrence patterns |

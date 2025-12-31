@@ -22,9 +22,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { z } from 'zod'
-import { api, downloadFile } from '@/api/client'
+import { api } from '@/api/client'
 import { EventFormModal } from '@/components/EventFormModal'
+import { GenerateReportModal } from '@/components/GenerateReportModal'
 import { PhotoGallery } from '@/components/PhotoGallery'
+import { RejectionReasonModal } from '@/components/RejectionReasonModal'
+import { SubmissionHistory } from '@/components/SubmissionHistory'
 import { TodoList } from '@/components/TodoList'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
@@ -47,10 +50,12 @@ import type {
   EventStatus,
   Expense,
   ExpenseReportPreview,
+  ExpenseStatus,
   LocationImage,
   TemplatePreviewResponse,
   Uuid,
 } from '@/types'
+import { EXPENSE_STATUS_CONFIG } from '@/types'
 import { getCategoryLabel, getPaymentTypeLabel } from '@/utils/labels'
 
 const expenseSchema = z.object({
@@ -128,7 +133,6 @@ export function EventDetail() {
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isEventEditModalOpen, setIsEventEditModalOpen] = useState(false)
-  const [isGenerating, setIsGenerating] = useState(false)
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false)
   const [isSendingEmail, setIsSendingEmail] = useState(false)
   const [emailAddress, setEmailAddress] = useState('')
@@ -158,6 +162,11 @@ export function EventDetail() {
   const [todoIncompleteCount, setTodoIncompleteCount] = useState(0)
   const [isAdjustingPosition, setIsAdjustingPosition] = useState(false)
   const [imagePosition, setImagePosition] = useState<number>(50)
+  const [statusFilter, setStatusFilter] = useState<ExpenseStatus | 'all'>('all')
+  const [selectedExpenses, setSelectedExpenses] = useState<Set<string>>(new Set())
+  const [isUpdatingBulkStatus, setIsUpdatingBulkStatus] = useState(false)
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
+  const [isRejectionModalOpen, setIsRejectionModalOpen] = useState(false)
 
   const {
     register,
@@ -376,18 +385,13 @@ export function EventDetail() {
     }
   }
 
-  const generateReport = async () => {
-    if (!id || !event) return
-    setIsGenerating(true)
-    try {
-      const filename = `expense_report_${event.name.toLowerCase().replace(/\s+/g, '_')}.zip`
-      await downloadFile(`/events/${id}/expense-report/generate`, filename)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to generate report')
-    } finally {
-      setIsGenerating(false)
-    }
+  const openReportModal = () => {
+    setIsReportModalOpen(true)
   }
+
+  const handleReportGenerated = useCallback(() => {
+    void fetchData()
+  }, [fetchData])
 
   const openEmailModal = async () => {
     setEmailAddress('')
@@ -629,6 +633,53 @@ export function EventDetail() {
     }
   }
 
+  // Bulk selection helpers
+  const filteredExpenses = expenses.filter(
+    (e) => statusFilter === 'all' || e.status === statusFilter,
+  )
+
+  const toggleExpenseSelection = (expenseId: string) => {
+    setSelectedExpenses((prev) => {
+      const next = new Set(prev)
+      if (next.has(expenseId)) {
+        next.delete(expenseId)
+      } else {
+        next.add(expenseId)
+      }
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedExpenses.size === filteredExpenses.length) {
+      setSelectedExpenses(new Set())
+    } else {
+      setSelectedExpenses(new Set(filteredExpenses.map((e) => e.id)))
+    }
+  }
+
+  const clearSelection = () => {
+    setSelectedExpenses(new Set())
+  }
+
+  const updateBulkStatus = async (status: ExpenseStatus, rejectionReason?: string) => {
+    if (!id || selectedExpenses.size === 0) return
+    setIsUpdatingBulkStatus(true)
+    try {
+      await api.post(`/events/${id}/expenses/bulk-status`, {
+        expense_ids: Array.from(selectedExpenses),
+        status,
+        rejection_reason: rejectionReason || null,
+      })
+      await fetchData()
+      clearSelection()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update expense status')
+    } finally {
+      setIsUpdatingBulkStatus(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -849,6 +900,7 @@ export function EventDetail() {
       <Tabs defaultTab="expenses" className="mb-6">
         <TabList className="rounded-t-lg">
           <Tab value="expenses">Expenses</Tab>
+          <Tab value="submissions">Submissions</Tab>
           <Tab value="documents">Documents</Tab>
           <Tab value="photos">Photos</Tab>
           <Tab value="todos" badge={todoIncompleteCount || undefined}>
@@ -860,7 +912,7 @@ export function EventDetail() {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Expenses</h3>
             <div className="flex gap-2">
-              <Button variant="secondary" onClick={generateReport} isLoading={isGenerating}>
+              <Button variant="secondary" onClick={openReportModal}>
                 <Download className="h-4 w-4 mr-2" />
                 Export Report
               </Button>
@@ -874,6 +926,71 @@ export function EventDetail() {
               </Button>
             </div>
           </div>
+
+          {/* Status Filter */}
+          {expenses.length > 0 && (
+            <div className="flex items-center gap-4 mb-4">
+              <label htmlFor="status-filter" className="text-sm font-medium text-gray-600">
+                Filter by status:
+              </label>
+              <select
+                id="status-filter"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as ExpenseStatus | 'all')}
+                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="all">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="submitted">Submitted</option>
+                <option value="reimbursed">Reimbursed</option>
+                <option value="rejected">Rejected</option>
+              </select>
+              {statusFilter !== 'all' && (
+                <span className="text-sm text-gray-500">
+                  Showing {filteredExpenses.length} of {expenses.length}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Bulk Action Bar */}
+          {selectedExpenses.size > 0 && (
+            <div className="flex items-center gap-4 mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <span className="text-sm font-medium text-blue-800">
+                {selectedExpenses.size} expense{selectedExpenses.size !== 1 ? 's' : ''} selected
+              </span>
+              <div className="flex gap-2 ml-auto">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => updateBulkStatus('submitted')}
+                  disabled={isUpdatingBulkStatus}
+                >
+                  Mark Submitted
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => updateBulkStatus('reimbursed')}
+                  disabled={isUpdatingBulkStatus}
+                >
+                  Mark Reimbursed
+                </Button>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={() => setIsRejectionModalOpen(true)}
+                  disabled={isUpdatingBulkStatus}
+                >
+                  Mark Rejected
+                </Button>
+                <Button size="sm" variant="secondary" onClick={clearSelection}>
+                  Clear
+                </Button>
+              </div>
+            </div>
+          )}
+
           {expenses.length === 0 ? (
             <p className="text-gray-500 text-center py-8">
               No expenses yet. Add your first expense to get started.
@@ -883,52 +1000,102 @@ export function EventDetail() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-200">
+                    <th className="py-3 px-2 w-10">
+                      <input
+                        type="checkbox"
+                        checked={
+                          filteredExpenses.length > 0 &&
+                          selectedExpenses.size === filteredExpenses.length
+                        }
+                        onChange={toggleSelectAll}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        aria-label="Select all expenses"
+                      />
+                    </th>
                     <th className="text-left py-3 px-4 font-medium text-gray-500">Date</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-500">Description</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-500">Category</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-500">Payment</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-500">Status</th>
                     <th className="text-right py-3 px-4 font-medium text-gray-500">Amount</th>
                     <th className="py-3 px-4"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {expenses.map((expense) => (
-                    <tr key={expense.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4">{formatDate(expense.date)}</td>
-                      <td className="py-3 px-4">{expense.description || '-'}</td>
-                      <td className="py-3 px-4">
-                        <Badge variant="default">{getCategoryLabel(expense.category)}</Badge>
-                      </td>
-                      <td className="py-3 px-4">{getPaymentTypeLabel(expense.payment_type)}</td>
-                      <td className="py-3 px-4 text-right font-medium">
-                        {Number(expense.amount).toFixed(2)} {expense.currency}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openEditExpenseModal(expense)}
-                            className="text-gray-400 hover:text-blue-600"
-                            title="Edit expense"
+                  {filteredExpenses.map((expense) => {
+                    const statusConfig = EXPENSE_STATUS_CONFIG[expense.status]
+                    return (
+                      <tr
+                        key={expense.id}
+                        className={`border-b border-gray-100 hover:bg-gray-50 ${
+                          selectedExpenses.has(expense.id) ? 'bg-blue-50' : ''
+                        }`}
+                      >
+                        <td className="py-3 px-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedExpenses.has(expense.id)}
+                            onChange={() => toggleExpenseSelection(expense.id)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            aria-label={`Select expense ${expense.description || expense.id}`}
+                          />
+                        </td>
+                        <td className="py-3 px-4">{formatDate(expense.date)}</td>
+                        <td className="py-3 px-4">
+                          <div className="flex flex-col">
+                            <span>{expense.description || '-'}</span>
+                            {expense.rejection_reason && (
+                              <span className="text-xs text-red-600 mt-0.5">
+                                Reason: {expense.rejection_reason}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <Badge variant="default">{getCategoryLabel(expense.category)}</Badge>
+                        </td>
+                        <td className="py-3 px-4">{getPaymentTypeLabel(expense.payment_type)}</td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${statusConfig.bgColor} ${statusConfig.textColor}`}
                           >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => deleteExpense(expense.id)}
-                            className="text-gray-400 hover:text-red-600"
-                            title="Delete expense"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            {statusConfig.label}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right font-medium">
+                          {Number(expense.amount).toFixed(2)} {expense.currency}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openEditExpenseModal(expense)}
+                              className="text-gray-400 hover:text-blue-600"
+                              title="Edit expense"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteExpense(expense.id)}
+                              className="text-gray-400 hover:text-red-600"
+                              title="Delete expense"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
           )}
+        </TabPanel>
+
+        <TabPanel value="submissions" className="bg-white rounded-b-lg shadow p-6">
+          <SubmissionHistory eventId={id!} />
         </TabPanel>
 
         <TabPanel value="documents" className="bg-white rounded-b-lg shadow p-6">
@@ -1056,10 +1223,10 @@ export function EventDetail() {
               error={errors.amount?.message}
             />
             <CurrencySelect
-                  label="Currency"
-                  {...register('currency')}
-                  error={errors.currency?.message}
-                />
+              label="Currency"
+              {...register('currency')}
+              error={errors.currency?.message}
+            />
           </div>
           <Select
             label="Payment Type"
@@ -1434,6 +1601,29 @@ export function EventDetail() {
           </div>
         </div>
       </Modal>
+
+      {/* Generate Report Modal */}
+      <GenerateReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        eventId={id!}
+        eventName={event?.name || ''}
+        expenses={expenses}
+        baseCurrency={preview?.currency || 'EUR'}
+        onReportGenerated={handleReportGenerated}
+      />
+
+      {/* Rejection Reason Modal */}
+      <RejectionReasonModal
+        isOpen={isRejectionModalOpen}
+        onClose={() => setIsRejectionModalOpen(false)}
+        onConfirm={(reason) => {
+          setIsRejectionModalOpen(false)
+          updateBulkStatus('rejected', reason)
+        }}
+        expenseCount={selectedExpenses.size}
+        isLoading={isUpdatingBulkStatus}
+      />
     </div>
   )
 }

@@ -12,9 +12,11 @@ from src.api.deps import get_current_user, get_db
 from src.models import User
 from src.models.enums import ExpenseStatus
 from src.schemas.expense import (
+    ExpenseBulkStatusUpdate,
     ExpenseBulkUpdate,
     ExpenseCreate,
     ExpenseResponse,
+    ExpenseStatusUpdate,
     ExpenseUpdate,
 )
 from src.services import event_service, expense_service
@@ -249,3 +251,71 @@ def get_expense_summary(
         )
 
     return expense_service.get_expense_summary(db, event_id)
+
+
+@router.patch(
+    "/{event_id}/expenses/{expense_id}/status", response_model=ExpenseResponse
+)
+def update_expense_status(
+    event_id: uuid.UUID,
+    expense_id: uuid.UUID,
+    data: ExpenseStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ExpenseResponse:
+    """Update status for a single expense."""
+    event = event_service.get_event_for_user(db, event_id, current_user.id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    expense = expense_service.get_expense_for_event(db, expense_id, event_id)
+    if not expense:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Expense not found",
+        )
+
+    # Validate rejection reason is provided for REJECTED status
+    if data.status == ExpenseStatus.REJECTED and not data.rejection_reason:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Rejection reason is required when marking as rejected",
+        )
+
+    expense_service.bulk_update_status(
+        db, [expense_id], data.status, data.rejection_reason
+    )
+    db.refresh(expense)
+
+    return ExpenseResponse.model_validate(expense)
+
+
+@router.post("/{event_id}/expenses/bulk-status")
+def bulk_update_expense_status(
+    event_id: uuid.UUID,
+    data: ExpenseBulkStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Bulk update status for multiple expenses."""
+    event = event_service.get_event_for_user(db, event_id, current_user.id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    # Validate rejection reason is provided for REJECTED status
+    if data.status == ExpenseStatus.REJECTED and not data.rejection_reason:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Rejection reason is required when marking as rejected",
+        )
+
+    count = expense_service.bulk_update_status(
+        db, data.expense_ids, data.status, data.rejection_reason
+    )
+    return {"updated": count}

@@ -1,6 +1,6 @@
 # Release Notes
 
-## Version 0.3.0-rc1
+## Version 0.3.0-rc2
 
 ### Major Features
 
@@ -56,6 +56,13 @@
 - Expandable submission details showing individual expense items
 - New database models: ExpenseSubmission and ExpenseSubmissionItem for full audit trail
 - New API endpoints: POST/GET submissions, bulk status update, submission summary
+
+#### Private Expenses
+- Mark expenses as "private" to exclude them from official expense reports
+- Private expenses remain visible in the expense list for personal tracking
+- Purple "Private" badge displayed next to status in expense table
+- Private expenses filtered from all Generate Report modal selection modes
+- Checkbox in expense edit form: "Private expense - Excluded from official reports"
 
 #### Event Detail Page Tabs
 - Reorganized event detail page with tab navigation: Expenses | Submissions | Documents | Photos | Todos

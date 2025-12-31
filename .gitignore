@@ -67,3 +67,4 @@ logs/
 
 # Playwright MCP
 .playwright-mcp/
+docs/mockups/

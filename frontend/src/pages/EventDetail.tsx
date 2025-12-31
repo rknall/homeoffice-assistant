@@ -173,6 +173,7 @@ export function EventDetail() {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<ExpenseForm>({
     resolver: zodResolver(expenseSchema),
@@ -187,6 +188,7 @@ export function EventDetail() {
     register: registerDocExpense,
     handleSubmit: handleDocExpenseSubmit,
     reset: resetDocExpense,
+    watch: watchDocExpense,
     formState: { errors: docExpenseErrors },
   } = useForm<ExpenseForm>({
     resolver: zodResolver(expenseSchema),
@@ -201,6 +203,7 @@ export function EventDetail() {
     register: registerEditExpense,
     handleSubmit: handleEditExpenseSubmit,
     reset: resetEditExpense,
+    watch: watchEditExpense,
     formState: { errors: editExpenseErrors },
   } = useForm<ExpenseForm>({
     resolver: zodResolver(expenseSchema),
@@ -1234,6 +1237,7 @@ export function EventDetail() {
             />
             <CurrencySelect
               label="Currency"
+              value={watch('currency')}
               {...register('currency')}
               error={errors.currency?.message}
             />
@@ -1479,6 +1483,7 @@ export function EventDetail() {
                 />
                 <CurrencySelect
                   label="Currency"
+                  value={watchDocExpense('currency')}
                   {...registerDocExpense('currency')}
                   error={docExpenseErrors.currency?.message}
                 />
@@ -1578,6 +1583,7 @@ export function EventDetail() {
                 />
                 <CurrencySelect
                   label="Currency"
+                  value={watchEditExpense('currency')}
                   {...registerEditExpense('currency')}
                   error={editExpenseErrors.currency?.message}
                 />

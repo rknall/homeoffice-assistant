@@ -318,7 +318,7 @@ export function CompanyFormModal({ isOpen, onClose, onSuccess, company }: Compan
 
         <CurrencySelect
           label="Base Currency"
-          defaultValue={currentBaseCurrency || 'EUR'}
+          value={currentBaseCurrency || 'EUR'}
           {...register('base_currency')}
           error={errors.base_currency?.message}
         />

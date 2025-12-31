@@ -11,7 +11,7 @@ interface CurrencySelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElemen
 }
 
 export const CurrencySelect = forwardRef<HTMLSelectElement, CurrencySelectProps>(
-  ({ className, label, error, id, defaultValue, ...props }, ref) => {
+  ({ className, label, error, id, value, ...props }, ref) => {
     const [currencies, setCurrencies] = useState<Currency[]>([])
     const [loading, setLoading] = useState(true)
 
@@ -49,7 +49,7 @@ export const CurrencySelect = forwardRef<HTMLSelectElement, CurrencySelectProps>
           ref={ref}
           id={selectId}
           disabled={loading}
-          defaultValue={defaultValue}
+          value={value ?? ''}
           className={cn(
             'block w-full rounded-lg bg-white px-3 py-2.5 pr-10',
             'border border-gray-300 shadow-sm',
@@ -69,8 +69,8 @@ export const CurrencySelect = forwardRef<HTMLSelectElement, CurrencySelectProps>
           {loading ? (
             <>
               <option value="">Loading currencies...</option>
-              {/* Include defaultValue as option during loading to maintain selection */}
-              {defaultValue && <option value={defaultValue as string}>{defaultValue}</option>}
+              {/* Include current value as option during loading to maintain selection */}
+              {value && <option value={value as string}>{value}</option>}
             </>
           ) : (
             <>

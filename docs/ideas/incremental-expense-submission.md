@@ -1,7 +1,7 @@
 # Incremental Expense Submission
 
 ## Status
-Idea - Not Started
+Implemented in v0.3.0-rc1
 
 ## Plugin Candidate
 No - This is a core feature. Expense submission workflow is fundamental to the app.

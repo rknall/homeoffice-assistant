@@ -23,6 +23,7 @@ from src.models.base import Base, TimestampMixin
 if TYPE_CHECKING:
     from src.models.company import Company
     from src.models.contact import Contact
+    from src.models.document_reference import DocumentReference
     from src.models.expense import Expense
     from src.models.expense_submission import ExpenseSubmission
     from src.models.note import Note
@@ -121,6 +122,11 @@ class Event(Base, TimestampMixin):
     )
     submissions: Mapped[list[ExpenseSubmission]] = relationship(
         "ExpenseSubmission",
+        back_populates="event",
+        cascade="all, delete-orphan",
+    )
+    document_references: Mapped[list[DocumentReference]] = relationship(
+        "DocumentReference",
         back_populates="event",
         cascade="all, delete-orphan",
     )

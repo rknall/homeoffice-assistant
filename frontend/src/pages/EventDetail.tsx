@@ -8,7 +8,10 @@ import {
   ChevronRight,
   ChevronUp,
   Download,
+  Eye,
   FileText,
+  Link2,
+  Link2Off,
   Mail,
   MapPin,
   Move,
@@ -44,6 +47,10 @@ import { useLocale } from '@/stores/locale'
 import type {
   Company,
   Document,
+  DocumentReference,
+  DocumentReferenceCreate,
+  DocumentReferenceUpdate,
+  DocumentType,
   EmailTemplate,
   Event,
   EventCustomFieldChoices,
@@ -55,7 +62,7 @@ import type {
   TemplatePreviewResponse,
   Uuid,
 } from '@/types'
-import { EXPENSE_STATUS_CONFIG } from '@/types'
+import { DOCUMENT_TYPE_COLORS, DOCUMENT_TYPE_LABELS, EXPENSE_STATUS_CONFIG } from '@/types'
 import { getCategoryLabel, getPaymentTypeLabel } from '@/utils/labels'
 
 const expenseSchema = z.object({
@@ -142,9 +149,6 @@ export function EventDetail() {
   const [emailPreview, setEmailPreview] = useState<TemplatePreviewResponse | null>(null)
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false)
   const [isLoadingEmailPreview, setIsLoadingEmailPreview] = useState(false)
-  const [isDeleteDocModalOpen, setIsDeleteDocModalOpen] = useState(false)
-  const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null)
-  const [isDeletingDocument, setIsDeletingDocument] = useState(false)
   const [isDocExpenseModalOpen, setIsDocExpenseModalOpen] = useState(false)
   const [documentForExpense, setDocumentForExpense] = useState<Document | null>(null)
   const [documentPreviewUrl, setDocumentPreviewUrl] = useState<string | null>(null)
@@ -168,6 +172,17 @@ export function EventDetail() {
   const [isUpdatingBulkStatus, setIsUpdatingBulkStatus] = useState(false)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
   const [isRejectionModalOpen, setIsRejectionModalOpen] = useState(false)
+  // Document reference state
+  const [documentReferences, setDocumentReferences] = useState<DocumentReference[]>([])
+  const [isLoadingDocRefs, setIsLoadingDocRefs] = useState(false)
+  const [isDocRefModalOpen, setIsDocRefModalOpen] = useState(false)
+  const [docRefToEdit, setDocRefToEdit] = useState<DocumentReference | null>(null)
+  const [isEditingDocRef, setIsEditingDocRef] = useState(false)
+  const [docRefNotes, setDocRefNotes] = useState('')
+  const [docRefType, setDocRefType] = useState<DocumentType | ''>('')
+  const [docRefIncludeInReport, setDocRefIncludeInReport] = useState(false)
+  const [isLinkingDocument, setIsLinkingDocument] = useState(false)
+  const [isAvailableDocsOpen, setIsAvailableDocsOpen] = useState(true)
 
   const {
     register,
@@ -214,10 +229,11 @@ export function EventDetail() {
     },
   })
 
-  // Filter documents to exclude those already linked to expenses
-  const linkedDocIds = new Set(
-    expenses.filter((e) => e.paperless_doc_id).map((e) => e.paperless_doc_id),
-  )
+  // Filter documents to exclude those already linked to expenses or as document references
+  const linkedDocIds = new Set([
+    ...expenses.filter((e) => e.paperless_doc_id).map((e) => e.paperless_doc_id),
+    ...documentReferences.map((d) => d.paperless_doc_id),
+  ])
   const availableDocuments = documents.filter((doc) => !linkedDocIds.has(doc.id))
 
   const fetchDocuments = useCallback(async () => {
@@ -231,6 +247,19 @@ export function EventDetail() {
       setDocuments([])
     } finally {
       setIsLoadingDocuments(false)
+    }
+  }, [id])
+
+  const fetchDocumentReferences = useCallback(async () => {
+    if (!id) return
+    setIsLoadingDocRefs(true)
+    try {
+      const refs = await api.get<DocumentReference[]>(`/events/${id}/document-references`)
+      setDocumentReferences(refs)
+    } catch {
+      setDocumentReferences([])
+    } finally {
+      setIsLoadingDocRefs(false)
     }
   }, [id])
 
@@ -276,8 +305,9 @@ export function EventDetail() {
       setCustomFieldChoices(choicesData)
       // Initialize cover image position
       setImagePosition(eventData.cover_image_position_y ?? 50)
-      // Fetch documents after main data
+      // Fetch documents and document references after main data
       fetchDocuments()
+      fetchDocumentReferences()
       // Fetch location image if event has cover image or location
       if (eventData.cover_image_url || eventData.country) {
         fetchLocationImage(eventData)
@@ -287,7 +317,7 @@ export function EventDetail() {
     } finally {
       setIsLoading(false)
     }
-  }, [fetchDocuments, fetchLocationImage, id])
+  }, [fetchDocuments, fetchDocumentReferences, fetchLocationImage, id])
 
   useEffect(() => {
     fetchData()
@@ -460,26 +490,6 @@ export function EventDetail() {
     }
   }
 
-  const openDeleteDocModal = (doc: Document) => {
-    setDocumentToDelete(doc)
-    setIsDeleteDocModalOpen(true)
-  }
-
-  const confirmDeleteDocument = async () => {
-    if (!id || !documentToDelete) return
-    setIsDeletingDocument(true)
-    try {
-      await api.delete(`/events/${id}/documents/${documentToDelete.id}`)
-      await fetchDocuments()
-      setIsDeleteDocModalOpen(false)
-      setDocumentToDelete(null)
-    } catch {
-      setError('Failed to delete document')
-    } finally {
-      setIsDeletingDocument(false)
-    }
-  }
-
   const openDocExpenseModal = async (doc: Document) => {
     setDocumentForExpense(doc)
     setIsDocExpenseModalOpen(true)
@@ -637,6 +647,74 @@ export function EventDetail() {
     } finally {
       setIsSendingEmail(false)
     }
+  }
+
+  // Document reference functions
+  const linkDocumentAsReference = async (doc: Document) => {
+    if (!id) return
+    setIsLinkingDocument(true)
+    try {
+      const data: DocumentReferenceCreate = {
+        paperless_doc_id: doc.id,
+        title: doc.title,
+        original_filename: doc.original_file_name,
+      }
+      await api.post(`/events/${id}/document-references`, data)
+      await fetchDocumentReferences()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to link document')
+    } finally {
+      setIsLinkingDocument(false)
+    }
+  }
+
+  const openEditDocRefModal = (ref: DocumentReference) => {
+    setDocRefToEdit(ref)
+    setDocRefNotes(ref.notes || '')
+    setDocRefType((ref.document_type as DocumentType) || '')
+    setDocRefIncludeInReport(ref.include_in_report)
+    setIsDocRefModalOpen(true)
+  }
+
+  const closeEditDocRefModal = () => {
+    setIsDocRefModalOpen(false)
+    setDocRefToEdit(null)
+    setDocRefNotes('')
+    setDocRefType('')
+    setDocRefIncludeInReport(false)
+  }
+
+  const saveDocRefChanges = async () => {
+    if (!id || !docRefToEdit) return
+    setIsEditingDocRef(true)
+    try {
+      const data: DocumentReferenceUpdate = {
+        notes: docRefNotes || null,
+        document_type: (docRefType as DocumentType) || null,
+        include_in_report: docRefIncludeInReport,
+      }
+      await api.put(`/events/${id}/document-references/${docRefToEdit.id}`, data)
+      await fetchDocumentReferences()
+      closeEditDocRefModal()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update document reference')
+    } finally {
+      setIsEditingDocRef(false)
+    }
+  }
+
+  const unlinkDocumentReference = async (refId: string) => {
+    if (!id || !confirm('Are you sure you want to unlink this document?')) return
+    try {
+      await api.delete(`/events/${id}/document-references/${refId}`)
+      await fetchDocumentReferences()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to unlink document')
+    }
+  }
+
+  const previewDocument = async (docId: number) => {
+    window.open(`/api/v1/events/${id}/documents/${docId}/preview`, '_blank')
   }
 
   // Bulk selection helpers
@@ -1112,82 +1190,219 @@ export function EventDetail() {
         </TabPanel>
 
         <TabPanel value="documents" className="bg-white rounded-b-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Documents from Paperless
-            </h3>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={fetchDocuments}
-              isLoading={isLoadingDocuments}
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-          </div>
-          {isLoadingDocuments ? (
-            <div className="flex justify-center py-8">
-              <Spinner />
+          {/* Section 1: Linked Documents */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Linked Documents</h3>
             </div>
-          ) : availableDocuments.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              {documents.length === 0
-                ? "No documents found for this event. Documents are matched by the company's storage path and the event's custom field value in Paperless."
-                : 'All documents have been added as expenses.'}
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 font-medium text-gray-500">Title</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-500">
-                      Original Filename
-                    </th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-500">Created</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-500">ASN</th>
-                    <th className="py-3 px-4"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {availableDocuments.map((doc) => (
-                    <tr key={doc.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4 font-medium">{doc.title}</td>
-                      <td className="py-3 px-4 text-gray-500 text-sm">{doc.original_file_name}</td>
-                      <td className="py-3 px-4 text-gray-500">
-                        {doc.created ? formatDate(doc.created) : '-'}
-                      </td>
-                      <td className="py-3 px-4 text-gray-500">
-                        {doc.archive_serial_number || '-'}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openDocExpenseModal(doc)}
-                            className="text-gray-400 hover:text-blue-600"
-                            title="Add as Expense"
-                          >
-                            <Receipt className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openDeleteDocModal(doc)}
-                            className="text-gray-400 hover:text-red-600"
-                            title="Delete from Paperless"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
+
+            {isLoadingDocRefs ? (
+              <div className="flex justify-center py-8">
+                <Spinner />
+              </div>
+            ) : documentReferences.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">
+                No documents linked to this event yet. Link documents from Paperless below.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">Document</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">Type</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">Notes</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">Linked</th>
+                      <th className="py-3 px-4 text-right font-medium text-gray-500">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody>
+                    {documentReferences.map((ref) => {
+                      const typeColors = ref.document_type
+                        ? DOCUMENT_TYPE_COLORS[ref.document_type as DocumentType]
+                        : null
+                      return (
+                        <tr key={ref.id} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-5 w-5 text-red-500 shrink-0" />
+                              <span className="font-medium">{ref.title}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            {ref.document_type && typeColors ? (
+                              <span
+                                className={`px-2 py-1 rounded text-sm ${typeColors.bg} ${typeColors.text}`}
+                              >
+                                {DOCUMENT_TYPE_LABELS[ref.document_type as DocumentType]}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-gray-600 text-sm">{ref.notes || '-'}</td>
+                          <td className="py-3 px-4 text-gray-500 text-sm">
+                            {formatDate(ref.created_at)}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => previewDocument(ref.paperless_doc_id)}
+                                className="p-2 text-gray-500 hover:text-gray-700"
+                                title="View in Paperless"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openEditDocRefModal(ref)}
+                                className="p-2 text-gray-500 hover:text-gray-700"
+                                title="Edit notes/type"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => unlinkDocumentReference(ref.id)}
+                                className="p-2 text-red-500 hover:text-red-700"
+                                title="Unlink from event"
+                              >
+                                <Link2Off className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Divider */}
+          <hr className="my-6 border-gray-200" />
+
+          {/* Section 2: Available from Paperless (Collapsible) */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setIsAvailableDocsOpen(!isAvailableDocsOpen)}
+              className="flex items-center justify-between w-full mb-4"
+            >
+              <div className="flex items-center gap-2">
+                {isAvailableDocsOpen ? (
+                  <ChevronDown className="h-4 w-4 text-gray-500" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-gray-500" />
+                )}
+                <h3 className="text-lg font-semibold text-gray-800">Available from Paperless</h3>
+                <span className="px-2 py-0.5 bg-gray-200 text-gray-600 rounded text-xs">
+                  {availableDocuments.length} unlinked
+                </span>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  fetchDocuments()
+                }}
+                isLoading={isLoadingDocuments}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+            </button>
+
+            {isAvailableDocsOpen && (
+              <>
+                <p className="text-sm text-gray-500 mb-4">
+                  Documents from Paperless matching this event. Documents already linked to expenses
+                  or as documents are hidden.
+                </p>
+
+                {isLoadingDocuments ? (
+                  <div className="flex justify-center py-8">
+                    <Spinner />
+                  </div>
+                ) : availableDocuments.length === 0 ? (
+                  <div className="mt-4 p-4 bg-green-50 rounded text-center text-green-700">
+                    {documents.length === 0
+                      ? "No documents found for this event. Documents are matched by the company's storage path and the event's custom field value in Paperless."
+                      : 'All documents have been linked.'}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-3 px-4 font-medium text-gray-500">
+                            Document
+                          </th>
+                          <th className="text-left py-3 px-4 font-medium text-gray-500">Date</th>
+                          <th className="py-3 px-4 text-right font-medium text-gray-500">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {availableDocuments.map((doc) => (
+                          <tr key={doc.id} className="border-b border-gray-100 hover:bg-gray-50">
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-5 w-5 text-red-500 shrink-0" />
+                                <span className="font-medium">{doc.title}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-gray-500 text-sm">
+                              {doc.created ? formatDate(doc.created) : '-'}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => previewDocument(doc.id)}
+                                  className="p-2 text-gray-500 hover:text-gray-700"
+                                  title="View in Paperless"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => linkDocumentAsReference(doc)}
+                                  disabled={isLinkingDocument}
+                                  className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50"
+                                  title="Link as document"
+                                >
+                                  <span className="flex items-center gap-1">
+                                    <Link2 className="h-3 w-3" />
+                                    Document
+                                  </span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openDocExpenseModal(doc)}
+                                  className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200"
+                                  title="Create expense with this document"
+                                >
+                                  <span className="flex items-center gap-1">
+                                    <Receipt className="h-3 w-3" />
+                                    Expense
+                                  </span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </TabPanel>
 
         <TabPanel value="photos" className="bg-white rounded-b-lg shadow p-6">
@@ -1380,44 +1595,6 @@ export function EventDetail() {
             >
               <Mail className="h-4 w-4 mr-2" />
               Send Report
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      <Modal
-        isOpen={isDeleteDocModalOpen}
-        onClose={() => {
-          setIsDeleteDocModalOpen(false)
-          setDocumentToDelete(null)
-        }}
-        title="Delete Document"
-      >
-        <div className="space-y-4">
-          <Alert variant="warning">
-            This will permanently delete the document from Paperless-ngx. This action cannot be
-            undone.
-          </Alert>
-          {documentToDelete && (
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="font-medium text-gray-900">{documentToDelete.title}</p>
-              <p className="text-sm text-gray-500">{documentToDelete.original_file_name}</p>
-            </div>
-          )}
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setIsDeleteDocModalOpen(false)
-                setDocumentToDelete(null)
-              }}
-            >
-              Cancel
-            </Button>
-            <Button variant="danger" onClick={confirmDeleteDocument} isLoading={isDeletingDocument}>
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete Document
             </Button>
           </div>
         </div>
@@ -1654,6 +1831,78 @@ export function EventDetail() {
         expenseCount={selectedExpenses.size}
         isLoading={isUpdatingBulkStatus}
       />
+
+      {/* Edit Document Reference Modal */}
+      <Modal
+        isOpen={isDocRefModalOpen}
+        onClose={closeEditDocRefModal}
+        title="Edit Document Reference"
+      >
+        <div className="space-y-4">
+          {docRefToEdit && (
+            <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+              <p className="font-medium text-gray-900">{docRefToEdit.title}</p>
+              {docRefToEdit.original_filename && (
+                <p className="text-sm text-gray-500">{docRefToEdit.original_filename}</p>
+              )}
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="doc-type" className="block text-sm font-medium text-gray-700 mb-1">
+              Document Type
+            </label>
+            <select
+              id="doc-type"
+              value={docRefType}
+              onChange={(e) => setDocRefType(e.target.value as DocumentType | '')}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="">Select a type...</option>
+              <option value="contract">Contract</option>
+              <option value="itinerary">Itinerary</option>
+              <option value="confirmation">Confirmation</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="doc-notes" className="block text-sm font-medium text-gray-700 mb-1">
+              Notes
+            </label>
+            <textarea
+              id="doc-notes"
+              value={docRefNotes}
+              onChange={(e) => setDocRefNotes(e.target.value)}
+              rows={3}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="Add notes about this document..."
+            />
+          </div>
+
+          <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+            <input
+              type="checkbox"
+              checked={docRefIncludeInReport}
+              onChange={(e) => setDocRefIncludeInReport(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <div className="flex-1">
+              <span className="font-medium">Include in reports</span>
+              <p className="text-sm text-gray-500">Include this document in expense reports</p>
+            </div>
+          </label>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <Button type="button" variant="secondary" onClick={closeEditDocRefModal}>
+              Cancel
+            </Button>
+            <Button onClick={saveDocRefChanges} isLoading={isEditingDocRef}>
+              Save Changes
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

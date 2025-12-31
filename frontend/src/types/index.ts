@@ -614,6 +614,51 @@ export interface PhotoReferenceUpdate {
   include_in_report?: boolean
 }
 
+// Document Reference types (non-expense documents linked to events)
+export type DocumentType = 'contract' | 'itinerary' | 'confirmation' | 'other'
+
+export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
+  contract: 'Contract',
+  itinerary: 'Itinerary',
+  confirmation: 'Confirmation',
+  other: 'Other',
+}
+
+export const DOCUMENT_TYPE_COLORS: Record<DocumentType, { bg: string; text: string }> = {
+  contract: { bg: 'bg-purple-100', text: 'text-purple-800' },
+  itinerary: { bg: 'bg-green-100', text: 'text-green-800' },
+  confirmation: { bg: 'bg-blue-100', text: 'text-blue-800' },
+  other: { bg: 'bg-gray-100', text: 'text-gray-800' },
+}
+
+export interface DocumentReference {
+  id: Uuid
+  event_id: Uuid
+  paperless_doc_id: number
+  title: string
+  original_filename: string | null
+  notes: string | null
+  document_type: DocumentType | null
+  include_in_report: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface DocumentReferenceCreate {
+  paperless_doc_id: number
+  title: string
+  original_filename?: string | null
+  notes?: string | null
+  document_type?: DocumentType | null
+  include_in_report?: boolean
+}
+
+export interface DocumentReferenceUpdate {
+  notes?: string | null
+  document_type?: DocumentType | null
+  include_in_report?: boolean
+}
+
 // Unsplash types
 export interface UnsplashUser {
   name: string

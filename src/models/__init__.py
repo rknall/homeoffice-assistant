@@ -7,6 +7,7 @@ from src.models.company import Company
 from src.models.company_contact import CompanyContact
 from src.models.contact import Contact
 from src.models.currency_cache import CurrencyCache
+from src.models.document_reference import DocumentReference
 from src.models.email_template import EmailTemplate
 from src.models.enums import (
     CompanyType,
@@ -46,6 +47,7 @@ __all__ = [
     "Contact",
     "ContactType",
     "CurrencyCache",
+    "DocumentReference",
     "EmailTemplate",
     "Event",
     "EventStatus",

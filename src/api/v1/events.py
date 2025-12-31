@@ -11,8 +11,13 @@ from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user, get_db
 from src.integrations.base import DocumentProvider
-from src.models import User
+from src.models import DocumentReference, User
 from src.models.enums import EventStatus
+from src.schemas.document_reference import (
+    DocumentReferenceCreate,
+    DocumentReferenceResponse,
+    DocumentReferenceUpdate,
+)
 from src.schemas.event import (
     EventCreate,
     EventDetailResponse,
@@ -323,3 +328,162 @@ async def get_document_preview(
         ) from e
     finally:
         await provider.close()
+
+
+# Document Reference endpoints (non-expense documents linked to events)
+
+
+@router.get(
+    "/{event_id}/document-references",
+    response_model=list[DocumentReferenceResponse],
+)
+def list_document_references(
+    event_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[DocumentReferenceResponse]:
+    """List all document references linked to an event."""
+    event = event_service.get_event_for_user(db, event_id, current_user.id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    references = (
+        db.query(DocumentReference)
+        .filter(DocumentReference.event_id == event_id)
+        .order_by(DocumentReference.created_at.desc())
+        .all()
+    )
+    return references
+
+
+@router.post(
+    "/{event_id}/document-references",
+    response_model=DocumentReferenceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_document_reference(
+    event_id: uuid.UUID,
+    data: DocumentReferenceCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DocumentReferenceResponse:
+    """Link a Paperless document to an event."""
+    event = event_service.get_event_for_user(db, event_id, current_user.id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    # Check if already linked
+    existing = (
+        db.query(DocumentReference)
+        .filter(
+            DocumentReference.event_id == event_id,
+            DocumentReference.paperless_doc_id == data.paperless_doc_id,
+        )
+        .first()
+    )
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Document already linked to this event",
+        )
+
+    reference = DocumentReference(
+        event_id=event_id,
+        paperless_doc_id=data.paperless_doc_id,
+        title=data.title,
+        original_filename=data.original_filename,
+        notes=data.notes,
+        document_type=data.document_type,
+        include_in_report=data.include_in_report,
+    )
+    db.add(reference)
+    db.commit()
+    db.refresh(reference)
+    return reference
+
+
+@router.put(
+    "/{event_id}/document-references/{reference_id}",
+    response_model=DocumentReferenceResponse,
+)
+def update_document_reference(
+    event_id: uuid.UUID,
+    reference_id: uuid.UUID,
+    data: DocumentReferenceUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DocumentReferenceResponse:
+    """Update a document reference's notes, type, or include_in_report flag."""
+    event = event_service.get_event_for_user(db, event_id, current_user.id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    reference = (
+        db.query(DocumentReference)
+        .filter(
+            DocumentReference.id == reference_id,
+            DocumentReference.event_id == event_id,
+        )
+        .first()
+    )
+    if not reference:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document reference not found",
+        )
+
+    if data.notes is not None:
+        reference.notes = data.notes
+    if data.document_type is not None:
+        reference.document_type = data.document_type
+    if data.include_in_report is not None:
+        reference.include_in_report = data.include_in_report
+
+    db.commit()
+    db.refresh(reference)
+    return reference
+
+
+@router.delete(
+    "/{event_id}/document-references/{reference_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_document_reference(
+    event_id: uuid.UUID,
+    reference_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Unlink a document from an event (does not delete from Paperless)."""
+    event = event_service.get_event_for_user(db, event_id, current_user.id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    reference = (
+        db.query(DocumentReference)
+        .filter(
+            DocumentReference.id == reference_id,
+            DocumentReference.event_id == event_id,
+        )
+        .first()
+    )
+    if not reference:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document reference not found",
+        )
+
+    db.delete(reference)
+    db.commit()

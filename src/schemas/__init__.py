@@ -30,6 +30,11 @@ from src.schemas.contact import (
     ContactResponse,
     ContactUpdate,
 )
+from src.schemas.document_reference import (
+    DocumentReferenceCreate,
+    DocumentReferenceResponse,
+    DocumentReferenceUpdate,
+)
 from src.schemas.email_template import (
     EmailTemplateCreate,
     EmailTemplateResponse,
@@ -114,6 +119,10 @@ __all__ = [
     "ContactCreate",
     "ContactResponse",
     "ContactUpdate",
+    # Document Reference
+    "DocumentReferenceCreate",
+    "DocumentReferenceResponse",
+    "DocumentReferenceUpdate",
     # Email Template
     "EmailTemplateCreate",
     "EmailTemplateResponse",

@@ -17,6 +17,7 @@ import { MonthCalendarView } from "./MonthCalendarView";
 import { MonthlySubmissionPanel } from "./MonthlySubmissionPanel";
 import { TableView } from "./TableView";
 import { TimeRecordForm } from "./TimeRecordForm";
+import { TodayStatusBar } from "./TodayStatusBar";
 
 type ViewMode = "calendar" | "table";
 
@@ -125,6 +126,12 @@ export function UnifiedTimeTrackingPage() {
 	const visibleRecords = useMemo(() => {
 		return records.filter((record) => visibleCompanyIds.has(record.company_id));
 	}, [records, visibleCompanyIds]);
+
+	// Get companies that have records in the current month
+	const companiesWithRecords = useMemo(() => {
+		const companyIdsWithRecords = new Set(records.map((r) => r.company_id));
+		return companies.filter((c) => companyIdsWithRecords.has(c.id));
+	}, [records, companies]);
 
 	// Group records by date for calendar display
 	const recordsByDate = useMemo(() => {
@@ -287,11 +294,21 @@ export function UnifiedTimeTrackingPage() {
 				<p className="text-sm text-gray-500">All Companies</p>
 			</div>
 
+			{/* Today's status bar with check-in/out */}
+			<TodayStatusBar
+				companies={companies}
+				companiesWithRecords={companiesWithRecords}
+				records={records}
+				holidays={new Set(holidaysByDate.keys())}
+				currentDate={currentDate}
+				onStatusChange={loadRecords}
+			/>
+
 			{/* Controls row: company filters on left, month nav + view toggle on right */}
 			<div className="flex items-center justify-between flex-wrap gap-4">
-				{/* Company filter toggles */}
+				{/* Company filter toggles - only show companies with records this month */}
 				<div className="flex flex-wrap gap-2">
-				{companies.map((company) => {
+				{companiesWithRecords.map((company) => {
 					const isVisible = visibleCompanyIds.has(company.id);
 					return (
 						<button

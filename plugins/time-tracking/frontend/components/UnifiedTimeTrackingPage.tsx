@@ -15,7 +15,10 @@ import type {
 } from '../types'
 import { COMPANY_COLORS } from '../types'
 import { MonthCalendarView } from './MonthCalendarView'
+import { TableView } from './TableView'
 import { TimeRecordForm } from './TimeRecordForm'
+
+type ViewMode = 'calendar' | 'table'
 
 // Get month boundaries (defined outside component to avoid useCallback dependencies)
 function getMonthStart(date: Date): Date {
@@ -33,6 +36,7 @@ function getMonthEnd(date: Date): Date {
  * with company toggle filters and overlap detection.
  */
 export function UnifiedTimeTrackingPage() {
+  const [viewMode, setViewMode] = useState<ViewMode>('calendar')
   const [currentDate, setCurrentDate] = useState(new Date())
   const [records, setRecords] = useState<TimeRecord[]>([])
   const [companies, setCompanies] = useState<CompanyInfo[]>([])
@@ -283,6 +287,32 @@ export function UnifiedTimeTrackingPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </button>
+
+          {/* View toggle */}
+          <div className="ml-4 flex rounded-md overflow-hidden border border-gray-300">
+            <button
+              type="button"
+              onClick={() => setViewMode('calendar')}
+              className={`px-3 py-1.5 text-sm font-medium ${
+                viewMode === 'calendar'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Calendar
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`px-3 py-1.5 text-sm font-medium border-l border-gray-300 ${
+                viewMode === 'table'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Table
+            </button>
+          </div>
         </div>
       </div>
 
@@ -315,16 +345,26 @@ export function UnifiedTimeTrackingPage() {
         })}
       </div>
 
-      {/* Month calendar view */}
-      <MonthCalendarView
-        currentDate={currentDate}
-        recordsByDate={recordsByDate}
-        overlappingRecordIds={overlappingRecordIds}
-        getCompanyColor={getCompanyColor}
-        onRecordClick={handleRecordClick}
-        onDateClick={handleDateClick}
-        isLoading={isLoading}
-      />
+      {/* View: Calendar or Table */}
+      {viewMode === 'calendar' ? (
+        <MonthCalendarView
+          currentDate={currentDate}
+          recordsByDate={recordsByDate}
+          overlappingRecordIds={overlappingRecordIds}
+          getCompanyColor={getCompanyColor}
+          onRecordClick={handleRecordClick}
+          onDateClick={handleDateClick}
+          isLoading={isLoading}
+        />
+      ) : (
+        <TableView
+          records={visibleRecords}
+          overlappingRecordIds={overlappingRecordIds}
+          getCompanyColor={getCompanyColor}
+          onRecordClick={handleRecordClick}
+          isLoading={isLoading}
+        />
+      )}
 
       {/* Time record form modal */}
       {selectedDate && (

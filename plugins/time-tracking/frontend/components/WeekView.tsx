@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
 
-import { useState, useMemo } from 'react'
-import type { TimeRecord, DayType, ComplianceWarning } from '../types'
-import { DAY_TYPE_LABELS, DAY_TYPE_COLORS, WARNING_LEVEL_COLORS } from '../types'
-import { formatTime, formatHours, getWeekStart, toISODateString } from '../api'
+import { useMemo } from 'react'
+import { formatHours, formatTime, getWeekStart, toISODateString } from '../api'
+import type { ComplianceWarning, TimeRecord } from '../types'
+import { DAY_TYPE_COLORS, DAY_TYPE_LABELS } from '../types'
 
 interface WeekViewProps {
   records: TimeRecord[]
@@ -105,7 +105,12 @@ export function WeekView({
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <title>Previous week</title>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
             </svg>
           </button>
           <span className="text-lg font-semibold text-gray-900 min-w-[200px] text-center">
@@ -162,9 +167,7 @@ export function WeekView({
                 {/* Day header */}
                 <div className="flex items-center justify-between mb-2">
                   <span
-                    className={`text-xs font-medium ${
-                      today ? 'text-blue-600' : 'text-gray-500'
-                    }`}
+                    className={`text-xs font-medium ${today ? 'text-blue-600' : 'text-gray-500'}`}
                   >
                     {WEEKDAYS[index]}
                   </span>
@@ -215,7 +218,11 @@ export function WeekView({
                     {/* Lock indicator */}
                     {record.is_locked && (
                       <div className="mt-1">
-                        <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                        <svg
+                          className="w-4 h-4 text-gray-400"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
                           <title>Locked</title>
                           <path
                             fillRule="evenodd"

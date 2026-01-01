@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
 
-import { useState, useEffect } from 'react'
-import type { CompanyTimeSettings, CompanyTimeSettingsUpdate } from '../types'
+import { useCallback, useEffect, useState } from 'react'
 import { companySettingsApi } from '../api'
+import type { CompanyTimeSettings, CompanyTimeSettingsUpdate } from '../types'
 
 interface CompanyTimeSettingsWidgetProps {
   companyId: string
@@ -37,11 +37,7 @@ export function CompanyTimeSettingsWidget({ companyId }: CompanyTimeSettingsWidg
   // Form state
   const [formData, setFormData] = useState<CompanyTimeSettingsUpdate>({})
 
-  useEffect(() => {
-    loadSettings()
-  }, [companyId])
-
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     setIsLoading(true)
     setError(null)
     try {
@@ -78,7 +74,11 @@ export function CompanyTimeSettingsWidget({ companyId }: CompanyTimeSettingsWidg
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [companyId])
+
+  useEffect(() => {
+    loadSettings()
+  }, [loadSettings])
 
   const handleSave = async () => {
     setIsSaving(true)
@@ -170,7 +170,9 @@ export function CompanyTimeSettingsWidget({ companyId }: CompanyTimeSettingsWidg
                 <select
                   id="country"
                   value={formData.country_code || 'AT'}
-                  onChange={(e) => setFormData({ ...formData, country_code: e.target.value, region: null })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, country_code: e.target.value, region: null })
+                  }
                   className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 >
                   {COUNTRY_OPTIONS.map((country) => (
@@ -222,7 +224,10 @@ export function CompanyTimeSettingsWidget({ companyId }: CompanyTimeSettingsWidg
                 />
               </div>
               <div>
-                <label htmlFor="hours-week" className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="hours-week"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Standard Hours/Week
                 </label>
                 <input
@@ -230,7 +235,10 @@ export function CompanyTimeSettingsWidget({ companyId }: CompanyTimeSettingsWidg
                   id="hours-week"
                   value={formData.standard_hours_per_week || 40}
                   onChange={(e) =>
-                    setFormData({ ...formData, standard_hours_per_week: parseFloat(e.target.value) })
+                    setFormData({
+                      ...formData,
+                      standard_hours_per_week: parseFloat(e.target.value),
+                    })
                   }
                   min="1"
                   max="60"
@@ -243,7 +251,10 @@ export function CompanyTimeSettingsWidget({ companyId }: CompanyTimeSettingsWidg
             {/* Break and vacation */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="break-mins" className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="break-mins"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Default Break (minutes)
                 </label>
                 <input
@@ -251,7 +262,10 @@ export function CompanyTimeSettingsWidget({ companyId }: CompanyTimeSettingsWidg
                   id="break-mins"
                   value={formData.default_break_minutes || 30}
                   onChange={(e) =>
-                    setFormData({ ...formData, default_break_minutes: parseInt(e.target.value, 10) })
+                    setFormData({
+                      ...formData,
+                      default_break_minutes: parseInt(e.target.value, 10),
+                    })
                   }
                   min="0"
                   max="120"
@@ -259,7 +273,10 @@ export function CompanyTimeSettingsWidget({ companyId }: CompanyTimeSettingsWidg
                 />
               </div>
               <div>
-                <label htmlFor="vacation-days" className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="vacation-days"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Vacation Days/Year
                 </label>
                 <input
@@ -267,7 +284,10 @@ export function CompanyTimeSettingsWidget({ companyId }: CompanyTimeSettingsWidg
                   id="vacation-days"
                   value={formData.vacation_days_per_year || 25}
                   onChange={(e) =>
-                    setFormData({ ...formData, vacation_days_per_year: parseInt(e.target.value, 10) })
+                    setFormData({
+                      ...formData,
+                      vacation_days_per_year: parseInt(e.target.value, 10),
+                    })
                   }
                   min="0"
                   max="50"
@@ -300,7 +320,9 @@ export function CompanyTimeSettingsWidget({ companyId }: CompanyTimeSettingsWidg
                 <input
                   type="checkbox"
                   checked={formData.comp_time_enabled ?? true}
-                  onChange={(e) => setFormData({ ...formData, comp_time_enabled: e.target.checked })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, comp_time_enabled: e.target.checked })
+                  }
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 <span className="ml-2 text-sm text-gray-700">Enable comp time accrual</span>
@@ -309,7 +331,9 @@ export function CompanyTimeSettingsWidget({ companyId }: CompanyTimeSettingsWidg
                 <input
                   type="checkbox"
                   checked={formData.time_rounding_enabled ?? true}
-                  onChange={(e) => setFormData({ ...formData, time_rounding_enabled: e.target.checked })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, time_rounding_enabled: e.target.checked })
+                  }
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 <span className="ml-2 text-sm text-gray-700">Enable 5-minute rounding</span>
@@ -340,7 +364,8 @@ export function CompanyTimeSettingsWidget({ companyId }: CompanyTimeSettingsWidg
             <div>
               <dt className="text-gray-500">Country</dt>
               <dd className="text-gray-900 font-medium">
-                {COUNTRY_OPTIONS.find((c) => c.code === settings.country_code)?.name || settings.country_code}
+                {COUNTRY_OPTIONS.find((c) => c.code === settings.country_code)?.name ||
+                  settings.country_code}
                 {settings.region && ` (${AT_REGIONS[settings.region] || settings.region})`}
               </dd>
             </div>
@@ -357,7 +382,8 @@ export function CompanyTimeSettingsWidget({ companyId }: CompanyTimeSettingsWidg
             <div>
               <dt className="text-gray-500">Vacation</dt>
               <dd className="text-gray-900 font-medium">
-                {settings.vacation_days_per_year} days/year (max {settings.max_carryover_days} carryover)
+                {settings.vacation_days_per_year} days/year (max {settings.max_carryover_days}{' '}
+                carryover)
               </dd>
             </div>
             <div>

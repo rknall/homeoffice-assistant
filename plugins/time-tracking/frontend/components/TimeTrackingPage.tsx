@@ -1,18 +1,25 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
 
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import {
+  formatHours,
+  getWeekEnd,
+  getWeekStart,
+  leaveBalanceApi,
+  timeRecordsApi,
+  toISODateString,
+} from '../api'
 import type {
+  ComplianceWarning,
+  LeaveBalance,
   TimeRecord,
   TimeRecordCreate,
   TimeRecordUpdate,
-  ComplianceWarning,
-  LeaveBalance,
+  TimeRecordWithWarnings,
 } from '../types'
-import { LEAVE_TYPE_LABELS } from '../types'
-import { timeRecordsApi, leaveBalanceApi, getWeekStart, getWeekEnd, toISODateString, formatHours } from '../api'
-import { WeekView } from './WeekView'
 import { TimeRecordForm } from './TimeRecordForm'
+import { WeekView } from './WeekView'
 
 interface TimeTrackingPageProps {
   companyId: string
@@ -78,6 +85,27 @@ export function TimeTrackingPage({ companyId, companyName }: TimeTrackingPagePro
     loadTodayRecord()
   }, [loadBalances, loadTodayRecord])
 
+  const handleCheckIn = useCallback(async () => {
+    try {
+      const result = await timeRecordsApi.checkIn(companyId)
+      setTodayRecord(result.record)
+      await loadRecords()
+    } catch (err) {
+      console.error('Check-in failed:', err)
+    }
+  }, [companyId, loadRecords])
+
+  const handleCheckOut = useCallback(async () => {
+    if (!todayRecord) return
+    try {
+      const result = await timeRecordsApi.checkOut(todayRecord.id)
+      setTodayRecord(result.record)
+      await loadRecords()
+    } catch (err) {
+      console.error('Check-out failed:', err)
+    }
+  }, [todayRecord, loadRecords])
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -101,28 +129,7 @@ export function TimeTrackingPage({ companyId, companyName }: TimeTrackingPagePro
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedDate, todayRecord])
-
-  const handleCheckIn = async () => {
-    try {
-      const result = await timeRecordsApi.checkIn(companyId)
-      setTodayRecord(result.record)
-      await loadRecords()
-    } catch (err) {
-      console.error('Check-in failed:', err)
-    }
-  }
-
-  const handleCheckOut = async () => {
-    if (!todayRecord) return
-    try {
-      const result = await timeRecordsApi.checkOut(todayRecord.id)
-      setTodayRecord(result.record)
-      await loadRecords()
-    } catch (err) {
-      console.error('Check-out failed:', err)
-    }
-  }
+  }, [selectedDate, handleCheckIn, handleCheckOut])
 
   const handleDayClick = (date: string, record?: TimeRecord) => {
     setSelectedDate(date)
@@ -133,7 +140,7 @@ export function TimeTrackingPage({ companyId, companyName }: TimeTrackingPagePro
   const handleFormSubmit = async (data: TimeRecordCreate | TimeRecordUpdate) => {
     setIsSaving(true)
     try {
-      let result
+      let result: TimeRecordWithWarnings
       if (selectedRecord) {
         result = await timeRecordsApi.update(selectedRecord.id, data as TimeRecordUpdate)
       } else {
@@ -163,7 +170,7 @@ export function TimeTrackingPage({ companyId, companyName }: TimeTrackingPagePro
   }
 
   const canCheckIn = !todayRecord || !todayRecord.check_in
-  const canCheckOut = todayRecord && todayRecord.check_in && !todayRecord.check_out
+  const canCheckOut = todayRecord?.check_in && !todayRecord.check_out
 
   return (
     <div className="space-y-6">
@@ -212,7 +219,8 @@ export function TimeTrackingPage({ companyId, companyName }: TimeTrackingPagePro
             </div>
             <p className="mt-1 text-xs text-gray-400">
               {vacationBalance.used_days} used / {vacationBalance.entitled_days} entitled
-              {vacationBalance.carried_over > 0 && ` + ${vacationBalance.carried_over} carried over`}
+              {vacationBalance.carried_over > 0 &&
+                ` + ${vacationBalance.carried_over} carried over`}
             </p>
           </div>
         )}
@@ -226,7 +234,8 @@ export function TimeTrackingPage({ companyId, companyName }: TimeTrackingPagePro
               <span className="text-sm text-gray-500">available</span>
             </div>
             <p className="mt-1 text-xs text-gray-400">
-              {formatHours(compTimeBalance.entitled_days * 8)} accrued, {formatHours(compTimeBalance.used_days * 8)} used
+              {formatHours(compTimeBalance.entitled_days * 8)} accrued,{' '}
+              {formatHours(compTimeBalance.used_days * 8)} used
             </p>
           </div>
         )}
@@ -246,12 +255,11 @@ export function TimeTrackingPage({ companyId, companyName }: TimeTrackingPagePro
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex min-h-screen items-center justify-center p-4">
             {/* Backdrop */}
-            <div
-              className="fixed inset-0 bg-black bg-opacity-25"
+            <button
+              type="button"
+              className="fixed inset-0 bg-black bg-opacity-25 cursor-default"
               onClick={handleFormCancel}
               onKeyDown={(e) => e.key === 'Escape' && handleFormCancel()}
-              role="button"
-              tabIndex={0}
               aria-label="Close modal"
             />
 

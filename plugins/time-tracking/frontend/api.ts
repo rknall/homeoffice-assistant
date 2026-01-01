@@ -223,7 +223,7 @@ export function formatTime(timeStr: string | null): string {
 
 export function formatHours(hours: number | null): string {
   if (hours === null) return '-'
-  return hours.toFixed(1) + 'h'
+  return `${hours.toFixed(1)}h`
 }
 
 export function formatDate(dateStr: string): string {

@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type {
-  ComplianceWarning,
   CompanyInfo,
+  ComplianceWarning,
   DayType,
   TimeRecord,
   TimeRecordCreate,
@@ -53,9 +53,7 @@ export function TimeRecordForm({
   const [dayType, setDayType] = useState<DayType>(record?.day_type || 'work')
   const [checkIn, setCheckIn] = useState(record?.check_in || '')
   const [checkOut, setCheckOut] = useState(record?.check_out || '')
-  const [breakMinutes, setBreakMinutes] = useState<string>(
-    record?.break_minutes?.toString() || '',
-  )
+  const [breakMinutes, setBreakMinutes] = useState<string>(record?.break_minutes?.toString() || '')
   const [notes, setNotes] = useState(record?.notes || '')
   const [error, setError] = useState<string | null>(null)
 
@@ -227,13 +225,8 @@ export function TimeRecordForm({
           {warnings.map((warning, index) => {
             const colors = WARNING_LEVEL_COLORS[warning.level]
             return (
-              <div
-                key={index}
-                className={`p-3 rounded-md border ${colors.bg} ${colors.border}`}
-              >
-                <p className={`text-sm font-medium ${colors.text}`}>
-                  {warning.message}
-                </p>
+              <div key={index} className={`p-3 rounded-md border ${colors.bg} ${colors.border}`}>
+                <p className={`text-sm font-medium ${colors.text}`}>{warning.message}</p>
                 {warning.law_reference && (
                   <p className={`text-xs mt-1 ${colors.text} opacity-75`}>
                     Reference: {warning.law_reference}

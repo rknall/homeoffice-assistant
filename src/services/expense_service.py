@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Expense service."""
 
+import logging
 import uuid
+from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
@@ -10,6 +12,67 @@ from src.models import Expense
 from src.models.enums import ExpenseStatus, PaymentType
 from src.plugins.events import AppEvent, event_bus
 from src.schemas.expense import ExpenseCreate, ExpenseUpdate
+
+logger = logging.getLogger(__name__)
+
+
+async def ensure_expense_conversions(
+    db: Session,
+    expenses: list[Expense],
+    base_currency: str,
+) -> list[Expense]:
+    """Auto-convert expenses missing converted_amount.
+
+    Converts expenses in-place and persists to DB. Safe to call multiple times -
+    already-converted expenses are skipped.
+
+    Args:
+        db: Database session.
+        expenses: List of expenses to check and convert.
+        base_currency: Target currency for conversion.
+
+    Returns:
+        The same list of expenses, now with conversion data populated.
+    """
+    from src.services.currency_service import CurrencyService, CurrencyServiceError
+
+    # Filter to expenses needing conversion
+    needs_conversion = [e for e in expenses if e.converted_amount is None]
+    if not needs_conversion:
+        return expenses
+
+    service = CurrencyService(db)
+    try:
+        for expense in needs_conversion:
+            if expense.currency.upper() == base_currency.upper():
+                # Same currency - no conversion needed
+                expense.converted_amount = expense.amount
+                expense.exchange_rate = Decimal("1.0")
+                expense.rate_date = expense.date
+            else:
+                # Different currency - fetch rate and convert
+                try:
+                    result = await service.convert(
+                        expense.amount,
+                        expense.currency,
+                        base_currency,
+                        expense.date,
+                    )
+                    expense.converted_amount = result.converted_amount
+                    expense.exchange_rate = result.exchange_rate
+                    expense.rate_date = result.rate_date
+                except CurrencyServiceError as e:
+                    logger.warning(
+                        f"Failed to convert expense {expense.id}: {e}"
+                    )
+                    # Skip this expense, leave converted_amount as None
+                    continue
+
+        db.commit()
+    finally:
+        await service.close()
+
+    return expenses
 
 
 def get_expenses(
@@ -224,7 +287,6 @@ def get_expense_summary(db: Session, event_id: uuid.UUID) -> dict:
 
     # Track currencies that were converted
     converted_currencies: set[str] = set()
-    has_unconverted = False
 
     for expense in expenses:
         # Use converted amount for aggregations
@@ -243,8 +305,6 @@ def get_expense_summary(db: Session, event_id: uuid.UUID) -> dict:
         # Track if this expense was converted from a different currency
         if expense.currency.upper() != base_currency.upper():
             converted_currencies.add(expense.currency.upper())
-            if expense.converted_amount is None:
-                has_unconverted = True
 
     return {
         "total": float(total),
@@ -255,5 +315,4 @@ def get_expense_summary(db: Session, event_id: uuid.UUID) -> dict:
         "converted_from": (
             sorted(converted_currencies) if converted_currencies else None
         ),
-        "has_unconverted": has_unconverted,
     }

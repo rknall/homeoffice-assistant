@@ -974,9 +974,6 @@ export function EventDetail() {
                   .join(', ')}
               </p>
             )}
-            {preview?.has_unconverted && (
-              <p className="text-xs text-amber-600 mt-1">Some expenses need conversion</p>
-            )}
           </CardContent>
         </Card>
         <Card>

@@ -85,10 +85,11 @@ def create_event_with_expenses(db_session) -> Event:
     return event
 
 
-def test_get_preview(db_session):
+@pytest.mark.asyncio
+async def test_get_preview(db_session):
     event = create_event_with_expenses(db_session)
     generator = report_generator.ExpenseReportGenerator(db_session)
-    preview = generator.get_preview(event)
+    preview = await generator.get_preview(event)
     assert preview["expense_count"] == 2
     assert preview["documents_available"] == 1
     assert preview["paperless_configured"] is False

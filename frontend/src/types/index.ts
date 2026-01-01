@@ -353,7 +353,6 @@ export interface ExpenseReportPreview {
   by_payment_type: Record<string, number>
   paperless_configured: boolean
   conversion_rates: Record<string, number> | null
-  has_unconverted: boolean
 }
 
 // Contact types

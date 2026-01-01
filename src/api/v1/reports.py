@@ -107,7 +107,7 @@ async def preview_expense_report(
 
     generator = await create_report_generator(db, event)
     try:
-        return generator.get_preview(event)
+        return await generator.get_preview(event)
     finally:
         if generator.paperless:
             await generator.paperless.close()

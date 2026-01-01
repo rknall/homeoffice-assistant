@@ -49,11 +49,19 @@ class ExpenseReportGenerator:
         self.db = db
         self.paperless = paperless
 
-    def get_preview(self, event: Event) -> dict[str, Any]:
+    async def get_preview(self, event: Event) -> dict[str, Any]:
         """Return summary without generating files."""
+        # Get base currency from company
+        base_currency = event.company.base_currency if event.company else "EUR"
+
         expenses = expense_service.get_expenses(self.db, event.id)
 
-        # Use converted amounts for totals, fall back to original if not converted
+        # Auto-convert any expenses missing conversion data
+        await expense_service.ensure_expense_conversions(
+            self.db, expenses, base_currency
+        )
+
+        # Now all expenses should have converted_amount (unless conversion failed)
         total = sum(
             e.converted_amount if e.converted_amount is not None else e.amount
             for e in expenses
@@ -63,12 +71,8 @@ class ExpenseReportGenerator:
         by_category: dict[str, Decimal] = {}
         by_payment_type: dict[str, Decimal] = {}
 
-        # Get base currency from company
-        base_currency = event.company.base_currency if event.company else "EUR"
-
         # Track currencies that were converted with their rates
         conversion_rates: dict[str, Decimal] = {}
-        has_unconverted = False
 
         for expense in expenses:
             # Use converted amount for aggregations
@@ -83,13 +87,10 @@ class ExpenseReportGenerator:
             pt = expense.payment_type.value
             by_payment_type[pt] = by_payment_type.get(pt, Decimal(0)) + amount
 
-            # Track if this expense was converted from a different currency
+            # Track conversion rates for display
             if expense.currency.upper() != base_currency.upper():
                 if expense.exchange_rate is not None:
-                    # Store the rate (later expenses overwrite earlier ones)
                     conversion_rates[expense.currency.upper()] = expense.exchange_rate
-                if expense.converted_amount is None:
-                    has_unconverted = True
 
         return {
             "event_id": event.id,
@@ -109,7 +110,6 @@ class ExpenseReportGenerator:
                 if conversion_rates
                 else None
             ),
-            "has_unconverted": has_unconverted,
         }
 
     def _create_excel(

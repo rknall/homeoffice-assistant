@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/{event_id}/expenses", response_model=list[ExpenseResponse])
-def list_expenses(
+async def list_expenses(
     event_id: uuid.UUID,
     expense_status: ExpenseStatus | None = None,
     db: Session = Depends(get_db),
@@ -43,6 +43,11 @@ def list_expenses(
         )
 
     expenses = expense_service.get_expenses(db, event_id, expense_status)
+
+    # Auto-convert any expenses missing conversion data
+    base_currency = event.company.base_currency if event.company else "EUR"
+    await expense_service.ensure_expense_conversions(db, expenses, base_currency)
+
     return [ExpenseResponse.model_validate(e) for e in expenses]
 
 

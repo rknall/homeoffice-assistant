@@ -185,7 +185,7 @@ function TimeTrackingPage() {
 		try {
 			const data = {
 				company_id: selectedCompanyId,
-				work_location: "home",
+				work_location: "remote",
 				timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
 			}
 			await apiPost("/check-in", data)

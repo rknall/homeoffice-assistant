@@ -9,7 +9,7 @@
  */
 
 import type { PluginExports, PluginManifest, PluginNavItem, PluginRoute } from '@/plugins/types'
-import { TimeTrackingPage, CompanyTimeSettingsWidget } from './components'
+import { CompanyTimeSettingsWidget, UnifiedTimeTrackingPage } from './components'
 
 // Plugin manifest matching the backend plugin.manifest.json
 const manifest: PluginManifest = {
@@ -57,23 +57,10 @@ function getRoutes(): PluginRoute[] {
   return [
     {
       path: '',
-      component: TimeTrackingPageWrapper,
+      component: UnifiedTimeTrackingPage,
       exact: true,
     },
   ]
-}
-
-// Wrapper component to handle company selection
-function TimeTrackingPageWrapper() {
-  // This would typically get the selected company from context/props
-  // For now, we'll need to integrate with the host app's company selection
-  return (
-    <div className="p-6">
-      <p className="text-gray-500">
-        Select a company to view time tracking records.
-      </p>
-    </div>
-  )
 }
 
 // Export the plugin

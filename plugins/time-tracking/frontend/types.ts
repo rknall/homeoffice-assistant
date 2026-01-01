@@ -10,6 +10,25 @@
 
 export type Uuid = string
 
+// Company info for unified view
+export interface CompanyInfo {
+  id: Uuid
+  name: string
+  color: string // Hex color for display
+}
+
+// Predefined company colors palette (used cyclically)
+export const COMPANY_COLORS = [
+  '#3B82F6', // blue-500
+  '#10B981', // emerald-500
+  '#8B5CF6', // violet-500
+  '#F59E0B', // amber-500
+  '#EF4444', // red-500
+  '#06B6D4', // cyan-500
+  '#EC4899', // pink-500
+  '#6366F1', // indigo-500
+]
+
 // Day types for time records
 export type DayType =
   | 'work'
@@ -65,6 +84,7 @@ export interface TimeRecord {
   id: Uuid
   user_id: Uuid
   company_id: Uuid
+  company_name: string | null // Company name for display (Phase 2)
   date: string // ISO date string
   day_type: DayType
   check_in: string | null // HH:MM format

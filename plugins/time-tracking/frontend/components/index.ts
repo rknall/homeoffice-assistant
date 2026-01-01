@@ -3,5 +3,7 @@
 
 export { TimeRecordForm } from './TimeRecordForm'
 export { WeekView } from './WeekView'
+export { MonthCalendarView } from './MonthCalendarView'
 export { CompanyTimeSettingsWidget } from './CompanyTimeSettingsWidget'
 export { TimeTrackingPage } from './TimeTrackingPage'
+export { UnifiedTimeTrackingPage } from './UnifiedTimeTrackingPage'

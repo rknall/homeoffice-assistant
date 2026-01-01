@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react'
 import type {
   ComplianceWarning,
+  CompanyInfo,
   DayType,
   TimeRecord,
   TimeRecordCreate,
@@ -19,6 +20,10 @@ interface TimeRecordFormProps {
   onCancel: () => void
   warnings?: ComplianceWarning[]
   isLoading?: boolean
+  /** Optional list of companies for unified view (enables company dropdown) */
+  companies?: CompanyInfo[]
+  /** Pre-selected company ID (from record being edited) */
+  preselectedCompanyId?: string
 }
 
 const DAY_TYPES: DayType[] = [
@@ -39,7 +44,12 @@ export function TimeRecordForm({
   onCancel,
   warnings = [],
   isLoading = false,
+  companies,
+  preselectedCompanyId,
 }: TimeRecordFormProps) {
+  // Determine initial company: use preselected, then record's company, then fallback to prop
+  const initialCompanyId = preselectedCompanyId || record?.company_id || companyId
+  const [selectedCompanyId, setSelectedCompanyId] = useState(initialCompanyId)
   const [dayType, setDayType] = useState<DayType>(record?.day_type || 'work')
   const [checkIn, setCheckIn] = useState(record?.check_in || '')
   const [checkOut, setCheckOut] = useState(record?.check_out || '')
@@ -50,6 +60,7 @@ export function TimeRecordForm({
   const [error, setError] = useState<string | null>(null)
 
   const isWorkType = dayType === 'work' || dayType === 'doctor_visit'
+  const showCompanyDropdown = companies && companies.length > 0
 
   useEffect(() => {
     // Reset time fields when switching to non-work types
@@ -65,8 +76,10 @@ export function TimeRecordForm({
     setError(null)
 
     try {
+      // Use selectedCompanyId for new records, or the record's existing company
+      const effectiveCompanyId = record ? record.company_id : selectedCompanyId
       const data: TimeRecordCreate | TimeRecordUpdate = {
-        ...(record ? {} : { company_id: companyId, date }),
+        ...(record ? {} : { company_id: effectiveCompanyId, date }),
         day_type: dayType,
         check_in: isWorkType && checkIn ? checkIn : null,
         check_out: isWorkType && checkOut ? checkOut : null,
@@ -90,6 +103,33 @@ export function TimeRecordForm({
           day: 'numeric',
         })}
       </div>
+
+      {/* Company selection (only for unified view with multiple companies) */}
+      {showCompanyDropdown && (
+        <div>
+          <label htmlFor="company" className="block text-sm font-medium text-gray-700 mb-1">
+            Company
+          </label>
+          <select
+            id="company"
+            value={selectedCompanyId}
+            onChange={(e) => setSelectedCompanyId(e.target.value)}
+            className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            disabled={!!record || isLoading}
+          >
+            {companies.map((company) => (
+              <option key={company.id} value={company.id}>
+                {company.name}
+              </option>
+            ))}
+          </select>
+          {record && (
+            <p className="mt-1 text-xs text-gray-500">
+              Company cannot be changed for existing records
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Day type selection */}
       <div>

@@ -757,15 +757,15 @@ function TimeTrackingPage() {
 				// Day headers
 				h(
 					"div",
-					{ className: "grid grid-cols-7 border-b" },
+					{ className: "border-b", style: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)" } },
 					["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) =>
-						h("div", { key: day, className: "px-2 py-3 text-center text-sm font-medium text-gray-500" }, day),
+						h("div", { key: day, className: "px-2 py-2 text-center text-xs font-medium text-gray-500" }, day),
 					),
 				),
 				// Calendar grid
 				h(
 					"div",
-					{ className: "grid grid-cols-7" },
+					{ style: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)" } },
 					getCalendarDays(calendarMonth.year, calendarMonth.month).map((cell, idx) => {
 						const record = cell.isCurrentMonth ? getRecordForDate(cell.year, cell.month, cell.day) : null
 						const isTodayCell = isToday(cell.year, cell.month, cell.day)
@@ -872,7 +872,7 @@ function TimeTrackingPage() {
 						dayRecord.day_type === "work" &&
 							h(
 								"div",
-								{ className: "grid grid-cols-4 gap-4 text-sm mb-3" },
+								{ className: "text-sm mb-3", style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem" } },
 								h("div", null, h("span", { className: "text-gray-500" }, "Check In: "), formatTime(dayRecord.check_in)),
 								h("div", null, h("span", { className: "text-gray-500" }, "Check Out: "), formatTime(dayRecord.check_out)),
 								h("div", null, h("span", { className: "text-gray-500" }, "Break: "), dayRecord.break_minutes ? `${dayRecord.break_minutes}m` : "-"),
@@ -999,18 +999,70 @@ function TimeTrackingPage() {
 				),
 			),
 
-		// Monthly Submission Section
-		h(
-			"div",
-			{ className: "bg-white rounded-lg shadow p-6 mb-6" },
-			// Header with month selector
+		// Leave Balance (Collapsible) - moved above Monthly Submission
+		balance &&
 			h(
-				"div",
-				{ className: "flex items-center justify-between mb-4" },
-				h("h2", { className: "text-lg font-semibold" }, "Monthly Submission"),
+				"details",
+				{
+					className: "bg-gray-50 rounded-lg mb-4",
+					open: showLeaveBalance,
+					onToggle: (e) => setShowLeaveBalance(e.target.open),
+				},
+				h(
+					"summary",
+					{ className: "px-4 py-3 cursor-pointer font-medium text-gray-700 hover:bg-gray-100 rounded-lg" },
+					`Leave Balance (${balance.vacation_remaining} vacation days, ${balance.comp_time_balance?.toFixed(1) || 0}h comp time)`,
+				),
 				h(
 					"div",
-					{ className: "flex items-center gap-3" },
+					{ className: "px-4 pb-4", style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem" } },
+					h(
+						"div",
+						{ className: "bg-white p-3 rounded-lg border" },
+						h("p", { className: "text-xs text-gray-500" }, "Vacation Days"),
+						h("p", { className: "text-lg font-bold text-green-600" }, balance.vacation_remaining),
+					),
+					h(
+						"div",
+						{ className: "bg-white p-3 rounded-lg border" },
+						h("p", { className: "text-xs text-gray-500" }, "Comp Time"),
+						h("p", { className: "text-lg font-bold text-blue-600" }, `${balance.comp_time_balance?.toFixed(1) || 0}h`),
+					),
+					h(
+						"div",
+						{ className: "bg-white p-3 rounded-lg border" },
+						h("p", { className: "text-xs text-gray-500" }, "Sick Days Used"),
+						h("p", { className: "text-lg font-bold text-gray-600" }, balance.sick_days_taken),
+					),
+				),
+			),
+
+		// Monthly Submission Section - more compact
+		h(
+			"div",
+			{ className: "bg-white rounded-lg shadow p-4 mb-4" },
+			// Header row with stats inline
+			h(
+				"div",
+				{ className: "flex items-center justify-between" },
+				h(
+					"div",
+					{ className: "flex items-center gap-6" },
+					h("h2", { className: "text-sm font-semibold text-gray-700" }, "Monthly Submission"),
+					h(
+						"div",
+						{ className: "flex items-center gap-4 text-sm" },
+						h("span", { className: "text-gray-500" }, `${monthWorkDays} days`),
+						h("span", { className: "text-gray-500" }, `${monthTotalHours.toFixed(1)}h`),
+						monthOvertime !== 0 && h("span", { className: monthOvertime > 0 ? "text-amber-600" : "text-gray-500" }, `${monthOvertime > 0 ? "+" : ""}${monthOvertime.toFixed(1)}h OT`),
+						isMonthSubmitted(selectedMonth.year, selectedMonth.month)
+							? h("span", { className: "text-green-600 font-medium" }, "Submitted")
+							: h("span", { className: "text-gray-400" }, "Pending"),
+					),
+				),
+				h(
+					"div",
+					{ className: "flex items-center gap-2" },
 					h(
 						"select",
 						{
@@ -1019,7 +1071,7 @@ function TimeTrackingPage() {
 								const [y, m] = e.target.value.split("-").map(Number)
 								setSelectedMonth({ year: y, month: m })
 							},
-							className: "border rounded px-3 py-2",
+							className: "border rounded px-2 py-1 text-sm",
 						},
 						getLastMonths().map((m) =>
 							h("option", { key: `${m.year}-${m.month}`, value: `${m.year}-${m.month}` }, formatMonth(m.year, m.month)),
@@ -1030,74 +1082,55 @@ function TimeTrackingPage() {
 						{
 							onClick: openSubmissionModal,
 							disabled: isMonthSubmitted(selectedMonth.year, selectedMonth.month) || monthRecords.length === 0,
-							className: `px-4 py-2 rounded font-medium ${
+							className: `px-3 py-1 rounded text-sm font-medium ${
 								isMonthSubmitted(selectedMonth.year, selectedMonth.month) || monthRecords.length === 0
 									? "bg-gray-100 text-gray-400 cursor-not-allowed"
 									: "bg-blue-600 text-white hover:bg-blue-700"
 							}`,
 						},
-						isMonthSubmitted(selectedMonth.year, selectedMonth.month) ? "Submitted" : "Submit Month",
+						"Submit",
 					),
+					submissions.length > 0 &&
+						h(
+							"button",
+							{
+								onClick: () => {
+									const el = document.getElementById("submission-history")
+									if (el) el.open = !el.open
+								},
+								className: "text-gray-400 hover:text-gray-600 text-sm",
+							},
+							`(${submissions.length})`,
+						),
 				),
 			),
-			// Month summary cards
-			h(
-				"div",
-				{ className: "grid grid-cols-4 gap-4 mb-4" },
-				h(
-					"div",
-					{ className: "bg-gray-50 p-3 rounded" },
-					h("p", { className: "text-xs text-gray-500 uppercase tracking-wide" }, "Work Days"),
-					h("p", { className: "text-xl font-bold text-gray-900" }, monthWorkDays),
-				),
-				h(
-					"div",
-					{ className: "bg-gray-50 p-3 rounded" },
-					h("p", { className: "text-xs text-gray-500 uppercase tracking-wide" }, "Total Hours"),
-					h("p", { className: "text-xl font-bold text-gray-900" }, `${monthTotalHours.toFixed(1)}h`),
-				),
-				h(
-					"div",
-					{ className: "bg-gray-50 p-3 rounded" },
-					h("p", { className: "text-xs text-gray-500 uppercase tracking-wide" }, "Overtime"),
-					h("p", { className: `text-xl font-bold ${monthOvertime > 0 ? "text-amber-600" : "text-gray-900"}` }, `${monthOvertime > 0 ? "+" : ""}${monthOvertime.toFixed(1)}h`),
-				),
-				h(
-					"div",
-					{ className: "bg-gray-50 p-3 rounded" },
-					h("p", { className: "text-xs text-gray-500 uppercase tracking-wide" }, "Status"),
-					isMonthSubmitted(selectedMonth.year, selectedMonth.month)
-						? h("p", { className: "text-xl font-bold text-green-600" }, "Submitted")
-						: h("p", { className: "text-xl font-bold text-gray-400" }, "Pending"),
-				),
-			),
-			// Submission history
+			// Submission history (hidden by default)
 			submissions.length > 0 &&
 				h(
 					"details",
-					{ className: "mt-4" },
+					{ id: "submission-history", className: "mt-3" },
 					h(
 						"summary",
-						{ className: "text-sm text-gray-500 cursor-pointer hover:text-gray-700" },
-						`Submission History (${submissions.length})`,
+						{ className: "text-xs text-gray-500 cursor-pointer hover:text-gray-700" },
+						"Submission History",
 					),
 					h(
 						"div",
-						{ className: "mt-2 space-y-2" },
+						{ className: "mt-2 space-y-1" },
 						submissions.slice(0, 5).map((s) =>
 							h(
 								"div",
-								{ key: s.id, className: "flex justify-between items-center bg-gray-50 p-3 rounded text-sm" },
+								{ key: s.id, className: "flex justify-between items-center bg-gray-50 p-2 rounded text-xs" },
 								h(
 									"div",
 									null,
 									h("span", { className: "font-medium" }, `${formatDate(s.period_start)} - ${formatDate(s.period_end)}`),
-									h("span", { className: "text-gray-500 ml-2" }, `sent to ${s.sent_to_email}`),
+									h("span", { className: "text-gray-500 ml-2" }, `→ ${s.sent_to_email}`),
 								),
 								h(
 									"span",
 									{
-										className: `px-2 py-1 rounded text-xs ${
+										className: `px-2 py-0.5 rounded ${
 											s.status === "sent"
 												? "bg-green-100 text-green-800"
 												: s.status === "failed"
@@ -1112,44 +1145,6 @@ function TimeTrackingPage() {
 					),
 				),
 		),
-
-		// Leave Balance (Collapsible)
-		balance &&
-			h(
-				"details",
-				{
-					className: "bg-gray-50 rounded-lg",
-					open: showLeaveBalance,
-					onToggle: (e) => setShowLeaveBalance(e.target.open),
-				},
-				h(
-					"summary",
-					{ className: "px-4 py-3 cursor-pointer font-medium text-gray-700 hover:bg-gray-100 rounded-lg" },
-					`Leave Balance (${balance.vacation_remaining} vacation days, ${balance.comp_time_balance?.toFixed(1) || 0}h comp time)`,
-				),
-				h(
-					"div",
-					{ className: "px-4 pb-4 grid grid-cols-3 gap-4" },
-					h(
-						"div",
-						{ className: "bg-white p-4 rounded-lg border" },
-						h("p", { className: "text-sm text-gray-500" }, "Vacation Days"),
-						h("p", { className: "text-2xl font-bold text-green-600" }, balance.vacation_remaining),
-					),
-					h(
-						"div",
-						{ className: "bg-white p-4 rounded-lg border" },
-						h("p", { className: "text-sm text-gray-500" }, "Comp Time"),
-						h("p", { className: "text-2xl font-bold text-blue-600" }, `${balance.comp_time_balance?.toFixed(1) || 0}h`),
-					),
-					h(
-						"div",
-						{ className: "bg-white p-4 rounded-lg border" },
-						h("p", { className: "text-sm text-gray-500" }, "Sick Days Used"),
-						h("p", { className: "text-2xl font-bold text-gray-600" }, balance.sick_days_taken),
-					),
-				),
-			),
 
 		// Add/Edit Entry Modal
 		showAddModal &&
@@ -1415,7 +1410,7 @@ function CompanyTimeSettingsWidget({ companyId }) {
 		h("h3", { className: "font-semibold mb-3" }, "Time Tracking Settings"),
 		h(
 			"div",
-			{ className: "grid grid-cols-2 gap-4 text-sm" },
+			{ className: "text-sm", style: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "1rem" } },
 			h(
 				"div",
 				null,

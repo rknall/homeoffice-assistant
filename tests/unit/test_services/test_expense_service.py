@@ -89,7 +89,7 @@ def test_update_and_delete_expense(db_session):
     update = ExpenseUpdate(
         amount=Decimal("20.00"),
         payment_type=PaymentType.CREDIT_CARD,
-        status=ExpenseStatus.INCLUDED,
+        status=ExpenseStatus.SUBMITTED,
         category=ExpenseCategory.MEALS,
         currency="USD",
         description="Dinner",

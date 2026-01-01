@@ -14,6 +14,7 @@ from src.services.currency_service import (
     CurrencyService,
     CurrencyServiceError,
     RateNotFoundError,
+    backfill_expense_conversions,
 )
 
 router = APIRouter()
@@ -97,3 +98,25 @@ async def get_exchange_rate(
         ) from e
     finally:
         await service.close()
+
+
+class BackfillResponse(BaseModel):
+    """Response for currency conversion backfill operation."""
+
+    converted: int
+    skipped: int
+    failed: int
+
+
+@router.post("/currencies/backfill", response_model=BackfillResponse)
+async def backfill_conversions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BackfillResponse:
+    """Backfill currency conversions for expenses missing converted amounts.
+
+    This endpoint finds all expenses without converted_amount and converts them
+    using the appropriate exchange rate for their date.
+    """
+    results = await backfill_expense_conversions(db)
+    return BackfillResponse(**results)

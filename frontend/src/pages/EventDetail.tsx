@@ -965,6 +965,18 @@ export function EventDetail() {
             <p className="text-2xl font-bold text-gray-900">
               {preview?.total.toFixed(2)} {preview?.currency}
             </p>
+            {preview?.conversion_rates && Object.keys(preview.conversion_rates).length > 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                {Object.entries(preview.conversion_rates)
+                  .map(
+                    ([currency, rate]) => `1 ${currency} = ${rate.toFixed(4)} ${preview.currency}`,
+                  )
+                  .join(', ')}
+              </p>
+            )}
+            {preview?.has_unconverted && (
+              <p className="text-xs text-amber-600 mt-1">Some expenses need conversion</p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -1154,7 +1166,17 @@ export function EventDetail() {
                           </div>
                         </td>
                         <td className="py-3 px-4 text-right font-medium">
-                          {Number(expense.amount).toFixed(2)} {expense.currency}
+                          <div>
+                            {Number(expense.amount).toFixed(2)} {expense.currency}
+                          </div>
+                          {expense.converted_amount && expense.currency !== preview?.currency && (
+                            <div
+                              className="text-xs text-gray-500"
+                              title={`Rate: ${expense.exchange_rate} on ${expense.rate_date}`}
+                            >
+                              = {Number(expense.converted_amount).toFixed(2)} {preview?.currency}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">

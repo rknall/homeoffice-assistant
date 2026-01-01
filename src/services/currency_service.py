@@ -326,6 +326,73 @@ class CurrencyService:
         )
 
 
+async def backfill_expense_conversions(db: Session) -> dict:
+    """Backfill currency conversions for expenses missing converted_amount.
+
+    Finds all expenses where converted_amount is NULL and the expense currency
+    differs from the company's base currency, then converts them.
+
+    Args:
+        db: Database session.
+
+    Returns:
+        Dict with counts: converted, skipped, failed.
+    """
+    from src.models import Event, Expense
+
+    results = {"converted": 0, "skipped": 0, "failed": 0}
+
+    # Find expenses without converted_amount
+    expenses = (
+        db.query(Expense)
+        .filter(Expense.converted_amount.is_(None))
+        .all()
+    )
+
+    if not expenses:
+        return results
+
+    service = CurrencyService(db)
+    try:
+        for expense in expenses:
+            # Get the event to find company base currency
+            event = db.query(Event).filter(Event.id == expense.event_id).first()
+            if not event or not event.company:
+                results["skipped"] += 1
+                continue
+
+            base_currency = event.company.base_currency
+            if expense.currency.upper() == base_currency.upper():
+                # Same currency: set 1:1 conversion
+                expense.converted_amount = expense.amount
+                expense.exchange_rate = Decimal("1.0")
+                expense.rate_date = expense.date
+                results["converted"] += 1
+            else:
+                try:
+                    result = await service.convert(
+                        expense.amount,
+                        expense.currency,
+                        base_currency,
+                        expense.date,
+                    )
+                    expense.converted_amount = result.converted_amount
+                    expense.exchange_rate = result.exchange_rate
+                    expense.rate_date = result.rate_date
+                    results["converted"] += 1
+                except CurrencyServiceError as e:
+                    logger.warning(
+                        f"Failed to convert expense {expense.id}: {e}"
+                    )
+                    results["failed"] += 1
+
+        db.commit()
+    finally:
+        await service.close()
+
+    return results
+
+
 # Synchronous wrapper functions for use in non-async contexts
 def get_supported_currencies_sync(db: Session) -> list[Currency]:
     """Synchronous wrapper for getting supported currencies.

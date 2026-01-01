@@ -25,6 +25,9 @@
 - Excel expense reports now include both original and converted amounts with exchange rate info
 - `GET /api/v1/currencies` endpoint returns list of supported currencies
 - New CurrencyCache model for storing historical exchange rates
+- Event detail page shows conversion rates in Total Expenses card (e.g., "1 EUR = 1.1787 USD")
+- Per-expense converted amounts displayed with rate tooltip on hover
+- Backfill API endpoint (`POST /currencies/backfill`) to convert existing expenses
 
 #### Todo Management
 - Full todo CRUD on event detail page with tabbed interface

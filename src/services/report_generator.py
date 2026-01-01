@@ -63,6 +63,13 @@ class ExpenseReportGenerator:
         by_category: dict[str, Decimal] = {}
         by_payment_type: dict[str, Decimal] = {}
 
+        # Get base currency from company
+        base_currency = event.company.base_currency if event.company else "EUR"
+
+        # Track currencies that were converted with their rates
+        conversion_rates: dict[str, Decimal] = {}
+        has_unconverted = False
+
         for expense in expenses:
             # Use converted amount for aggregations
             amount = (
@@ -76,8 +83,13 @@ class ExpenseReportGenerator:
             pt = expense.payment_type.value
             by_payment_type[pt] = by_payment_type.get(pt, Decimal(0)) + amount
 
-        # Get base currency from company
-        base_currency = event.company.base_currency if event.company else "EUR"
+            # Track if this expense was converted from a different currency
+            if expense.currency.upper() != base_currency.upper():
+                if expense.exchange_rate is not None:
+                    # Store the rate (later expenses overwrite earlier ones)
+                    conversion_rates[expense.currency.upper()] = expense.exchange_rate
+                if expense.converted_amount is None:
+                    has_unconverted = True
 
         return {
             "event_id": event.id,
@@ -92,6 +104,12 @@ class ExpenseReportGenerator:
             "by_category": {k: float(v) for k, v in by_category.items()},
             "by_payment_type": {k: float(v) for k, v in by_payment_type.items()},
             "paperless_configured": self.paperless is not None,
+            "conversion_rates": (
+                {k: float(v) for k, v in conversion_rates.items()}
+                if conversion_rates
+                else None
+            ),
+            "has_unconverted": has_unconverted,
         }
 
     def _create_excel(

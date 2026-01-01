@@ -204,7 +204,7 @@ def get_expense_summary(db: Session, event_id: uuid.UUID) -> dict:
     """Get expense summary for an event.
 
     Uses converted_amount for proper multi-currency totals.
-    Returns the event's company base_currency.
+    Returns the event's company base_currency and conversion info.
     """
     from src.models import Event
 
@@ -222,6 +222,10 @@ def get_expense_summary(db: Session, event_id: uuid.UUID) -> dict:
     by_category = {}
     by_payment_type = {}
 
+    # Track currencies that were converted
+    converted_currencies: set[str] = set()
+    has_unconverted = False
+
     for expense in expenses:
         # Use converted amount for aggregations
         amount = float(
@@ -236,10 +240,20 @@ def get_expense_summary(db: Session, event_id: uuid.UUID) -> dict:
         pt = expense.payment_type.value
         by_payment_type[pt] = by_payment_type.get(pt, 0) + amount
 
+        # Track if this expense was converted from a different currency
+        if expense.currency.upper() != base_currency.upper():
+            converted_currencies.add(expense.currency.upper())
+            if expense.converted_amount is None:
+                has_unconverted = True
+
     return {
         "total": float(total),
         "count": len(expenses),
         "by_category": by_category,
         "by_payment_type": by_payment_type,
         "currency": base_currency,
+        "converted_from": (
+            sorted(converted_currencies) if converted_currencies else None
+        ),
+        "has_unconverted": has_unconverted,
     }

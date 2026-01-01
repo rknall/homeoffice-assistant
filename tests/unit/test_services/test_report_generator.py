@@ -108,9 +108,10 @@ async def test_generate_creates_zip_with_excel(db_session):
     generator = report_generator.ExpenseReportGenerator(
         db_session, paperless=FakePaperless()
     )
-    zip_bytes = await generator.generate(event)
+    zip_bytes, expenses = await generator.generate(event)
 
     assert len(zip_bytes) > 0
+    assert len(expenses) == 2
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zip_file:
         names = zip_file.namelist()
         assert any(name.endswith(".xlsx") for name in names)

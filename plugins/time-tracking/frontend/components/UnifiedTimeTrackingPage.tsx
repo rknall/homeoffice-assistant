@@ -72,11 +72,12 @@ export function UnifiedTimeTrackingPage() {
 			const monthStart = getMonthStart(currentDate);
 			const monthEnd = getMonthEnd(currentDate);
 
-			const response = await timeRecordsApi.list({
+			// API returns array directly
+			const records = await timeRecordsApi.list({
 				start_date: toISODateString(monthStart),
 				end_date: toISODateString(monthEnd),
 			});
-			setRecords(response.records);
+			setRecords(records);
 		} catch (err) {
 			console.error("Failed to load records:", err);
 		} finally {

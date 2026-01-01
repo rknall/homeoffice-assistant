@@ -62,22 +62,17 @@ export const timeRecordsApi = {
 		company_id?: Uuid;
 		start_date?: string;
 		end_date?: string;
-		skip?: number;
-		limit?: number;
-	}): Promise<TimeRecordListResponse> => {
+		day_type?: string;
+	}): Promise<TimeRecord[]> => {
 		const searchParams = new URLSearchParams();
 		if (params?.company_id) searchParams.set("company_id", params.company_id);
-		if (params?.start_date) searchParams.set("start_date", params.start_date);
-		if (params?.end_date) searchParams.set("end_date", params.end_date);
-		if (params?.skip !== undefined)
-			searchParams.set("skip", String(params.skip));
-		if (params?.limit !== undefined)
-			searchParams.set("limit", String(params.limit));
+		// Backend uses 'from' and 'to' query params
+		if (params?.start_date) searchParams.set("from", params.start_date);
+		if (params?.end_date) searchParams.set("to", params.end_date);
+		if (params?.day_type) searchParams.set("day_type", params.day_type);
 
 		const query = searchParams.toString();
-		return request<TimeRecordListResponse>(
-			`/records${query ? `?${query}` : ""}`,
-		);
+		return request<TimeRecord[]>(`/records${query ? `?${query}` : ""}`);
 	},
 
 	get: (recordId: Uuid): Promise<TimeRecord> => {

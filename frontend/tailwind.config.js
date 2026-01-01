@@ -14,6 +14,12 @@ export default {
     'gap-8',
     'gap-10',
     'gap-12',
+    // Modal backdrop opacity
+    'bg-opacity-50',
+    // Fixed positioning for modals
+    'fixed',
+    'inset-0',
+    'z-50',
   ],
   theme: {
     extend: {},

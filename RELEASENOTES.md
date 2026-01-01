@@ -147,6 +147,12 @@
 - Company-specific time settings (overtime thresholds, vacation days, lock periods)
 - Time allocations for splitting hours across events/projects
 - 64 unit tests covering time calculations, validators, and leave balances
+- **Unified multi-company view**: Calendar and table views for all companies with color-coded entries
+- **Company filter toggles**: Toggle visibility of time records by company
+- **Time overlap detection**: Visual indicators for overlapping time entries across companies
+- **Sortable table view**: Click column headers to sort by date, company, type, etc.
+- **Monthly submission panel**: Submit timesheets with company selection and email recipient
+- **TypeScript migration**: Frontend migrated to TypeScript with esbuild bundling
 
 ### Improvements
 

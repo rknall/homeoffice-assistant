@@ -13,6 +13,7 @@ import type {
 	TimeRecordWithWarnings,
 } from "../types";
 import { COMPANY_COLORS } from "../types";
+import { LeaveBalanceCard } from "./LeaveBalanceCard";
 import { MonthCalendarView } from "./MonthCalendarView";
 import { MonthlySubmissionPanel } from "./MonthlySubmissionPanel";
 import { TableView } from "./TableView";
@@ -304,8 +305,12 @@ export function UnifiedTimeTrackingPage() {
 				onStatusChange={loadRecords}
 			/>
 
-			{/* Controls row: company filters on left, month nav + view toggle on right */}
-			<div className="flex items-center justify-between flex-wrap gap-4">
+			{/* Two-column layout: Main content + Sidebar */}
+			<div className="flex gap-6">
+				{/* Main content area */}
+				<div className="flex-1 min-w-0 space-y-4">
+					{/* Controls row: company filters on left, month nav + view toggle on right */}
+					<div className="flex items-center justify-between flex-wrap gap-4">
 				{/* Company filter toggles - only show companies with records this month */}
 				<div className="flex flex-wrap gap-2">
 				{companiesWithRecords.map((company) => {
@@ -433,29 +438,44 @@ export function UnifiedTimeTrackingPage() {
 				</div>
 			</div>
 
-			{/* View: Calendar or Table */}
-			{viewMode === "calendar" ? (
-				<MonthCalendarView
-					currentDate={currentDate}
-					recordsByDate={recordsByDate}
-					overlappingRecordIds={overlappingRecordIds}
-					holidaysByDate={holidaysByDate}
-					getCompanyColor={getCompanyColor}
-					onRecordClick={handleRecordClick}
-					onDateClick={handleDateClick}
-					isLoading={isLoading}
-				/>
-			) : (
-				<TableView
-					records={visibleRecords}
-					overlappingRecordIds={overlappingRecordIds}
-					companies={companies}
-					getCompanyColor={getCompanyColor}
-					onRecordClick={handleRecordClick}
-					onDeleteRecord={handleDeleteRecord}
-					isLoading={isLoading}
-				/>
-			)}
+					{/* View: Calendar or Table */}
+					{viewMode === "calendar" ? (
+						<MonthCalendarView
+							currentDate={currentDate}
+							recordsByDate={recordsByDate}
+							overlappingRecordIds={overlappingRecordIds}
+							holidaysByDate={holidaysByDate}
+							getCompanyColor={getCompanyColor}
+							onRecordClick={handleRecordClick}
+							onDateClick={handleDateClick}
+							isLoading={isLoading}
+						/>
+					) : (
+						<TableView
+							records={visibleRecords}
+							overlappingRecordIds={overlappingRecordIds}
+							companies={companies}
+							getCompanyColor={getCompanyColor}
+							onRecordClick={handleRecordClick}
+							onDeleteRecord={handleDeleteRecord}
+							isLoading={isLoading}
+						/>
+					)}
+
+					{/* Keyboard shortcut help */}
+					<div className="text-xs text-gray-400 text-center">
+						Click on an entry to edit, or click on an empty day to add a new record.
+					</div>
+				</div>
+
+				{/* Sidebar */}
+				<div className="w-72 flex-shrink-0 space-y-4">
+					<LeaveBalanceCard
+						companies={companies}
+						currentDate={currentDate}
+					/>
+				</div>
+			</div>
 
 			{/* Time record form modal */}
 			{selectedDate && (
@@ -490,11 +510,6 @@ export function UnifiedTimeTrackingPage() {
 					</div>
 				</div>
 			)}
-
-			{/* Keyboard shortcut help */}
-			<div className="text-xs text-gray-400 text-center">
-				Click on an entry to edit, or click on an empty day to add a new record.
-			</div>
 
 			{/* Submission Panel (Slide-out) */}
 			{showSubmissionPanel && (

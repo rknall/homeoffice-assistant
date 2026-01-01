@@ -131,6 +131,23 @@
 - Simple notes CRUD functionality
 - Frontend module with dynamic React components
 
+#### Time Tracking Plugin
+- Full-featured time tracking with Austrian labor law (Arbeitszeitgesetz) compliance
+- Time record management with check-in/check-out, day types, and work location tracking
+- Automatic time rounding to 5-minute intervals in employer's favor
+- Break calculation per Austrian law (30 min after 6h work)
+- Compliance validation: 10h daily max, 11h rest period, 50h weekly max
+- Leave balance tracking: vacation days, sick days, comp time
+- Comp time accrual with 2x multiplier for Sunday/holiday work
+- Austrian public holiday detection via `holidays` library
+- Custom holiday support for company-specific holidays
+- PDF timesheet report generation with ReportLab
+- Email submission of timesheets via SMTP integration
+- Submission history tracking with status (pending, sent, failed)
+- Company-specific time settings (overtime thresholds, vacation days, lock periods)
+- Time allocations for splitting hours across events/projects
+- 64 unit tests covering time calculations, validators, and leave balances
+
 ### Improvements
 
 - Started UUID migration by updating ORM models to use native UUID primary and foreign keys; follow-up schemas and Alembic migration pending.

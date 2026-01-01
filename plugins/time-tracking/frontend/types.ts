@@ -8,251 +8,340 @@
  * across the frontend-backend boundary.
  */
 
-export type Uuid = string
+export type Uuid = string;
 
 // Company info for unified view
 export interface CompanyInfo {
-  id: Uuid
-  name: string
-  color: string // Hex color for display
+	id: Uuid;
+	name: string;
+	color: string; // Hex color for display
 }
 
 // Predefined company colors palette (used cyclically)
 export const COMPANY_COLORS = [
-  '#3B82F6', // blue-500
-  '#10B981', // emerald-500
-  '#8B5CF6', // violet-500
-  '#F59E0B', // amber-500
-  '#EF4444', // red-500
-  '#06B6D4', // cyan-500
-  '#EC4899', // pink-500
-  '#6366F1', // indigo-500
-]
+	"#3B82F6", // blue-500
+	"#10B981", // emerald-500
+	"#8B5CF6", // violet-500
+	"#F59E0B", // amber-500
+	"#EF4444", // red-500
+	"#06B6D4", // cyan-500
+	"#EC4899", // pink-500
+	"#6366F1", // indigo-500
+];
 
 // Day types for time records
 export type DayType =
-  | 'work'
-  | 'vacation'
-  | 'sick'
-  | 'doctor_visit'
-  | 'public_holiday'
-  | 'comp_time'
-  | 'unpaid_leave'
-  | 'weekend'
+	| "work"
+	| "vacation"
+	| "sick"
+	| "doctor_visit"
+	| "public_holiday"
+	| "comp_time"
+	| "unpaid_leave"
+	| "weekend";
 
 export const DAY_TYPE_LABELS: Record<DayType, string> = {
-  work: 'Work',
-  vacation: 'Vacation',
-  sick: 'Sick Leave',
-  doctor_visit: 'Doctor Visit',
-  public_holiday: 'Public Holiday',
-  comp_time: 'Comp Time',
-  unpaid_leave: 'Unpaid Leave',
-  weekend: 'Weekend',
-}
+	work: "Work",
+	vacation: "Vacation",
+	sick: "Sick Leave",
+	doctor_visit: "Doctor Visit",
+	public_holiday: "Public Holiday",
+	comp_time: "Comp Time",
+	unpaid_leave: "Unpaid Leave",
+	weekend: "Weekend",
+};
 
 export const DAY_TYPE_COLORS: Record<DayType, { bg: string; text: string }> = {
-  work: { bg: 'bg-blue-100', text: 'text-blue-800' },
-  vacation: { bg: 'bg-green-100', text: 'text-green-800' },
-  sick: { bg: 'bg-red-100', text: 'text-red-800' },
-  doctor_visit: { bg: 'bg-orange-100', text: 'text-orange-800' },
-  public_holiday: { bg: 'bg-purple-100', text: 'text-purple-800' },
-  comp_time: { bg: 'bg-cyan-100', text: 'text-cyan-800' },
-  unpaid_leave: { bg: 'bg-gray-100', text: 'text-gray-800' },
-  weekend: { bg: 'bg-gray-50', text: 'text-gray-600' },
-}
+	work: { bg: "bg-blue-100", text: "text-blue-800" },
+	vacation: { bg: "bg-green-100", text: "text-green-800" },
+	sick: { bg: "bg-red-100", text: "text-red-800" },
+	doctor_visit: { bg: "bg-orange-100", text: "text-orange-800" },
+	public_holiday: { bg: "bg-purple-100", text: "text-purple-800" },
+	comp_time: { bg: "bg-cyan-100", text: "text-cyan-800" },
+	unpaid_leave: { bg: "bg-gray-100", text: "text-gray-800" },
+	weekend: { bg: "bg-gray-50", text: "text-gray-600" },
+};
 
 // Leave balance types
-export type LeaveType = 'vacation' | 'comp_time'
+export type LeaveType = "vacation" | "comp_time";
 
 export const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
-  vacation: 'Vacation',
-  comp_time: 'Comp Time',
-}
+	vacation: "Vacation",
+	comp_time: "Comp Time",
+};
 
 // Compliance warning levels
-export type WarningLevel = 'info' | 'warning' | 'error'
+export type WarningLevel = "info" | "warning" | "error";
 
 export const WARNING_LEVEL_COLORS: Record<
-  WarningLevel,
-  { bg: string; text: string; border: string }
+	WarningLevel,
+	{ bg: string; text: string; border: string }
 > = {
-  info: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-  warning: { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200' },
-  error: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
-}
+	info: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
+	warning: {
+		bg: "bg-yellow-50",
+		text: "text-yellow-700",
+		border: "border-yellow-200",
+	},
+	error: { bg: "bg-red-50", text: "text-red-700", border: "border-red-200" },
+};
 
 // Time record interfaces
 export interface TimeRecord {
-  id: Uuid
-  user_id: Uuid
-  company_id: Uuid
-  company_name: string | null // Company name for display (Phase 2)
-  date: string // ISO date string
-  day_type: DayType
-  check_in: string | null // HH:MM format
-  check_out: string | null // HH:MM format
-  break_minutes: number | null
-  gross_hours: number | null
-  net_hours: number | null
-  comp_time_earned: number
-  notes: string | null
-  is_locked: boolean
-  locked_at: string | null
-  locked_by: Uuid | null
-  created_at: string
-  updated_at: string
+	id: Uuid;
+	user_id: Uuid;
+	company_id: Uuid;
+	company_name: string | null; // Company name for display (Phase 2)
+	date: string; // ISO date string
+	day_type: DayType;
+	check_in: string | null; // HH:MM format
+	check_out: string | null; // HH:MM format
+	break_minutes: number | null;
+	gross_hours: number | null;
+	net_hours: number | null;
+	comp_time_earned: number;
+	notes: string | null;
+	is_locked: boolean;
+	locked_at: string | null;
+	locked_by: Uuid | null;
+	created_at: string;
+	updated_at: string;
 }
 
 export interface TimeRecordCreate {
-  company_id: Uuid
-  date: string
-  day_type?: DayType
-  check_in?: string | null
-  check_out?: string | null
-  break_minutes?: number | null
-  notes?: string | null
+	company_id: Uuid;
+	date: string;
+	day_type?: DayType;
+	check_in?: string | null;
+	check_out?: string | null;
+	break_minutes?: number | null;
+	notes?: string | null;
 }
 
 export interface TimeRecordUpdate {
-  day_type?: DayType
-  check_in?: string | null
-  check_out?: string | null
-  break_minutes?: number | null
-  notes?: string | null
+	day_type?: DayType;
+	check_in?: string | null;
+	check_out?: string | null;
+	break_minutes?: number | null;
+	notes?: string | null;
 }
 
 // Compliance warning interface
 export interface ComplianceWarning {
-  level: WarningLevel
-  code: string
-  message: string
-  requires_explanation: boolean
-  law_reference: string | null
+	level: WarningLevel;
+	code: string;
+	message: string;
+	requires_explanation: boolean;
+	law_reference: string | null;
 }
 
 // Time record response with warnings
 export interface TimeRecordWithWarnings {
-  record: TimeRecord
-  warnings: ComplianceWarning[]
+	record: TimeRecord;
+	warnings: ComplianceWarning[];
 }
 
 // Leave balance interfaces
 export interface LeaveBalance {
-  id: Uuid
-  user_id: Uuid
-  company_id: Uuid
-  year: number
-  leave_type: LeaveType
-  entitled_days: number
-  carried_over: number
-  used_days: number
-  pending_days: number
-  available_days: number // Computed property
-  created_at: string
-  updated_at: string
+	id: Uuid;
+	user_id: Uuid;
+	company_id: Uuid;
+	year: number;
+	leave_type: LeaveType;
+	entitled_days: number;
+	carried_over: number;
+	used_days: number;
+	pending_days: number;
+	available_days: number; // Computed property
+	created_at: string;
+	updated_at: string;
 }
 
 // Time allocation interfaces
 export interface TimeAllocation {
-  id: Uuid
-  time_record_id: Uuid
-  event_id: Uuid
-  hours: number
-  notes: string | null
-  created_at: string
-  updated_at: string
+	id: Uuid;
+	time_record_id: Uuid;
+	event_id: Uuid;
+	hours: number;
+	notes: string | null;
+	created_at: string;
+	updated_at: string;
 }
 
 export interface TimeAllocationCreate {
-  event_id: Uuid
-  hours: number
-  notes?: string | null
+	event_id: Uuid;
+	hours: number;
+	notes?: string | null;
 }
 
 // Company time settings
 export interface CompanyTimeSettings {
-  id: Uuid
-  company_id: Uuid
-  country_code: string
-  region: string | null
-  standard_hours_per_day: number
-  standard_hours_per_week: number
-  default_break_minutes: number
-  vacation_days_per_year: number
-  max_carryover_days: number
-  comp_time_enabled: boolean
-  time_rounding_enabled: boolean
-  created_at: string
-  updated_at: string
+	id: Uuid;
+	company_id: Uuid;
+	country_code: string;
+	region: string | null;
+	standard_hours_per_day: number;
+	standard_hours_per_week: number;
+	default_break_minutes: number;
+	vacation_days_per_year: number;
+	max_carryover_days: number;
+	comp_time_enabled: boolean;
+	time_rounding_enabled: boolean;
+	created_at: string;
+	updated_at: string;
 }
 
 export interface CompanyTimeSettingsCreate {
-  country_code?: string
-  region?: string | null
-  standard_hours_per_day?: number
-  standard_hours_per_week?: number
-  default_break_minutes?: number
-  vacation_days_per_year?: number
-  max_carryover_days?: number
-  comp_time_enabled?: boolean
-  time_rounding_enabled?: boolean
+	country_code?: string;
+	region?: string | null;
+	standard_hours_per_day?: number;
+	standard_hours_per_week?: number;
+	default_break_minutes?: number;
+	vacation_days_per_year?: number;
+	max_carryover_days?: number;
+	comp_time_enabled?: boolean;
+	time_rounding_enabled?: boolean;
 }
 
 export interface CompanyTimeSettingsUpdate {
-  country_code?: string
-  region?: string | null
-  standard_hours_per_day?: number
-  standard_hours_per_week?: number
-  default_break_minutes?: number
-  vacation_days_per_year?: number
-  max_carryover_days?: number
-  comp_time_enabled?: boolean
-  time_rounding_enabled?: boolean
+	country_code?: string;
+	region?: string | null;
+	standard_hours_per_day?: number;
+	standard_hours_per_week?: number;
+	default_break_minutes?: number;
+	vacation_days_per_year?: number;
+	max_carryover_days?: number;
+	comp_time_enabled?: boolean;
+	time_rounding_enabled?: boolean;
 }
 
 // Holiday interface
 export interface Holiday {
-  date: string
-  name: string
-  is_custom: boolean
+	date: string;
+	name: string;
+	is_custom: boolean;
 }
 
 // Monthly report interfaces
 export interface MonthlyReportSummary {
-  year: number
-  month: number
-  total_work_days: number
-  total_work_hours: number
-  total_overtime_hours: number
-  total_comp_time_earned: number
-  vacation_days_used: number
-  sick_days: number
-  public_holidays: number
+	year: number;
+	month: number;
+	total_work_days: number;
+	total_work_hours: number;
+	total_overtime_hours: number;
+	total_comp_time_earned: number;
+	vacation_days_used: number;
+	sick_days: number;
+	public_holidays: number;
 }
 
 // Check-in/out response
 export interface CheckInOutResponse {
-  record: TimeRecord
-  message: string
+	record: TimeRecord;
+	message: string;
 }
 
 // Week view data
 export interface WeekData {
-  start_date: string
-  end_date: string
-  records: TimeRecord[]
-  total_hours: number
-  warnings: ComplianceWarning[]
+	start_date: string;
+	end_date: string;
+	records: TimeRecord[];
+	total_hours: number;
+	warnings: ComplianceWarning[];
 }
 
 // API response types
 export interface TimeRecordListResponse {
-  records: TimeRecord[]
-  total: number
+	records: TimeRecord[];
+	total: number;
 }
 
 export interface LeaveBalanceResponse {
-  vacation: LeaveBalance | null
-  comp_time: LeaveBalance | null
+	vacation: LeaveBalance | null;
+	comp_time: LeaveBalance | null;
+}
+
+// ============================================================================
+// Plugin Framework Types
+// These types are required by the plugin system for integration with the host app
+// ============================================================================
+
+import type { ComponentType } from "react";
+
+/**
+ * Plugin capabilities from manifest
+ */
+export interface PluginCapabilities {
+	backend: boolean;
+	frontend: boolean;
+	config: boolean;
+}
+
+/**
+ * A permission provided by a plugin
+ */
+export interface ProvidedPermission {
+	code: string;
+	description: string;
+}
+
+/**
+ * Plugin manifest metadata
+ */
+export interface PluginManifest {
+	id: string;
+	name: string;
+	version: string;
+	description: string;
+	author?: string;
+	homepage?: string;
+	license?: string;
+	minHostVersion?: string;
+	maxHostVersion?: string;
+	capabilities: PluginCapabilities;
+	permissions: string[];
+	required_permissions?: string[];
+	provided_permissions?: ProvidedPermission[];
+	dependencies?: string[];
+}
+
+/**
+ * Navigation item provided by a plugin
+ */
+export interface PluginNavItem {
+	id: string;
+	label: string;
+	icon?: string;
+	path: string;
+	order?: number;
+}
+
+/**
+ * Route definition provided by a plugin
+ */
+export interface PluginRoute {
+	path: string;
+	component: ComponentType;
+	exact?: boolean;
+}
+
+/**
+ * Widget components that plugins can provide
+ */
+export interface PluginWidgets {
+	dashboard?: ComponentType;
+	eventDetail?: ComponentType<{ eventId: string }>;
+	companyDetail?: ComponentType<{ companyId: string }>;
+}
+
+/**
+ * Frontend exports from a plugin module
+ */
+export interface PluginExports {
+	manifest: PluginManifest;
+	getNavItems?: () => PluginNavItem[];
+	getRoutes?: () => PluginRoute[];
+	widgets?: PluginWidgets;
+	onLoad?: () => Promise<void>;
+	onUnload?: () => Promise<void>;
 }

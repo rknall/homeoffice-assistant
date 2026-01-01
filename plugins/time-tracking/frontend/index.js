@@ -757,7 +757,7 @@ function TimeTrackingPage() {
 				// Day headers
 				h(
 					"div",
-					{ className: "border-b", style: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)" } },
+					{ className: "grid grid-cols-7 border-b" },
 					["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) =>
 						h("div", { key: day, className: "px-2 py-2 text-center text-xs font-medium text-gray-500" }, day),
 					),
@@ -765,7 +765,7 @@ function TimeTrackingPage() {
 				// Calendar grid
 				h(
 					"div",
-					{ style: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)" } },
+					{ className: "grid grid-cols-7" },
 					getCalendarDays(calendarMonth.year, calendarMonth.month).map((cell, idx) => {
 						const record = cell.isCurrentMonth ? getRecordForDate(cell.year, cell.month, cell.day) : null
 						const isTodayCell = isToday(cell.year, cell.month, cell.day)
@@ -872,7 +872,7 @@ function TimeTrackingPage() {
 						dayRecord.day_type === "work" &&
 							h(
 								"div",
-								{ className: "text-sm mb-3", style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem" } },
+								{ className: "grid grid-cols-4 gap-4 text-sm mb-3" },
 								h("div", null, h("span", { className: "text-gray-500" }, "Check In: "), formatTime(dayRecord.check_in)),
 								h("div", null, h("span", { className: "text-gray-500" }, "Check Out: "), formatTime(dayRecord.check_out)),
 								h("div", null, h("span", { className: "text-gray-500" }, "Break: "), dayRecord.break_minutes ? `${dayRecord.break_minutes}m` : "-"),
@@ -1015,7 +1015,7 @@ function TimeTrackingPage() {
 				),
 				h(
 					"div",
-					{ className: "px-4 pb-4", style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem" } },
+					{ className: "px-4 pb-4 grid grid-cols-3 gap-4" },
 					h(
 						"div",
 						{ className: "bg-white p-3 rounded-lg border" },
@@ -1410,7 +1410,7 @@ function CompanyTimeSettingsWidget({ companyId }) {
 		h("h3", { className: "font-semibold mb-3" }, "Time Tracking Settings"),
 		h(
 			"div",
-			{ className: "text-sm", style: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "1rem" } },
+			{ className: "grid grid-cols-2 gap-4 text-sm" },
 			h(
 				"div",
 				null,

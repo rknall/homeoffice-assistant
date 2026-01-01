@@ -17,6 +17,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const PLUGINS_DIR = path.resolve(__dirname, '../../plugins')
+const REACT_SHIM = path.resolve(__dirname, 'react-shim.js')
 
 // Find all plugins with frontend/index.ts
 function findPlugins(): string[] {
@@ -56,14 +57,17 @@ async function buildPlugin(pluginId: string): Promise<void> {
     target: 'es2020',
     minify: process.env.NODE_ENV === 'production',
     sourcemap: process.env.NODE_ENV !== 'production',
-    external: ['react', 'react-dom', 'react/jsx-runtime'],
-    // Mark React as external - plugins use the host app's React
+    // Use alias to point React imports to our shim that uses window.React
+    alias: {
+      react: REACT_SHIM,
+      'react-dom': REACT_SHIM,
+      'react/jsx-runtime': REACT_SHIM,
+    },
     define: {
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
     },
-    // Inject React imports for JSX
-    jsxFactory: 'React.createElement',
-    jsxFragment: 'React.Fragment',
+    // Use automatic JSX runtime
+    jsx: 'automatic',
     loader: {
       '.tsx': 'tsx',
       '.ts': 'ts',

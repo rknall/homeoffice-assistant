@@ -105,6 +105,7 @@ class TimeRecordResponse(TimeRecordBase):
 
     id: str
     user_id: str
+    company_name: str | None = None  # Company name for display
     gross_hours: float | None = None
     break_minutes: int | None = None
     net_hours: float | None = None

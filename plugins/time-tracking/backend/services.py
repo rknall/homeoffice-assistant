@@ -156,6 +156,140 @@ def calculate_comp_time_earned(
     return overtime * multiplier
 
 
+def times_overlap(
+    start1: time, end1: time, start2: time, end2: time
+) -> bool:
+    """Check if two time ranges overlap.
+
+    Handles overnight shifts correctly by checking both the evening and
+    morning portions of overnight ranges.
+
+    Args:
+        start1: Start time of first range.
+        end1: End time of first range.
+        start2: Start time of second range.
+        end2: End time of second range.
+
+    Returns:
+        True if the time ranges overlap.
+    """
+    # Convert to minutes for comparison
+    start1_mins = start1.hour * 60 + start1.minute
+    end1_mins = end1.hour * 60 + end1.minute
+    start2_mins = start2.hour * 60 + start2.minute
+    end2_mins = end2.hour * 60 + end2.minute
+
+    # Check if either range is an overnight shift
+    range1_overnight = end1_mins < start1_mins
+    range2_overnight = end2_mins < start2_mins
+
+    # Handle overnight shifts by normalizing to 24+ hour scale
+    if range1_overnight:
+        end1_mins += 24 * 60
+    if range2_overnight:
+        end2_mins += 24 * 60
+
+    # For overnight range1, if range2 starts early morning (within range1's
+    # next-day portion) we need to shift range2 forward for proper comparison
+    if range1_overnight and not range2_overnight:
+        original_end1 = end1.hour * 60 + end1.minute
+        if start2_mins < original_end1:
+            start2_mins += 24 * 60
+            end2_mins += 24 * 60
+
+    # For overnight range2, apply symmetric logic
+    if range2_overnight and not range1_overnight:
+        original_end2 = end2.hour * 60 + end2.minute
+        if start1_mins < original_end2:
+            start1_mins += 24 * 60
+            end1_mins += 24 * 60
+
+    # Check for overlap: ranges overlap if start of one is before end of other
+    return start1_mins < end2_mins and start2_mins < end1_mins
+
+
+def validate_time_overlap(
+    db: Session,
+    user_id: UUID,
+    record_date: date,
+    check_in: time,
+    check_out: time,
+    company_id: UUID,
+    exclude_entry_id: UUID | None = None,
+) -> tuple[bool, list[dict[str, Any]]]:
+    """Validate that a time entry doesn't overlap with existing entries.
+
+    Checks ALL companies for the given user and date to prevent
+    double-booking across different companies.
+
+    Args:
+        db: Database session.
+        user_id: User ID.
+        record_date: Date of the record.
+        check_in: Check-in time.
+        check_out: Check-out time.
+        company_id: Company ID for the new/updated entry.
+        exclude_entry_id: Entry ID to exclude from check (for updates).
+
+    Returns:
+        Tuple of (is_valid, conflicting_entries).
+        is_valid is True if no overlaps found.
+        conflicting_entries is a list of dicts with conflict details.
+    """
+    # Query ALL entries for this user on this date across ALL companies
+    query = (
+        db.query(TimeEntry)
+        .join(TimeRecord)
+        .filter(
+            TimeRecord.user_id == user_id,
+            TimeRecord.date == record_date,
+            TimeEntry.check_in.isnot(None),
+            TimeEntry.check_out.isnot(None),
+        )
+    )
+
+    # Exclude the entry being updated
+    if exclude_entry_id:
+        query = query.filter(TimeEntry.id != exclude_entry_id)
+
+    existing_entries = query.all()
+
+    conflicts = []
+    for entry in existing_entries:
+        if times_overlap(check_in, check_out, entry.check_in, entry.check_out):
+            # Get company name for better error messages
+            company_name = (
+                db.query(TimeRecord)
+                .filter(TimeRecord.id == entry.record_id)
+                .first()
+                .company.name
+                if hasattr(
+                    db.query(TimeRecord)
+                    .filter(TimeRecord.id == entry.record_id)
+                    .first(),
+                    "company",
+                )
+                else "Unknown"
+            )
+
+            conflicts.append(
+                {
+                    "entry_id": str(entry.id),
+                    "company_id": str(
+                        db.query(TimeRecord)
+                        .filter(TimeRecord.id == entry.record_id)
+                        .first()
+                        .company_id
+                    ),
+                    "company_name": company_name,
+                    "check_in": entry.check_in.strftime("%H:%M"),
+                    "check_out": entry.check_out.strftime("%H:%M"),
+                }
+            )
+
+    return len(conflicts) == 0, conflicts
+
+
 # --- Time Record Service ---
 
 
@@ -210,6 +344,36 @@ class TimeRecordService:
             check_in = round_time_employer_favor(check_in, is_check_in=True)
         if check_out:
             check_out = round_time_employer_favor(check_out, is_check_in=False)
+
+        # Validate for time overlaps (only for work days with times)
+        if (
+            day_type in [DayType.WORK.value, DayType.DOCTOR_VISIT.value]
+            and check_in
+            and check_out
+            and company_id
+        ):
+            is_valid, conflicts = validate_time_overlap(
+                self.db,
+                user_id,
+                record_date,
+                check_in,
+                check_out,
+                company_id,
+            )
+            if not is_valid:
+                conflict_details = "; ".join(
+                    [
+                        (
+                            f"{c['company_name']} "
+                            f"({c['check_in']}-{c['check_out']})"
+                        )
+                        for c in conflicts
+                    ]
+                )
+                raise ValueError(
+                    f"Time overlap detected with existing entries: "
+                    f"{conflict_details}"
+                )
 
         # Calculate hours if check-in and check-out provided
         gross_hours = None
@@ -301,6 +465,45 @@ class TimeRecordService:
                 elif key == "check_out" and value:
                     value = round_time_employer_favor(value, is_check_in=False)
                 setattr(record, key, value)
+
+        # Validate for time overlaps after updates (only for work days with times)
+        if (
+            record.day_type in [DayType.WORK.value, DayType.DOCTOR_VISIT.value]
+            and record.check_in
+            and record.check_out
+            and record.company_id
+        ):
+            # Get the first entry for this record to pass to overlap check
+            first_entry = (
+                self.db.query(TimeEntry)
+                .filter(TimeEntry.record_id == record.id)
+                .first()
+            )
+            exclude_entry_id = first_entry.id if first_entry else None
+
+            is_valid, conflicts = validate_time_overlap(
+                self.db,
+                user_id,
+                record.date,
+                record.check_in,
+                record.check_out,
+                record.company_id,
+                exclude_entry_id=exclude_entry_id,
+            )
+            if not is_valid:
+                conflict_details = "; ".join(
+                    [
+                        (
+                            f"{c['company_name']} "
+                            f"({c['check_in']}-{c['check_out']})"
+                        )
+                        for c in conflicts
+                    ]
+                )
+                raise ValueError(
+                    f"Time overlap detected with existing entries: "
+                    f"{conflict_details}"
+                )
 
         # Recalculate hours if times changed
         if record.check_in and record.check_out:

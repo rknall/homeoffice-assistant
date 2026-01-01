@@ -74,7 +74,9 @@ def _entry_to_response(entry: TimeEntry) -> TimeEntryResponse:
     )
 
 
-def _record_to_response(record: TimeRecord) -> TimeRecordResponse:
+def _record_to_response(
+    record: TimeRecord, company_name: str | None = None
+) -> TimeRecordResponse:
     """Convert a TimeRecord to a response schema."""
     warnings = None
     if record.compliance_warnings:
@@ -88,6 +90,7 @@ def _record_to_response(record: TimeRecord) -> TimeRecordResponse:
         user_id=str(record.user_id),
         date=record.date,
         company_id=str(record.company_id) if record.company_id else None,
+        company_name=company_name,
         day_type=DayType(record.day_type),
         check_in=record.check_in,
         check_in_timezone=record.check_in_timezone,
@@ -179,6 +182,8 @@ def list_records(
     current_user: User = Depends(require_permission("time-tracking.records.read")),
 ) -> list[TimeRecordResponse]:
     """List time records with optional filters."""
+    from src.models import Company
+
     service = TimeRecordService(db)
     records = service.list_records(
         user_id=current_user.id,
@@ -188,9 +193,25 @@ def list_records(
         day_type=day_type,
     )
 
+    # Pre-fetch company names for efficiency
+    company_ids = {
+        record.company_id for record in records if record.company_id is not None
+    }
+    companies = (
+        db.query(Company).filter(Company.id.in_(company_ids)).all()
+        if company_ids
+        else []
+    )
+    company_map = {str(c.id): c.name for c in companies}
+
     responses = []
     for record in records:
-        resp = _record_to_response(record)
+        company_name = (
+            company_map.get(str(record.company_id))
+            if record.company_id
+            else None
+        )
+        resp = _record_to_response(record, company_name=company_name)
         resp.is_locked = service.is_record_locked(record)
         responses.append(resp)
 
@@ -215,22 +236,25 @@ def create_record(
             detail=f"Record already exists for {data.date}",
         )
 
-    record = service.create_record(
-        user_id=current_user.id,
-        record_date=data.date,
-        day_type=data.day_type.value,
-        company_id=UUID(data.company_id) if data.company_id else None,
-        check_in=data.check_in,
-        check_out=data.check_out,
-        check_in_timezone=data.check_in_timezone,
-        check_out_timezone=data.check_out_timezone,
-        partial_absence_type=(
-            data.partial_absence_type.value if data.partial_absence_type else None
-        ),
-        partial_absence_hours=data.partial_absence_hours,
-        work_location=data.work_location.value if data.work_location else None,
-        notes=data.notes,
-    )
+    try:
+        record = service.create_record(
+            user_id=current_user.id,
+            record_date=data.date,
+            day_type=data.day_type.value,
+            company_id=UUID(data.company_id) if data.company_id else None,
+            check_in=data.check_in,
+            check_out=data.check_out,
+            check_in_timezone=data.check_in_timezone,
+            check_out_timezone=data.check_out_timezone,
+            partial_absence_type=(
+                data.partial_absence_type.value if data.partial_absence_type else None
+            ),
+            partial_absence_hours=data.partial_absence_hours,
+            work_location=data.work_location.value if data.work_location else None,
+            notes=data.notes,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
     return _record_to_response(record)
 

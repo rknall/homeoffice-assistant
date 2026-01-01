@@ -958,7 +958,7 @@ def list_submissions(
     )
 
     if company_id:
-        query = query.filter(TimesheetSubmission.company_id == company_id)
+        query = query.filter(TimesheetSubmission.company_id == UUID(company_id))
 
     total = query.count()
     submissions = (

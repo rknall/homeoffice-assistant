@@ -201,6 +201,17 @@ function TimeTrackingPage() {
 	const [showAddModal, setShowAddModal] = useState(false)
 	const [editingRecord, setEditingRecord] = useState(null)
 	const [showLeaveBalance, setShowLeaveBalance] = useState(false)
+	// Phase 2: Submission state
+	const [submissions, setSubmissions] = useState([])
+	const [selectedMonth, setSelectedMonth] = useState(() => {
+		const now = new Date()
+		return { year: now.getFullYear(), month: now.getMonth() + 1 }
+	})
+	const [showSubmissionModal, setShowSubmissionModal] = useState(false)
+	const [isSubmitting, setIsSubmitting] = useState(false)
+	const [recipientEmail, setRecipientEmail] = useState("")
+	const [submissionNotes, setSubmissionNotes] = useState("")
+	const [monthRecords, setMonthRecords] = useState([])
 	const [formData, setFormData] = useState({
 		date: new Date().toISOString().split("T")[0],
 		day_type: "work",
@@ -217,6 +228,36 @@ function TimeTrackingPage() {
 	const weekWorkDays = weekRecords.filter((r) => r.day_type === "work").length
 	const weekTotalHours = weekRecords.reduce((sum, r) => sum + (r.net_hours || 0), 0)
 	const weekOvertime = Math.max(0, weekTotalHours - 40)
+
+	// Generate last 12 months for dropdown
+	const getLastMonths = () => {
+		const months = []
+		const now = new Date()
+		for (let i = 0; i < 12; i++) {
+			const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+			months.push({ year: d.getFullYear(), month: d.getMonth() + 1 })
+		}
+		return months
+	}
+
+	// Format month for display
+	const formatMonth = (year, month) => {
+		const d = new Date(year, month - 1, 1)
+		return d.toLocaleDateString(undefined, { year: "numeric", month: "long" })
+	}
+
+	// Check if a month has been submitted
+	const isMonthSubmitted = (year, month) => {
+		return submissions.some((s) => {
+			const start = new Date(s.period_start)
+			return start.getFullYear() === year && start.getMonth() + 1 === month
+		})
+	}
+
+	// Calculate month stats from monthRecords
+	const monthWorkDays = monthRecords.filter((r) => r.day_type === "work").length
+	const monthTotalHours = monthRecords.reduce((sum, r) => sum + (r.net_hours || 0), 0)
+	const monthOvertime = Math.max(0, monthTotalHours - monthWorkDays * 8)
 
 	// Fetch companies on mount
 	useEffect(() => {
@@ -235,7 +276,14 @@ function TimeTrackingPage() {
 	useEffect(() => {
 		if (!selectedCompanyId) return
 		fetchData()
+		fetchSubmissions()
 	}, [selectedCompanyId])
+
+	// Fetch month records when selectedMonth changes
+	useEffect(() => {
+		if (!selectedCompanyId) return
+		fetchMonthRecords()
+	}, [selectedCompanyId, selectedMonth])
 
 	async function fetchData() {
 		setLoading(true)
@@ -269,6 +317,30 @@ function TimeTrackingPage() {
 			setError(e.message)
 		} finally {
 			setLoading(false)
+		}
+	}
+
+	async function fetchSubmissions() {
+		try {
+			const data = await apiGet(`/submissions?company_id=${selectedCompanyId}`)
+			setSubmissions(data.submissions || [])
+		} catch (e) {
+			console.error("Failed to fetch submissions:", e)
+		}
+	}
+
+	async function fetchMonthRecords() {
+		try {
+			const { year, month } = selectedMonth
+			const lastDay = new Date(year, month, 0).getDate()
+			const fromDate = `${year}-${String(month).padStart(2, "0")}-01`
+			const toDate = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`
+			const records = await apiGet(
+				`/records?from=${fromDate}&to=${toDate}&company_id=${selectedCompanyId}`,
+			)
+			setMonthRecords(records)
+		} catch (e) {
+			console.error("Failed to fetch month records:", e)
 		}
 	}
 
@@ -366,6 +438,39 @@ function TimeTrackingPage() {
 		} catch (e) {
 			setError(e.message)
 		}
+	}
+
+	async function handleSubmitMonth() {
+		if (!recipientEmail) {
+			setError("Please enter a recipient email address")
+			return
+		}
+		setIsSubmitting(true)
+		setError(null)
+		try {
+			const { year, month } = selectedMonth
+			let url = `/submissions?year=${year}&month=${month}&company_id=${selectedCompanyId}&recipient_email=${encodeURIComponent(recipientEmail)}`
+			if (submissionNotes) {
+				url += `&notes=${encodeURIComponent(submissionNotes)}`
+			}
+			await apiPost(url, {})
+			setShowSubmissionModal(false)
+			setRecipientEmail("")
+			setSubmissionNotes("")
+			fetchSubmissions()
+			fetchMonthRecords()
+			fetchData() // Refresh week records to show locked status
+		} catch (e) {
+			setError(e.message)
+		} finally {
+			setIsSubmitting(false)
+		}
+	}
+
+	function openSubmissionModal() {
+		setRecipientEmail("")
+		setSubmissionNotes("")
+		setShowSubmissionModal(true)
 	}
 
 	if (loading) {
@@ -586,6 +691,120 @@ function TimeTrackingPage() {
 			),
 		),
 
+		// Monthly Submission Section
+		h(
+			"div",
+			{ className: "bg-white rounded-lg shadow p-6 mb-6" },
+			// Header with month selector
+			h(
+				"div",
+				{ className: "flex items-center justify-between mb-4" },
+				h("h2", { className: "text-lg font-semibold" }, "Monthly Submission"),
+				h(
+					"div",
+					{ className: "flex items-center gap-3" },
+					h(
+						"select",
+						{
+							value: `${selectedMonth.year}-${selectedMonth.month}`,
+							onChange: (e) => {
+								const [y, m] = e.target.value.split("-").map(Number)
+								setSelectedMonth({ year: y, month: m })
+							},
+							className: "border rounded px-3 py-2",
+						},
+						getLastMonths().map((m) =>
+							h("option", { key: `${m.year}-${m.month}`, value: `${m.year}-${m.month}` }, formatMonth(m.year, m.month)),
+						),
+					),
+					h(
+						"button",
+						{
+							onClick: openSubmissionModal,
+							disabled: isMonthSubmitted(selectedMonth.year, selectedMonth.month) || monthRecords.length === 0,
+							className: `px-4 py-2 rounded font-medium ${
+								isMonthSubmitted(selectedMonth.year, selectedMonth.month) || monthRecords.length === 0
+									? "bg-gray-100 text-gray-400 cursor-not-allowed"
+									: "bg-blue-600 text-white hover:bg-blue-700"
+							}`,
+						},
+						isMonthSubmitted(selectedMonth.year, selectedMonth.month) ? "Submitted" : "Submit Month",
+					),
+				),
+			),
+			// Month summary cards
+			h(
+				"div",
+				{ className: "grid grid-cols-4 gap-4 mb-4" },
+				h(
+					"div",
+					{ className: "bg-gray-50 p-3 rounded" },
+					h("p", { className: "text-xs text-gray-500 uppercase tracking-wide" }, "Work Days"),
+					h("p", { className: "text-xl font-bold text-gray-900" }, monthWorkDays),
+				),
+				h(
+					"div",
+					{ className: "bg-gray-50 p-3 rounded" },
+					h("p", { className: "text-xs text-gray-500 uppercase tracking-wide" }, "Total Hours"),
+					h("p", { className: "text-xl font-bold text-gray-900" }, `${monthTotalHours.toFixed(1)}h`),
+				),
+				h(
+					"div",
+					{ className: "bg-gray-50 p-3 rounded" },
+					h("p", { className: "text-xs text-gray-500 uppercase tracking-wide" }, "Overtime"),
+					h("p", { className: `text-xl font-bold ${monthOvertime > 0 ? "text-amber-600" : "text-gray-900"}` }, `${monthOvertime > 0 ? "+" : ""}${monthOvertime.toFixed(1)}h`),
+				),
+				h(
+					"div",
+					{ className: "bg-gray-50 p-3 rounded" },
+					h("p", { className: "text-xs text-gray-500 uppercase tracking-wide" }, "Status"),
+					isMonthSubmitted(selectedMonth.year, selectedMonth.month)
+						? h("p", { className: "text-xl font-bold text-green-600" }, "Submitted")
+						: h("p", { className: "text-xl font-bold text-gray-400" }, "Pending"),
+				),
+			),
+			// Submission history
+			submissions.length > 0 &&
+				h(
+					"details",
+					{ className: "mt-4" },
+					h(
+						"summary",
+						{ className: "text-sm text-gray-500 cursor-pointer hover:text-gray-700" },
+						`Submission History (${submissions.length})`,
+					),
+					h(
+						"div",
+						{ className: "mt-2 space-y-2" },
+						submissions.slice(0, 5).map((s) =>
+							h(
+								"div",
+								{ key: s.id, className: "flex justify-between items-center bg-gray-50 p-3 rounded text-sm" },
+								h(
+									"div",
+									null,
+									h("span", { className: "font-medium" }, `${formatDate(s.period_start)} - ${formatDate(s.period_end)}`),
+									h("span", { className: "text-gray-500 ml-2" }, `sent to ${s.sent_to_email}`),
+								),
+								h(
+									"span",
+									{
+										className: `px-2 py-1 rounded text-xs ${
+											s.status === "sent"
+												? "bg-green-100 text-green-800"
+												: s.status === "failed"
+													? "bg-red-100 text-red-800"
+													: "bg-yellow-100 text-yellow-800"
+										}`,
+									},
+									s.status.charAt(0).toUpperCase() + s.status.slice(1),
+								),
+							),
+						),
+					),
+				),
+		),
+
 		// Leave Balance (Collapsible)
 		balance &&
 			h(
@@ -752,6 +971,97 @@ function TimeTrackingPage() {
 								},
 								editingRecord ? "Update" : "Save",
 							),
+						),
+					),
+				),
+			),
+
+		// Submission Modal
+		showSubmissionModal &&
+			h(
+				"div",
+				{
+					className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
+					onClick: (e) => {
+						if (e.target === e.currentTarget) setShowSubmissionModal(false)
+					},
+				},
+				h(
+					"div",
+					{ className: "bg-white rounded-lg shadow-xl p-6 w-full max-w-md" },
+					h("h2", { className: "text-xl font-bold mb-4" }, "Submit Timesheet"),
+					// Period summary
+					h(
+						"div",
+						{ className: "bg-gray-50 p-4 rounded mb-4" },
+						h("p", { className: "text-sm text-gray-500" }, "Period"),
+						h("p", { className: "font-semibold" }, formatMonth(selectedMonth.year, selectedMonth.month)),
+						h(
+							"div",
+							{ className: "mt-2 text-sm text-gray-600" },
+							`${monthWorkDays} work days · ${monthTotalHours.toFixed(1)} hours · ${monthRecords.length} records`,
+						),
+					),
+					// Warning
+					h(
+						"div",
+						{ className: "bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded mb-4 text-sm" },
+						"Once submitted, time records for this month will be locked and cannot be edited.",
+					),
+					// Recipient email
+					h(
+						"div",
+						{ className: "mb-4" },
+						h("label", { className: "block text-sm font-medium mb-1" }, "Recipient Email"),
+						h("input", {
+							type: "email",
+							value: recipientEmail,
+							onChange: (e) => setRecipientEmail(e.target.value),
+							className: "w-full border rounded px-3 py-2",
+							placeholder: "hr@company.com",
+							required: true,
+						}),
+					),
+					// Notes
+					h(
+						"div",
+						{ className: "mb-4" },
+						h("label", { className: "block text-sm font-medium mb-1" }, "Notes (optional)"),
+						h("textarea", {
+							value: submissionNotes,
+							onChange: (e) => setSubmissionNotes(e.target.value),
+							className: "w-full border rounded px-3 py-2",
+							rows: 2,
+							placeholder: "Any additional notes...",
+						}),
+					),
+					// Buttons
+					h(
+						"div",
+						{ className: "flex justify-end gap-3" },
+						h(
+							"button",
+							{
+								type: "button",
+								onClick: () => setShowSubmissionModal(false),
+								disabled: isSubmitting,
+								className: "px-4 py-2 border rounded hover:bg-gray-100",
+							},
+							"Cancel",
+						),
+						h(
+							"button",
+							{
+								type: "button",
+								onClick: handleSubmitMonth,
+								disabled: isSubmitting || !recipientEmail,
+								className: `px-4 py-2 rounded font-medium ${
+									isSubmitting || !recipientEmail
+										? "bg-gray-100 text-gray-400 cursor-not-allowed"
+										: "bg-blue-600 text-white hover:bg-blue-700"
+								}`,
+							},
+							isSubmitting ? "Submitting..." : "Submit",
 						),
 					),
 				),

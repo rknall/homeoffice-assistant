@@ -13,6 +13,7 @@ import type {
 } from "../types";
 import { COMPANY_COLORS } from "../types";
 import { MonthCalendarView } from "./MonthCalendarView";
+import { MonthlySubmissionPanel } from "./MonthlySubmissionPanel";
 import { TableView } from "./TableView";
 import { TimeRecordForm } from "./TimeRecordForm";
 
@@ -46,6 +47,7 @@ export function UnifiedTimeTrackingPage() {
 	const [formWarnings, setFormWarnings] = useState<ComplianceWarning[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [isSaving, setIsSaving] = useState(false);
+	const [showSubmissionPanel, setShowSubmissionPanel] = useState(false);
 
 	// Fetch companies on mount
 	const loadCompanies = useCallback(async () => {
@@ -330,6 +332,15 @@ export function UnifiedTimeTrackingPage() {
 							Table
 						</button>
 					</div>
+
+					{/* Submit button */}
+					<button
+						type="button"
+						onClick={() => setShowSubmissionPanel(true)}
+						className="ml-4 px-4 py-1.5 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
+					>
+						Submit Timesheet
+					</button>
 				</div>
 			</div>
 
@@ -424,6 +435,59 @@ export function UnifiedTimeTrackingPage() {
 			<div className="text-xs text-gray-400 text-center">
 				Click on an entry to edit, or click on an empty day to add a new record.
 			</div>
+
+			{/* Submission Panel (Slide-out) */}
+			{showSubmissionPanel && (
+				<div className="fixed inset-0 z-50 overflow-hidden">
+					{/* Backdrop */}
+					<button
+						type="button"
+						className="fixed inset-0 bg-black bg-opacity-25 cursor-default"
+						onClick={() => setShowSubmissionPanel(false)}
+						onKeyDown={(e) =>
+							e.key === "Escape" && setShowSubmissionPanel(false)
+						}
+						aria-label="Close submission panel"
+					/>
+
+					{/* Panel */}
+					<div className="fixed inset-y-0 right-0 max-w-md w-full bg-white shadow-xl overflow-y-auto">
+						<div className="p-4 border-b border-gray-200 flex items-center justify-between">
+							<h2 className="text-lg font-semibold text-gray-900">
+								Submit Timesheet
+							</h2>
+							<button
+								type="button"
+								onClick={() => setShowSubmissionPanel(false)}
+								className="p-2 text-gray-400 hover:text-gray-600 rounded-md"
+								aria-label="Close"
+							>
+								<svg
+									className="w-5 h-5"
+									fill="none"
+									stroke="currentColor"
+									viewBox="0 0 24 24"
+									aria-hidden="true"
+								>
+									<title>Close</title>
+									<path
+										strokeLinecap="round"
+										strokeLinejoin="round"
+										strokeWidth={2}
+										d="M6 18L18 6M6 6l12 12"
+									/>
+								</svg>
+							</button>
+						</div>
+						<div className="p-4">
+							<MonthlySubmissionPanel
+								companies={companies}
+								currentDate={currentDate}
+							/>
+						</div>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }

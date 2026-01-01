@@ -266,19 +266,69 @@ export const companiesApi = {
 	},
 };
 
+// Submission response types
+export interface SubmissionResponse {
+	id: string;
+	status: "pending" | "sent" | "failed";
+	sent_to: string;
+	period: string;
+	record_count: number;
+}
+
+export interface SubmissionListItem {
+	id: string;
+	company_id: string;
+	period_start: string;
+	period_end: string;
+	period_type: string;
+	submitted_at: string;
+	sent_to_email: string;
+	status: string;
+	notes: string | null;
+}
+
+export interface SubmissionListResponse {
+	total: number;
+	submissions: SubmissionListItem[];
+}
+
 // Monthly Submission API
-export const monthlySubmissionApi = {
-	submit: (
-		companyId: Uuid,
-		year: number,
-		month: number,
-	): Promise<{ success: boolean; message: string }> => {
-		return request<{ success: boolean; message: string }>(
-			"/submissions/monthly",
-			{
-				method: "POST",
-				body: JSON.stringify({ company_id: companyId, year, month }),
-			},
+export const submissionsApi = {
+	submit: (params: {
+		companyId: Uuid;
+		year: number;
+		month: number;
+		recipientEmail: string;
+		notes?: string;
+	}): Promise<SubmissionResponse> => {
+		const searchParams = new URLSearchParams();
+		searchParams.set("company_id", params.companyId);
+		searchParams.set("year", String(params.year));
+		searchParams.set("month", String(params.month));
+		searchParams.set("recipient_email", params.recipientEmail);
+		if (params.notes) searchParams.set("notes", params.notes);
+
+		return request<SubmissionResponse>(
+			`/submissions?${searchParams.toString()}`,
+			{ method: "POST" },
+		);
+	},
+
+	list: (params?: {
+		companyId?: Uuid;
+		skip?: number;
+		limit?: number;
+	}): Promise<SubmissionListResponse> => {
+		const searchParams = new URLSearchParams();
+		if (params?.companyId) searchParams.set("company_id", params.companyId);
+		if (params?.skip !== undefined)
+			searchParams.set("skip", String(params.skip));
+		if (params?.limit !== undefined)
+			searchParams.set("limit", String(params.limit));
+
+		const query = searchParams.toString();
+		return request<SubmissionListResponse>(
+			`/submissions${query ? `?${query}` : ""}`,
 		);
 	},
 };

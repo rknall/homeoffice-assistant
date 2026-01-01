@@ -1149,30 +1149,62 @@ function TimeTrackingPage() {
 		// Add/Edit Entry Modal
 		showAddModal &&
 			h(
-				"div",
-				{
-					className: "fixed inset-0 bg-black/50 flex items-center justify-center z-50",
-					onClick: (e) => {
-						if (e.target === e.currentTarget) closeModal()
-					},
-				},
+				React.Fragment,
+				null,
 				h(
 					"div",
-					{ className: "bg-white rounded-lg shadow-xl p-6 w-full max-w-md" },
-					h("h2", { className: "text-xl font-bold mb-4" }, editingRecord ? "Edit Time Entry" : "Add Time Entry"),
+					{
+						key: "modal-backdrop",
+						className: "fixed inset-0 bg-black/50 z-40",
+						onClick: closeModal,
+					},
+				),
+				h(
+					"div",
+					{ key: "modal-container", className: "fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none" },
 					h(
-						"form",
-						{ onSubmit: handleSaveEntry },
+						"div",
+						{
+							className: "bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col pointer-events-auto",
+							role: "dialog",
+							"aria-modal": "true",
+						},
+						// Modal header with title and X close button
+						h(
+							"div",
+							{ className: "flex items-center justify-between px-6 py-4 border-b border-gray-200" },
+							h("h2", { className: "text-lg font-semibold text-gray-900" }, editingRecord ? "Edit Time Entry" : "Add Time Entry"),
+							h(
+								"button",
+								{
+									type: "button",
+									onClick: closeModal,
+									className: "text-gray-400 hover:text-gray-600 transition-colors",
+								},
+								h(
+									"svg",
+									{ className: "h-5 w-5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 2 },
+									h("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M6 18L18 6M6 6l12 12" }),
+								),
+							),
+						),
+						// Modal content
+						h(
+							"div",
+							{ className: "flex-1 overflow-y-auto p-6" },
+							h(
+								"form",
+								{ onSubmit: handleSaveEntry },
 						// Date
 						h(
 							"div",
 							{ className: "mb-4" },
-							h("label", { className: "block text-sm font-medium mb-1" }, "Date"),
+							h("label", { className: "block text-sm font-medium text-gray-700 mb-1" }, "Date"),
 							h("input", {
 								type: "date",
 								value: formData.date,
 								onChange: (e) => setFormData({ ...formData, date: e.target.value }),
-								className: "w-full border rounded px-3 py-2",
+								className: "w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
 								required: true,
 							}),
 						),
@@ -1180,13 +1212,13 @@ function TimeTrackingPage() {
 						h(
 							"div",
 							{ className: "mb-4" },
-							h("label", { className: "block text-sm font-medium mb-1" }, "Type"),
+							h("label", { className: "block text-sm font-medium text-gray-700 mb-1" }, "Type"),
 							h(
 								"select",
 								{
 									value: formData.day_type,
 									onChange: (e) => setFormData({ ...formData, day_type: e.target.value }),
-									className: "w-full border rounded px-3 py-2",
+									className: "w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
 								},
 								Object.entries(DAY_TYPE_LABELS).map(([value, label]) =>
 									h("option", { key: value, value }, label),
@@ -1202,37 +1234,37 @@ function TimeTrackingPage() {
 								h(
 									"div",
 									{ className: "mb-4" },
-									h("label", { className: "block text-sm font-medium mb-1" }, "Check In"),
+									h("label", { className: "block text-sm font-medium text-gray-700 mb-1" }, "Check In"),
 									h("input", {
 										type: "time",
 										value: formData.check_in,
 										onChange: (e) => setFormData({ ...formData, check_in: e.target.value }),
-										className: "w-full border rounded px-3 py-2",
+										className: "w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
 									}),
 								),
 								// Check Out Time
 								h(
 									"div",
 									{ className: "mb-4" },
-									h("label", { className: "block text-sm font-medium mb-1" }, "Check Out"),
+									h("label", { className: "block text-sm font-medium text-gray-700 mb-1" }, "Check Out"),
 									h("input", {
 										type: "time",
 										value: formData.check_out,
 										onChange: (e) => setFormData({ ...formData, check_out: e.target.value }),
-										className: "w-full border rounded px-3 py-2",
+										className: "w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
 									}),
 								),
 								// Work Location
 								h(
 									"div",
 									{ className: "mb-4" },
-									h("label", { className: "block text-sm font-medium mb-1" }, "Location"),
+									h("label", { className: "block text-sm font-medium text-gray-700 mb-1" }, "Location"),
 									h(
 										"select",
 										{
 											value: formData.work_location,
 											onChange: (e) => setFormData({ ...formData, work_location: e.target.value }),
-											className: "w-full border rounded px-3 py-2",
+											className: "w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
 										},
 										Object.entries(WORK_LOCATIONS).map(([value, label]) =>
 											h("option", { key: value, value }, label),
@@ -1244,11 +1276,11 @@ function TimeTrackingPage() {
 						h(
 							"div",
 							{ className: "mb-4" },
-							h("label", { className: "block text-sm font-medium mb-1" }, "Notes"),
+							h("label", { className: "block text-sm font-medium text-gray-700 mb-1" }, "Notes"),
 							h("textarea", {
 								value: formData.notes,
 								onChange: (e) => setFormData({ ...formData, notes: e.target.value }),
-								className: "w-full border rounded px-3 py-2",
+								className: "w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
 								rows: 2,
 								placeholder: "Optional notes...",
 							}),
@@ -1256,13 +1288,13 @@ function TimeTrackingPage() {
 						// Buttons
 						h(
 							"div",
-							{ className: "flex justify-end gap-3" },
+							{ className: "flex justify-end gap-3 pt-4" },
 							h(
 								"button",
 								{
 									type: "button",
 									onClick: closeModal,
-									className: "px-4 py-2 border rounded hover:bg-gray-100",
+									className: "px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50",
 								},
 								"Cancel",
 							),
@@ -1270,7 +1302,7 @@ function TimeTrackingPage() {
 								"button",
 								{
 									type: "submit",
-									className: "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700",
+									className: "px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700",
 								},
 								editingRecord ? "Update" : "Save",
 							),
@@ -1278,93 +1310,129 @@ function TimeTrackingPage() {
 					),
 				),
 			),
+		),
+	),
 
 		// Submission Modal
 		showSubmissionModal &&
 			h(
-				"div",
-				{
-					className: "fixed inset-0 bg-black/50 flex items-center justify-center z-50",
-					onClick: (e) => {
-						if (e.target === e.currentTarget) setShowSubmissionModal(false)
-					},
-				},
+				React.Fragment,
+				null,
 				h(
 					"div",
-					{ className: "bg-white rounded-lg shadow-xl p-6 w-full max-w-md" },
-					h("h2", { className: "text-xl font-bold mb-4" }, "Submit Timesheet"),
-					// Period summary
+					{
+						key: "submission-backdrop",
+						className: "fixed inset-0 bg-black/50 z-40",
+						onClick: () => setShowSubmissionModal(false),
+					},
+				),
+				h(
+					"div",
+					{ key: "submission-container", className: "fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none" },
 					h(
 						"div",
-						{ className: "bg-gray-50 p-4 rounded mb-4" },
-						h("p", { className: "text-sm text-gray-500" }, "Period"),
-						h("p", { className: "font-semibold" }, formatMonth(selectedMonth.year, selectedMonth.month)),
+						{
+							className: "bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col pointer-events-auto",
+							role: "dialog",
+							"aria-modal": "true",
+						},
+						// Modal header
 						h(
 							"div",
-							{ className: "mt-2 text-sm text-gray-600" },
-							`${monthWorkDays} work days · ${monthTotalHours.toFixed(1)} hours · ${monthRecords.length} records`,
+							{ className: "flex items-center justify-between px-6 py-4 border-b border-gray-200" },
+							h("h2", { className: "text-lg font-semibold text-gray-900" }, "Submit Timesheet"),
+							h(
+								"button",
+								{
+									type: "button",
+									onClick: () => setShowSubmissionModal(false),
+									className: "text-gray-400 hover:text-gray-600 transition-colors",
+								},
+								h(
+									"svg",
+									{ className: "h-5 w-5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 2 },
+									h("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M6 18L18 6M6 6l12 12" }),
+								),
+							),
 						),
-					),
-					// Warning
-					h(
-						"div",
-						{ className: "bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded mb-4 text-sm" },
-						"Once submitted, time records for this month will be locked and cannot be edited.",
-					),
-					// Recipient email
-					h(
-						"div",
-						{ className: "mb-4" },
-						h("label", { className: "block text-sm font-medium mb-1" }, "Recipient Email"),
-						h("input", {
-							type: "email",
-							value: recipientEmail,
-							onChange: (e) => setRecipientEmail(e.target.value),
-							className: "w-full border rounded px-3 py-2",
-							placeholder: "hr@company.com",
-							required: true,
-						}),
-					),
-					// Notes
-					h(
-						"div",
-						{ className: "mb-4" },
-						h("label", { className: "block text-sm font-medium mb-1" }, "Notes (optional)"),
-						h("textarea", {
-							value: submissionNotes,
-							onChange: (e) => setSubmissionNotes(e.target.value),
-							className: "w-full border rounded px-3 py-2",
-							rows: 2,
-							placeholder: "Any additional notes...",
-						}),
-					),
-					// Buttons
-					h(
-						"div",
-						{ className: "flex justify-end gap-3" },
+						// Modal content
 						h(
-							"button",
-							{
-								type: "button",
-								onClick: () => setShowSubmissionModal(false),
-								disabled: isSubmitting,
-								className: "px-4 py-2 border rounded hover:bg-gray-100",
-							},
-							"Cancel",
-						),
-						h(
-							"button",
-							{
-								type: "button",
-								onClick: handleSubmitMonth,
-								disabled: isSubmitting || !recipientEmail,
-								className: `px-4 py-2 rounded font-medium ${
-									isSubmitting || !recipientEmail
-										? "bg-gray-100 text-gray-400 cursor-not-allowed"
-										: "bg-blue-600 text-white hover:bg-blue-700"
-								}`,
-							},
-							isSubmitting ? "Submitting..." : "Submit",
+							"div",
+							{ className: "flex-1 overflow-y-auto p-6" },
+							// Period summary
+							h(
+								"div",
+								{ className: "bg-gray-50 p-4 rounded mb-4" },
+								h("p", { className: "text-sm text-gray-500" }, "Period"),
+								h("p", { className: "font-semibold" }, formatMonth(selectedMonth.year, selectedMonth.month)),
+								h(
+									"div",
+									{ className: "mt-2 text-sm text-gray-600" },
+									`${monthWorkDays} work days · ${monthTotalHours.toFixed(1)} hours · ${monthRecords.length} records`,
+								),
+							),
+							// Warning
+							h(
+								"div",
+								{ className: "bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded mb-4 text-sm" },
+								"Once submitted, time records for this month will be locked and cannot be edited.",
+							),
+							// Recipient email
+							h(
+								"div",
+								{ className: "mb-4" },
+								h("label", { className: "block text-sm font-medium text-gray-700 mb-1" }, "Recipient Email"),
+								h("input", {
+									type: "email",
+									value: recipientEmail,
+									onChange: (e) => setRecipientEmail(e.target.value),
+									className: "w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
+									placeholder: "hr@company.com",
+									required: true,
+								}),
+							),
+							// Notes
+							h(
+								"div",
+								{ className: "mb-4" },
+								h("label", { className: "block text-sm font-medium text-gray-700 mb-1" }, "Notes (optional)"),
+								h("textarea", {
+									value: submissionNotes,
+									onChange: (e) => setSubmissionNotes(e.target.value),
+									className: "w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
+									rows: 2,
+									placeholder: "Any additional notes...",
+								}),
+							),
+							// Buttons
+							h(
+								"div",
+								{ className: "flex justify-end gap-3 pt-4" },
+								h(
+									"button",
+									{
+										type: "button",
+										onClick: () => setShowSubmissionModal(false),
+										disabled: isSubmitting,
+										className: "px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50",
+									},
+									"Cancel",
+								),
+								h(
+									"button",
+									{
+										type: "button",
+										onClick: handleSubmitMonth,
+										disabled: isSubmitting || !recipientEmail,
+										className: `px-4 py-2 rounded-md font-medium ${
+											isSubmitting || !recipientEmail
+												? "bg-gray-100 text-gray-400 cursor-not-allowed"
+												: "bg-blue-600 text-white hover:bg-blue-700"
+										}`,
+									},
+									isSubmitting ? "Submitting..." : "Submit",
+								),
+							),
 						),
 					),
 				),

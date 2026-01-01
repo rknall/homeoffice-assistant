@@ -10,6 +10,7 @@ interface MonthCalendarViewProps {
 	currentDate: Date;
 	recordsByDate: Map<string, TimeRecord[]>;
 	overlappingRecordIds: Set<string>;
+	holidaysByDate: Map<string, string>;
 	getCompanyColor: (companyId: string) => string;
 	onRecordClick: (record: TimeRecord) => void;
 	onDateClick: (date: string) => void;
@@ -34,6 +35,7 @@ export function MonthCalendarView({
 	currentDate,
 	recordsByDate,
 	overlappingRecordIds,
+	holidaysByDate,
 	getCompanyColor,
 	onRecordClick,
 	onDateClick,
@@ -119,6 +121,7 @@ export function MonthCalendarView({
 			<div className="grid grid-cols-7">
 				{calendarDays.map((day) => {
 					const dayRecords = recordsByDate.get(day.dateString) || [];
+					const holidayName = holidaysByDate.get(day.dateString);
 
 					return (
 						<div
@@ -130,19 +133,26 @@ export function MonthCalendarView({
                 ${day.isToday ? "bg-blue-50/50" : ""}
               `}
 						>
-							{/* Date number */}
+							{/* Date number with optional holiday badge inline */}
 							<button
 								type="button"
 								onClick={() => onDateClick(day.dateString)}
 								className={`
-                  w-7 h-7 flex items-center justify-center text-sm rounded-full
-                  transition-colors hover:bg-gray-200
-                  ${day.isToday ? "bg-blue-600 text-white hover:bg-blue-700" : ""}
+                  w-full h-6 flex items-center justify-between px-2.5 text-sm rounded
+                  ${day.isToday ? "bg-blue-600 text-white" : ""}
                   ${!day.isCurrentMonth ? "text-gray-400" : "text-gray-900"}
                   ${day.isWeekend && day.isCurrentMonth && !day.isToday ? "text-gray-500" : ""}
                 `}
 							>
-								{day.date.getDate()}
+								<span>{String(day.date.getDate()).padStart(2, "0")}</span>
+								{holidayName && (
+									<span
+										className={`text-xs font-medium truncate ml-1 ${day.isToday ? "text-blue-100" : "text-purple-600"}`}
+										title={holidayName}
+									>
+										{holidayName}
+									</span>
+								)}
 							</button>
 
 							{/* Time entries for this day */}
@@ -160,7 +170,7 @@ export function MonthCalendarView({
 												type="button"
 												key={record.id}
 												className={`
-                          relative w-full text-left px-1.5 py-0.5 rounded text-xs font-medium
+                          relative w-full text-left px-2.5 py-0.5 rounded text-xs font-medium
                           truncate transition-all hover:opacity-80
                           ${hasOverlap ? "ring-2 ring-red-500 ring-offset-1" : ""}
                         `}
@@ -210,7 +220,7 @@ export function MonthCalendarView({
 										<div
 											key={record.id}
 											className={`
-                        relative px-1.5 py-0.5 rounded text-xs font-medium
+                        relative px-2.5 py-0.5 rounded text-xs font-medium
                         truncate cursor-default
                         ${hasOverlap ? "ring-2 ring-red-500 ring-offset-1" : ""}
                       `}

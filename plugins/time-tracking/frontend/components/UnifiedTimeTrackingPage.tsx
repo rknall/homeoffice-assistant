@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { companiesApi, timeRecordsApi, toISODateString } from "../api";
+import { companiesApi, holidaysApi, timeRecordsApi, toISODateString } from "../api";
 import type {
 	CompanyInfo,
 	ComplianceWarning,
+	Holiday,
 	TimeRecord,
 	TimeRecordCreate,
 	TimeRecordUpdate,
@@ -48,6 +49,7 @@ export function UnifiedTimeTrackingPage() {
 	const [isLoading, setIsLoading] = useState(true);
 	const [isSaving, setIsSaving] = useState(false);
 	const [showSubmissionPanel, setShowSubmissionPanel] = useState(false);
+	const [holidays, setHolidays] = useState<Holiday[]>([]);
 
 	// Fetch companies on mount
 	const loadCompanies = useCallback(async () => {
@@ -94,6 +96,30 @@ export function UnifiedTimeTrackingPage() {
 	useEffect(() => {
 		loadRecords();
 	}, [loadRecords]);
+
+	// Fetch holidays for the current year
+	const loadHolidays = useCallback(async () => {
+		try {
+			const year = currentDate.getFullYear();
+			const data = await holidaysApi.list(year);
+			setHolidays(data);
+		} catch (err) {
+			console.error("Failed to load holidays:", err);
+		}
+	}, [currentDate]);
+
+	useEffect(() => {
+		loadHolidays();
+	}, [loadHolidays]);
+
+	// Create a map of date strings to holiday names for quick lookup
+	const holidaysByDate = useMemo(() => {
+		const map = new Map<string, string>();
+		for (const holiday of holidays) {
+			map.set(holiday.date, holiday.name);
+		}
+		return map;
+	}, [holidays]);
 
 	// Filter records by visible companies
 	const visibleRecords = useMemo(() => {
@@ -211,6 +237,19 @@ export function UnifiedTimeTrackingPage() {
 		setFormWarnings([]);
 	};
 
+	// Handle record deletion
+	const handleDeleteRecord = async (record: TimeRecord) => {
+		if (!window.confirm("Are you sure you want to delete this time record?")) {
+			return;
+		}
+		try {
+			await timeRecordsApi.delete(record.id);
+			await loadRecords();
+		} catch (err) {
+			console.error("Failed to delete record:", err);
+		}
+	};
+
 	// Navigate to previous/next month
 	const goToPreviousMonth = () => {
 		setCurrentDate(
@@ -241,15 +280,48 @@ export function UnifiedTimeTrackingPage() {
 	});
 
 	return (
-		<div className="space-y-6">
-			{/* Header with navigation */}
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-2xl font-bold text-gray-900">Time Tracking</h1>
-					<p className="text-sm text-gray-500">All Companies</p>
+		<div className="space-y-4">
+			{/* Title */}
+			<div>
+				<h1 className="text-2xl font-bold text-gray-900">Time Tracking</h1>
+				<p className="text-sm text-gray-500">All Companies</p>
+			</div>
+
+			{/* Controls row: company filters on left, month nav + view toggle on right */}
+			<div className="flex items-center justify-between flex-wrap gap-4">
+				{/* Company filter toggles */}
+				<div className="flex flex-wrap gap-2">
+				{companies.map((company) => {
+					const isVisible = visibleCompanyIds.has(company.id);
+					return (
+						<button
+							key={company.id}
+							type="button"
+							onClick={() => toggleCompany(company.id)}
+							className={`
+                px-3 py-1.5 text-sm font-medium rounded-full border-2 transition-colors
+                ${
+									isVisible
+										? "text-white border-transparent"
+										: "bg-white text-gray-500 border-gray-300 hover:border-gray-400"
+								}
+              `}
+							style={
+								isVisible
+									? {
+											backgroundColor: company.color,
+											borderColor: company.color,
+										}
+									: undefined
+							}
+						>
+							{company.name}
+						</button>
+					);
+				})}
 				</div>
 
-				{/* Month navigation */}
+				{/* Month navigation and view toggle */}
 				<div className="flex items-center gap-2">
 					<button
 						type="button"
@@ -281,7 +353,7 @@ export function UnifiedTimeTrackingPage() {
 						Today
 					</button>
 
-					<span className="min-w-[160px] text-center text-lg font-semibold text-gray-900">
+					<span className="min-w-[140px] text-center text-lg font-semibold text-gray-900">
 						{monthYearDisplay}
 					</span>
 
@@ -308,7 +380,7 @@ export function UnifiedTimeTrackingPage() {
 					</button>
 
 					{/* View toggle */}
-					<div className="ml-4 flex rounded-md overflow-hidden border border-gray-300">
+					<div className="ml-2 flex rounded-md overflow-hidden border border-gray-300">
 						<button
 							type="button"
 							onClick={() => setViewMode("calendar")}
@@ -337,43 +409,11 @@ export function UnifiedTimeTrackingPage() {
 					<button
 						type="button"
 						onClick={() => setShowSubmissionPanel(true)}
-						className="ml-4 px-4 py-1.5 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
+						className="ml-2 px-4 py-1.5 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
 					>
 						Submit Timesheet
 					</button>
 				</div>
-			</div>
-
-			{/* Company filter toggles */}
-			<div className="flex flex-wrap gap-2">
-				{companies.map((company) => {
-					const isVisible = visibleCompanyIds.has(company.id);
-					return (
-						<button
-							key={company.id}
-							type="button"
-							onClick={() => toggleCompany(company.id)}
-							className={`
-                px-3 py-1.5 text-sm font-medium rounded-full border-2 transition-colors
-                ${
-									isVisible
-										? "text-white border-transparent"
-										: "bg-white text-gray-500 border-gray-300 hover:border-gray-400"
-								}
-              `}
-							style={
-								isVisible
-									? {
-											backgroundColor: company.color,
-											borderColor: company.color,
-										}
-									: undefined
-							}
-						>
-							{company.name}
-						</button>
-					);
-				})}
 			</div>
 
 			{/* View: Calendar or Table */}
@@ -382,6 +422,7 @@ export function UnifiedTimeTrackingPage() {
 					currentDate={currentDate}
 					recordsByDate={recordsByDate}
 					overlappingRecordIds={overlappingRecordIds}
+					holidaysByDate={holidaysByDate}
 					getCompanyColor={getCompanyColor}
 					onRecordClick={handleRecordClick}
 					onDateClick={handleDateClick}
@@ -391,8 +432,10 @@ export function UnifiedTimeTrackingPage() {
 				<TableView
 					records={visibleRecords}
 					overlappingRecordIds={overlappingRecordIds}
+					companies={companies}
 					getCompanyColor={getCompanyColor}
 					onRecordClick={handleRecordClick}
+					onDeleteRecord={handleDeleteRecord}
 					isLoading={isLoading}
 				/>
 			)}

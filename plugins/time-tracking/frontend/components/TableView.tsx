@@ -2,14 +2,16 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 import { useMemo, useState } from "react";
-import type { TimeRecord } from "../types";
+import type { CompanyInfo, TimeRecord } from "../types";
 import { DAY_TYPE_LABELS } from "../types";
 
 interface TableViewProps {
 	records: TimeRecord[];
 	overlappingRecordIds: Set<string>;
+	companies: CompanyInfo[];
 	getCompanyColor: (companyId: string) => string;
 	onRecordClick: (record: TimeRecord) => void;
+	onDeleteRecord?: (record: TimeRecord) => void;
 	isLoading: boolean;
 }
 
@@ -29,12 +31,28 @@ interface TableRow {
 export function TableView({
 	records,
 	overlappingRecordIds,
+	companies,
 	getCompanyColor,
 	onRecordClick,
+	onDeleteRecord,
 	isLoading,
 }: TableViewProps) {
 	const [sortField, setSortField] = useState<"date" | "company">("date");
 	const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+	// Create company lookup map
+	const companyNameMap = useMemo(() => {
+		const map = new Map<string, string>();
+		for (const company of companies) {
+			map.set(company.id, company.name);
+		}
+		return map;
+	}, [companies]);
+
+	// Get company name by ID
+	const getCompanyName = (companyId: string): string => {
+		return companyNameMap.get(companyId) || "Unknown";
+	};
 
 	// Sort and flatten records into table rows
 	const tableRows = useMemo((): TableRow[] => {
@@ -44,7 +62,9 @@ export function TableView({
 			if (sortField === "date") {
 				comparison = a.date.localeCompare(b.date);
 			} else if (sortField === "company") {
-				comparison = (a.company_name || "").localeCompare(b.company_name || "");
+				comparison = getCompanyName(a.company_id).localeCompare(
+					getCompanyName(b.company_id),
+				);
 			}
 			return sortDirection === "asc" ? comparison : -comparison;
 		});
@@ -66,7 +86,7 @@ export function TableView({
 		}
 
 		return rows;
-	}, [records, sortField, sortDirection]);
+	}, [records, sortField, sortDirection, companyNameMap]);
 
 	// Toggle sort
 	const handleSort = (field: "date" | "company") => {
@@ -210,7 +230,7 @@ export function TableView({
 												className="inline-block px-2 py-0.5 rounded text-xs font-medium text-white"
 												style={{ backgroundColor: companyColor }}
 											>
-												{row.record.company_name || "Unknown"}
+												{getCompanyName(row.record.company_id)}
 											</span>
 										</td>
 
@@ -248,24 +268,40 @@ export function TableView({
 
 										{/* Actions */}
 										<td className="px-4 py-2">
-											{editable && (
-												<button
-													type="button"
-													onClick={(e) => {
-														e.stopPropagation();
-														onRecordClick(row.record);
-													}}
-													className={`
-                            px-2 py-1 text-xs font-medium rounded
-                            ${hasOverlap ? "bg-red-600 text-white hover:bg-red-700" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}
-                          `}
-												>
-													{hasOverlap ? "Fix" : "Edit"}
-												</button>
-											)}
-											{row.record.is_locked && (
-												<span className="text-xs text-gray-400">Locked</span>
-											)}
+											<div className="flex items-center gap-1">
+												{editable && (
+													<>
+														<button
+															type="button"
+															onClick={(e) => {
+																e.stopPropagation();
+																onRecordClick(row.record);
+															}}
+															className={`
+                              px-2 py-1 text-xs font-medium rounded
+                              ${hasOverlap ? "bg-red-600 text-white hover:bg-red-700" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}
+                            `}
+														>
+															{hasOverlap ? "Fix" : "Edit"}
+														</button>
+														{onDeleteRecord && (
+															<button
+																type="button"
+																onClick={(e) => {
+																	e.stopPropagation();
+																	onDeleteRecord(row.record);
+																}}
+																className="px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-700 hover:bg-red-200"
+															>
+																Delete
+															</button>
+														)}
+													</>
+												)}
+												{row.record.is_locked && (
+													<span className="text-xs text-gray-400">Locked</span>
+												)}
+											</div>
 										</td>
 									</tr>
 								);

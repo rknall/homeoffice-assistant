@@ -17,6 +17,7 @@ from .models import (
     CustomHoliday,
     LeaveBalance,
     TimeAllocation,
+    TimeEntry,
     TimeRecord,
     TimeRecordAudit,
     TimesheetSubmission,
@@ -108,6 +109,7 @@ class TimeTrackingPlugin(BasePlugin):
         """
         return [
             TimeRecord,
+            TimeEntry,
             TimeAllocation,
             LeaveBalance,
             TimesheetSubmission,

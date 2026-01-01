@@ -17,14 +17,17 @@ from .models import (
     DayType,
     LeaveBalance,
     TimeAllocation,
+    TimeEntry,
     TimeRecord,
     UserTimePreferences,
 )
 from .schemas import (
     CheckInRequest,
+    CheckInStatusResponse,
     CheckOutRequest,
     CompanyTimeSettingsResponse,
     CompanyTimeSettingsUpdate,
+    CurrentEntryInfo,
     CustomHolidayCreate,
     CustomHolidayResponse,
     LeaveBalanceResponse,
@@ -34,6 +37,8 @@ from .schemas import (
     PublicHolidayResponse,
     TimeAllocationCreate,
     TimeAllocationResponse,
+    TimeEntryResponse,
+    TimeEntryUpdate,
     TimeRecordCreate,
     TimeRecordResponse,
     TimeRecordUpdate,
@@ -53,11 +58,30 @@ router = APIRouter(tags=["time-tracking"])
 # --- Helper functions ---
 
 
+def _entry_to_response(entry: TimeEntry) -> TimeEntryResponse:
+    """Convert a TimeEntry to a response schema."""
+    return TimeEntryResponse(
+        id=str(entry.id),
+        time_record_id=str(entry.time_record_id),
+        sequence=entry.sequence,
+        check_in=entry.check_in,
+        check_in_timezone=entry.check_in_timezone,
+        check_out=entry.check_out,
+        check_out_timezone=entry.check_out_timezone,
+        gross_minutes=entry.gross_minutes,
+        created_at=entry.created_at,
+        updated_at=entry.updated_at,
+    )
+
+
 def _record_to_response(record: TimeRecord) -> TimeRecordResponse:
     """Convert a TimeRecord to a response schema."""
     warnings = None
     if record.compliance_warnings:
         warnings = json.loads(record.compliance_warnings)
+
+    # Convert entries
+    entries = [_entry_to_response(e) for e in record.entries]
 
     return TimeRecordResponse(
         id=str(record.id),
@@ -87,6 +111,8 @@ def _record_to_response(record: TimeRecord) -> TimeRecordResponse:
             str(record.submission_id) if record.submission_id else None
         ),
         is_locked=False,  # Will be set by service
+        entries=entries,
+        has_open_entry=record.has_open_entry,
         created_at=record.created_at,
         updated_at=record.updated_at,
     )
@@ -180,8 +206,9 @@ def create_record(
     """Create a new time record."""
     service = TimeRecordService(db)
 
-    # Check if record already exists for this date
-    existing = service.get_record_by_date(current_user.id, data.date)
+    # Check if record already exists for this date and company
+    company_uuid = UUID(data.company_id) if data.company_id else None
+    existing = service.get_record_by_date(current_user.id, data.date, company_uuid)
     if existing:
         raise HTTPException(
             status_code=400,
@@ -291,41 +318,51 @@ def check_in(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("time-tracking.records.write")),
 ) -> TimeRecordResponse:
-    """Quick check-in for today."""
+    """Quick check-in for today.
+
+    Creates a new time entry for today. Multiple entries per day are supported.
+    If there's already an open entry (no check-out), returns an error.
+    """
     service = TimeRecordService(db)
     today = date.today()
 
-    # Check if record already exists
-    existing = service.get_record_by_date(current_user.id, today)
-    if existing:
-        if existing.check_in:
-            raise HTTPException(
-                status_code=400,
-                detail="Already checked in today",
-            )
-        # Update existing record with check-in
-        record = service.update_record(
-            record_id=existing.id,
-            user_id=current_user.id,
-            check_in=datetime.now().time(),
-            check_in_timezone=data.timezone,
-            work_location=data.work_location.value if data.work_location else None,
-            notes=data.notes,
+    # Get or create the daily record
+    record = service.get_or_create_record(
+        user_id=current_user.id,
+        record_date=today,
+        company_id=UUID(data.company_id) if data.company_id else None,
+        day_type=DayType.WORK.value,
+    )
+
+    # Check if there's an open entry
+    if record.has_open_entry:
+        raise HTTPException(
+            status_code=400,
+            detail="You have an open entry - please check out first",
         )
-    else:
-        # Create new record
-        record = service.create_record(
+
+    # Create new entry
+    service.create_entry(
+        record_id=record.id,
+        check_in=datetime.now().time(),
+        timezone=data.timezone,
+    )
+
+    # Update work location and notes on the record
+    if data.work_location or data.notes:
+        service.update_record(
+            record_id=record.id,
             user_id=current_user.id,
-            record_date=today,
-            day_type=DayType.WORK.value,
-            company_id=UUID(data.company_id) if data.company_id else None,
-            check_in=datetime.now().time(),
-            check_in_timezone=data.timezone,
             work_location=data.work_location.value if data.work_location else None,
             notes=data.notes,
         )
 
-    return _record_to_response(record)
+    # Refresh to get updated entries
+    db.refresh(record)
+
+    resp = _record_to_response(record)
+    resp.is_locked = service.is_record_locked(record)
+    return resp
 
 
 @router.post("/check-out", response_model=TimeRecordResponse)
@@ -334,47 +371,245 @@ def check_out(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("time-tracking.records.write")),
 ) -> TimeRecordResponse:
-    """Quick check-out for today."""
+    """Quick check-out for today.
+
+    Closes the currently open time entry for today.
+    Searches across all companies for an open entry.
+    """
     service = TimeRecordService(db)
     today = date.today()
 
-    existing = service.get_record_by_date(current_user.id, today)
-    if not existing:
+    # Find any record with an open entry for today (across all companies)
+    records = service.list_records(current_user.id, today, today)
+    record = None
+    open_entry = None
+    for r in records:
+        entry = service.get_open_entry(r.id)
+        if entry:
+            record = r
+            open_entry = entry
+            break
+
+    if not record or not open_entry:
         raise HTTPException(
             status_code=400,
-            detail="No check-in found for today",
+            detail="No active check-in to close",
         )
 
-    if existing.check_out:
-        raise HTTPException(
-            status_code=400,
-            detail="Already checked out today",
-        )
-
-    record = service.update_record(
-        record_id=existing.id,
-        user_id=current_user.id,
+    # Close the entry
+    service.close_entry(
+        entry_id=open_entry.id,
         check_out=datetime.now().time(),
-        check_out_timezone=data.timezone,
-        notes=data.notes if data.notes else existing.notes,
+        timezone=data.timezone,
     )
 
-    return _record_to_response(record)
+    # Update notes if provided
+    if data.notes:
+        service.update_record(
+            record_id=record.id,
+            user_id=current_user.id,
+            notes=data.notes,
+        )
+
+    # Refresh to get updated data
+    db.refresh(record)
+
+    resp = _record_to_response(record)
+    resp.is_locked = service.is_record_locked(record)
+    return resp
 
 
 @router.get("/today", response_model=TimeRecordResponse | None)
 def get_today(
+    company_id: str | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("time-tracking.records.read")),
 ) -> TimeRecordResponse | None:
-    """Get today's time record."""
+    """Get today's time record for a specific company."""
     service = TimeRecordService(db)
-    record = service.get_record_by_date(current_user.id, date.today())
+    company_uuid = UUID(company_id) if company_id else None
+    record = service.get_record_by_date(current_user.id, date.today(), company_uuid)
 
     if not record:
         return None
 
-    return _record_to_response(record)
+    resp = _record_to_response(record)
+    resp.is_locked = service.is_record_locked(record)
+    return resp
+
+
+@router.get("/status", response_model=CheckInStatusResponse)
+def get_check_in_status(
+    company_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("time-tracking.records.read")),
+) -> CheckInStatusResponse:
+    """Get current check-in/out status for today.
+
+    Returns whether the user has a record, has an open entry, and entry count.
+    Used by the frontend toggle button to determine current state.
+    """
+    service = TimeRecordService(db)
+    today = date.today()
+
+    company_uuid = UUID(company_id) if company_id else None
+    record = service.get_record_by_date(current_user.id, today, company_uuid)
+
+    if not record:
+        return CheckInStatusResponse(
+            has_record=False,
+            has_open_entry=False,
+            entry_count=0,
+            current_entry=None,
+            record_id=None,
+        )
+
+    # Find open entry if any
+    open_entry = service.get_open_entry(record.id)
+    current_entry_info = None
+    if open_entry:
+        current_entry_info = CurrentEntryInfo(
+            id=str(open_entry.id),
+            sequence=open_entry.sequence,
+            check_in=open_entry.check_in,
+            check_in_timezone=open_entry.check_in_timezone,
+        )
+
+    return CheckInStatusResponse(
+        has_record=True,
+        has_open_entry=record.has_open_entry,
+        entry_count=len(record.entries),
+        current_entry=current_entry_info,
+        record_id=str(record.id),
+    )
+
+
+# --- Individual Time Entry Management ---
+
+
+@router.put("/entries/{entry_id}", response_model=TimeEntryResponse)
+def update_entry(
+    entry_id: str,
+    data: TimeEntryUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("time-tracking.records.write")),
+) -> TimeEntryResponse:
+    """Update an individual time entry.
+
+    Allows editing check_in and check_out times for a specific entry.
+    """
+    service = TimeRecordService(db)
+
+    # Get entry and verify ownership
+    entry = db.query(TimeEntry).filter(TimeEntry.id == UUID(entry_id)).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+
+    record = (
+        db.query(TimeRecord)
+        .filter(TimeRecord.id == entry.time_record_id)
+        .first()
+    )
+    if not record or record.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Entry not found")
+
+    if service.is_record_locked(record):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot modify entry - record is locked",
+        )
+
+    # Update entry fields
+    if data.check_in is not None:
+        entry.check_in = data.check_in
+    if data.check_in_timezone is not None:
+        entry.check_in_timezone = data.check_in_timezone
+    if data.check_out is not None:
+        entry.check_out = data.check_out
+    if data.check_out_timezone is not None:
+        entry.check_out_timezone = data.check_out_timezone
+
+    # Recalculate gross_minutes if both times are set
+    if entry.check_in and entry.check_out:
+        in_minutes = entry.check_in.hour * 60 + entry.check_in.minute
+        out_minutes = entry.check_out.hour * 60 + entry.check_out.minute
+        if out_minutes < in_minutes:
+            out_minutes += 24 * 60  # Handle overnight
+        entry.gross_minutes = out_minutes - in_minutes
+    elif entry.check_out is None:
+        entry.gross_minutes = None
+
+    db.commit()
+    db.refresh(entry)
+
+    # Recalculate parent record totals
+    service.recalculate_record_totals(entry.time_record_id)
+
+    return TimeEntryResponse(
+        id=str(entry.id),
+        time_record_id=str(entry.time_record_id),
+        sequence=entry.sequence,
+        check_in=entry.check_in,
+        check_in_timezone=entry.check_in_timezone,
+        check_out=entry.check_out,
+        check_out_timezone=entry.check_out_timezone,
+        gross_minutes=entry.gross_minutes,
+        created_at=entry.created_at,
+        updated_at=entry.updated_at,
+    )
+
+
+@router.delete("/entries/{entry_id}", status_code=204)
+def delete_entry(
+    entry_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("time-tracking.records.write")),
+) -> None:
+    """Delete an individual time entry.
+
+    If this is the last entry for a record, the record itself remains
+    but with no entries.
+    """
+    service = TimeRecordService(db)
+
+    # Get entry and verify ownership
+    entry = db.query(TimeEntry).filter(TimeEntry.id == UUID(entry_id)).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+
+    record = (
+        db.query(TimeRecord)
+        .filter(TimeRecord.id == entry.time_record_id)
+        .first()
+    )
+    if not record or record.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Entry not found")
+
+    if service.is_record_locked(record):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete entry - record is locked",
+        )
+
+    record_id = entry.time_record_id
+
+    # Delete the entry
+    db.delete(entry)
+    db.commit()
+
+    # Re-sequence remaining entries
+    remaining_entries = (
+        db.query(TimeEntry)
+        .filter(TimeEntry.time_record_id == record_id)
+        .order_by(TimeEntry.check_in)
+        .all()
+    )
+    for i, e in enumerate(remaining_entries, start=1):
+        e.sequence = i
+    db.commit()
+
+    # Recalculate parent record totals
+    service.recalculate_record_totals(record_id)
 
 
 # --- Time Allocations ---

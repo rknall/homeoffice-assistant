@@ -72,6 +72,32 @@ class TimeRecordUpdate(BaseModel):
     notes: str | None = None
 
 
+class TimeEntryResponse(BaseModel):
+    """Schema for individual time entry responses (check-in/check-out pair)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    time_record_id: str
+    sequence: int
+    check_in: time
+    check_in_timezone: str | None = None
+    check_out: time | None = None
+    check_out_timezone: str | None = None
+    gross_minutes: int | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class TimeEntryUpdate(BaseModel):
+    """Schema for updating an individual time entry."""
+
+    check_in: time | None = None
+    check_in_timezone: str | None = None
+    check_out: time | None = None
+    check_out_timezone: str | None = None
+
+
 class TimeRecordResponse(TimeRecordBase):
     """Schema for time record responses."""
 
@@ -85,6 +111,9 @@ class TimeRecordResponse(TimeRecordBase):
     compliance_warnings: list[dict] | None = None
     submission_id: str | None = None
     is_locked: bool = False
+    # Multi-entry support
+    entries: list[TimeEntryResponse] = []
+    has_open_entry: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -345,6 +374,25 @@ class CheckOutRequest(BaseModel):
 
     notes: str | None = None
     timezone: str | None = None
+
+
+class CurrentEntryInfo(BaseModel):
+    """Info about the currently open entry."""
+
+    id: str
+    sequence: int
+    check_in: time
+    check_in_timezone: str | None = None
+
+
+class CheckInStatusResponse(BaseModel):
+    """Response schema for current check-in status."""
+
+    has_record: bool = False
+    has_open_entry: bool = False
+    entry_count: int = 0
+    current_entry: CurrentEntryInfo | None = None
+    record_id: str | None = None
 
 
 # --- User Preferences Schemas ---

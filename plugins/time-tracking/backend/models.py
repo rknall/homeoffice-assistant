@@ -20,6 +20,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 from src.models.base import Base
 
@@ -100,16 +101,87 @@ class TimeRecord(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
+    # Relationship to time entries (individual check-in/check-out pairs)
+    entries = relationship(
+        "TimeEntry",
+        back_populates="time_record",
+        cascade="all, delete-orphan",
+        order_by="TimeEntry.sequence",
+    )
+
     __table_args__ = (
-        UniqueConstraint("user_id", "date", name="uq_tt_user_date"),
+        # Allow one record per user per date per company
+        UniqueConstraint(
+            "user_id", "date", "company_id", name="uq_tt_user_date_company"
+        ),
         Index("idx_tt_user_date_range", "user_id", "date"),
         Index("idx_tt_company_date", "company_id", "date"),
         Index("idx_tt_submission", "submission_id"),
     )
 
+    @property
+    def has_open_entry(self) -> bool:
+        """Check if any entry is missing check_out (still checked in)."""
+        return any(e.check_out is None for e in self.entries)
+
     def __repr__(self) -> str:
         """Return string representation."""
         return f"<TimeRecord(id={self.id}, date={self.date}, type={self.day_type})>"
+
+
+class TimeEntry(Base):
+    """Individual check-in/check-out pair within a day.
+
+    A TimeRecord can have multiple TimeEntry rows, enabling:
+    - Multiple check-in/out pairs per day (e.g., morning session, afternoon session)
+    - Open check-ins (check_out is NULL until user clocks out)
+    - Break calculation from gaps between entries
+    """
+
+    __tablename__ = "tt_time_entries"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    time_record_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("tt_time_records.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    sequence = Column(Integer, nullable=False)  # 1, 2, 3... for ordering within day
+
+    # Check-in/out times
+    check_in = Column(Time, nullable=False)
+    check_in_timezone = Column(String(50), nullable=True)
+    check_out = Column(Time, nullable=True)  # Nullable for open/active entries
+    check_out_timezone = Column(String(50), nullable=True)
+
+    # Calculated for this entry only (in minutes for precision)
+    gross_minutes = Column(Integer, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    # Relationship back to parent record
+    time_record = relationship("TimeRecord", back_populates="entries")
+
+    __table_args__ = (
+        UniqueConstraint("time_record_id", "sequence", name="uq_tt_entry_seq"),
+        Index("idx_tt_entry_record", "time_record_id"),
+    )
+
+    @property
+    def is_open(self) -> bool:
+        """Check if this entry is still open (no check_out)."""
+        return self.check_out is None
+
+    def __repr__(self) -> str:
+        """Return string representation."""
+        return (
+            f"<TimeEntry(id={self.id}, seq={self.sequence}, "
+            f"in={self.check_in}, out={self.check_out})>"
+        )
 
 
 class TimeAllocation(Base):

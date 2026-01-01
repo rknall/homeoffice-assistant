@@ -16,6 +16,7 @@ from .models import (
     CustomHoliday,
     DayType,
     LeaveBalance,
+    TimeEntry,
     TimeRecord,
     TimeRecordAudit,
     UserTimePreferences,
@@ -394,20 +395,25 @@ class TimeRecordService:
         self,
         user_id: UUID,
         record_date: date,
+        company_id: UUID | None = None,
     ) -> TimeRecord | None:
-        """Get a time record for a specific date.
+        """Get a time record for a specific date and company.
 
         Args:
             user_id: The user ID.
             record_date: The date.
+            company_id: Optional company ID to filter by.
 
         Returns:
             The time record, or None if not found.
         """
-        return self.db.query(TimeRecord).filter(
+        query = self.db.query(TimeRecord).filter(
             TimeRecord.user_id == user_id,
             TimeRecord.date == record_date,
-        ).first()
+        )
+        if company_id is not None:
+            query = query.filter(TimeRecord.company_id == company_id)
+        return query.first()
 
     def list_records(
         self,
@@ -493,6 +499,244 @@ class TimeRecordService:
         lock_date = month_end + timedelta(days=lock_days)
 
         return date.today() > lock_date
+
+    # --- Multi-Entry Support Methods ---
+
+    def get_or_create_record(
+        self,
+        user_id: UUID,
+        record_date: date,
+        company_id: UUID | None = None,
+        day_type: str = DayType.WORK.value,
+    ) -> TimeRecord:
+        """Get or create a time record for a date (without requiring times).
+
+        Used by check-in to create a record shell that entries will be added to.
+
+        Args:
+            user_id: The user ID.
+            record_date: The date.
+            company_id: Optional company ID.
+            day_type: Type of day (defaults to work).
+
+        Returns:
+            The existing or new time record.
+        """
+        record = self.get_record_by_date(user_id, record_date, company_id)
+        if record:
+            return record
+
+        # Create new record without check times
+        record = TimeRecord(
+            user_id=user_id,
+            date=record_date,
+            day_type=day_type,
+            company_id=company_id,
+        )
+        self.db.add(record)
+        self.db.commit()
+        self.db.refresh(record)
+
+        # Create audit entry
+        self._create_audit(record, user_id, "created")
+
+        return record
+
+    def create_entry(
+        self,
+        record_id: UUID,
+        check_in: time,
+        timezone: str | None = None,
+    ) -> TimeEntry:
+        """Create a new time entry (check-in) for a record.
+
+        Args:
+            record_id: The parent time record ID.
+            check_in: Check-in time.
+            timezone: Timezone for check-in.
+
+        Returns:
+            The created time entry.
+        """
+        # Round time in employer's favor
+        rounded_time = round_time_employer_favor(check_in, is_check_in=True)
+
+        # Get next sequence number
+        max_seq = (
+            self.db.query(func.max(TimeEntry.sequence))
+            .filter(TimeEntry.time_record_id == record_id)
+            .scalar()
+        ) or 0
+        next_seq = max_seq + 1
+
+        entry = TimeEntry(
+            time_record_id=record_id,
+            sequence=next_seq,
+            check_in=rounded_time,
+            check_in_timezone=timezone,
+        )
+        self.db.add(entry)
+        self.db.commit()
+        self.db.refresh(entry)
+
+        # Update parent record's check_in if this is the first entry
+        record = self.db.query(TimeRecord).filter(TimeRecord.id == record_id).first()
+        if record and next_seq == 1:
+            record.check_in = rounded_time
+            record.check_in_timezone = timezone
+            self.db.commit()
+
+        return entry
+
+    def close_entry(
+        self,
+        entry_id: UUID,
+        check_out: time,
+        timezone: str | None = None,
+    ) -> TimeEntry:
+        """Close an open time entry (check-out).
+
+        Args:
+            entry_id: The entry ID.
+            check_out: Check-out time.
+            timezone: Timezone for check-out.
+
+        Returns:
+            The updated time entry.
+        """
+        entry = self.db.query(TimeEntry).filter(TimeEntry.id == entry_id).first()
+        if not entry:
+            raise ValueError("Entry not found")
+
+        if entry.check_out is not None:
+            raise ValueError("Entry is already closed")
+
+        # Round time in employer's favor
+        rounded_time = round_time_employer_favor(check_out, is_check_in=False)
+
+        # Ensure check_out >= check_in (rounding can cause issues in same window)
+        in_minutes = entry.check_in.hour * 60 + entry.check_in.minute
+        out_minutes = rounded_time.hour * 60 + rounded_time.minute
+
+        # If rounded check_out < check_in (same 5-min window), use check_in time
+        if out_minutes < in_minutes and (in_minutes - out_minutes) < 10:
+            # Not overnight, just a rounding issue - set to check_in time
+            rounded_time = entry.check_in
+            out_minutes = in_minutes
+
+        entry.check_out = rounded_time
+        entry.check_out_timezone = timezone
+
+        # Calculate gross minutes for this entry
+        if out_minutes < in_minutes:
+            out_minutes += 24 * 60  # Handle genuine overnight
+        entry.gross_minutes = out_minutes - in_minutes
+
+        self.db.commit()
+        self.db.refresh(entry)
+
+        # Recalculate parent record totals
+        self.recalculate_record_totals(entry.time_record_id)
+
+        return entry
+
+    def get_open_entry(self, record_id: UUID) -> TimeEntry | None:
+        """Get the open entry for a record (if any).
+
+        Args:
+            record_id: The time record ID.
+
+        Returns:
+            The open entry, or None if no open entry exists.
+        """
+        return (
+            self.db.query(TimeEntry)
+            .filter(
+                TimeEntry.time_record_id == record_id,
+                TimeEntry.check_out.is_(None),
+            )
+            .first()
+        )
+
+    def recalculate_record_totals(self, record_id: UUID) -> None:
+        """Recalculate TimeRecord totals from all its entries.
+
+        Break time = gaps between entries (per user specification).
+        Example: Entry1 08:00-12:00, Entry2 13:00-17:00
+                 Gap = 13:00 - 12:00 = 60 minutes (break)
+
+        Args:
+            record_id: The time record ID.
+        """
+        record = self.db.query(TimeRecord).filter(TimeRecord.id == record_id).first()
+        if not record:
+            return
+
+        entries = (
+            self.db.query(TimeEntry)
+            .filter(TimeEntry.time_record_id == record_id)
+            .order_by(TimeEntry.sequence)
+            .all()
+        )
+
+        if not entries:
+            record.check_in = None
+            record.check_out = None
+            record.gross_hours = None
+            record.break_minutes = None
+            record.net_hours = None
+            self.db.commit()
+            return
+
+        # Calculate totals
+        total_gross_minutes = 0
+        total_break_minutes = 0
+
+        for i, entry in enumerate(entries):
+            if entry.gross_minutes:
+                total_gross_minutes += entry.gross_minutes
+
+            # Gap to previous entry is break time
+            if i > 0 and entries[i - 1].check_out and entry.check_in:
+                prev_out = entries[i - 1].check_out
+                curr_in = entry.check_in
+
+                prev_out_minutes = prev_out.hour * 60 + prev_out.minute
+                curr_in_minutes = curr_in.hour * 60 + curr_in.minute
+
+                gap = curr_in_minutes - prev_out_minutes
+                if gap > 0:
+                    total_break_minutes += gap
+
+        # Update record with first check-in and last check-out
+        record.check_in = entries[0].check_in
+        record.check_in_timezone = entries[0].check_in_timezone
+
+        last_entry = entries[-1]
+        if last_entry.check_out:
+            record.check_out = last_entry.check_out
+            record.check_out_timezone = last_entry.check_out_timezone
+        else:
+            # Still have open entry
+            record.check_out = None
+            record.check_out_timezone = None
+
+        # Store calculated values
+        record.gross_hours = total_gross_minutes / 60 if total_gross_minutes else None
+        record.break_minutes = total_break_minutes if total_break_minutes else None
+
+        # Net hours = gross hours (entries already represent actual work time)
+        # Breaks are tracked separately for compliance reporting but don't reduce net
+        # This matches multi-entry semantics where each entry is a work session
+        record.net_hours = record.gross_hours
+
+        # Re-validate compliance
+        warnings = self._validate_record(record, record.user_id)
+        record.compliance_warnings = (
+            json.dumps([w.model_dump() for w in warnings]) if warnings else None
+        )
+
+        self.db.commit()
 
     def _validate_record(
         self,

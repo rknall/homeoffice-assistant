@@ -237,6 +237,36 @@ function TimeTrackingPage() {
 	const weekTotalHours = weekRecords.reduce((sum, r) => sum + (r.net_hours || 0), 0)
 	const weekOvertime = Math.max(0, weekTotalHours - 40)
 
+	// Calculate remaining work days in the current month
+	const calculateRemainingWorkDays = () => {
+		const today = new Date()
+		const year = today.getFullYear()
+		const month = today.getMonth()
+		const lastDay = new Date(year, month + 1, 0).getDate()
+		let remaining = 0
+
+		// Count weekdays from today to end of month
+		for (let d = today.getDate(); d <= lastDay; d++) {
+			const date = new Date(year, month, d)
+			const dayOfWeek = date.getDay()
+			// Skip weekends (0 = Sunday, 6 = Saturday)
+			if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+				remaining++
+			}
+		}
+
+		// Subtract vacation and other non-work days from calendarRecords for remaining days
+		const todayStr = today.toISOString().split("T")[0]
+		const futureNonWorkDays = calendarRecords.filter((r) => {
+			if (r.date < todayStr) return false
+			return r.day_type !== "work" && r.day_type !== "doctor_visit"
+		}).length
+
+		return Math.max(0, remaining - futureNonWorkDays)
+	}
+
+	const remainingWorkDays = calculateRemainingWorkDays()
+
 	// Generate last 12 months for dropdown
 	const getLastMonths = () => {
 		const months = []
@@ -474,9 +504,33 @@ function TimeTrackingPage() {
 		}
 	}
 
+	// Validate time entries - check_in must be at least 5 minutes before check_out
+	function validateTimes(checkIn, checkOut) {
+		if (!checkIn || !checkOut) return null
+		const [inH, inM] = checkIn.split(":").map(Number)
+		const [outH, outM] = checkOut.split(":").map(Number)
+		const inMinutes = inH * 60 + inM
+		const outMinutes = outH * 60 + outM
+		const diff = outMinutes - inMinutes
+		if (diff < 5) {
+			return "Check out time must be at least 5 minutes after check in time"
+		}
+		return null
+	}
+
 	async function handleSaveEntry(e) {
 		e.preventDefault()
 		setError(null)
+
+		// Validate times for work days
+		if (formData.day_type === "work") {
+			const timeError = validateTimes(formData.check_in, formData.check_out)
+			if (timeError) {
+				setError(timeError)
+				return
+			}
+		}
+
 		try {
 			const data = {
 				date: formData.date,
@@ -671,13 +725,18 @@ function TimeTrackingPage() {
 						h("span", { className: "text-gray-500" }, "Total Hours"),
 						h("p", { className: "font-semibold text-gray-900" }, `${weekTotalHours.toFixed(1)}h`),
 					),
-					weekOvertime > 0 &&
-						h(
-							"div",
-							null,
-							h("span", { className: "text-gray-500" }, "Overtime"),
-							h("p", { className: "font-semibold text-amber-600" }, `+${weekOvertime.toFixed(1)}h`),
-						),
+					h(
+						"div",
+						null,
+						h("span", { className: "text-gray-500" }, "Overtime"),
+						h("p", { className: `font-semibold ${weekOvertime > 0 ? "text-amber-600" : "text-gray-400"}` }, weekOvertime > 0 ? `+${weekOvertime.toFixed(1)}h` : "0h"),
+					),
+					h(
+						"div",
+						null,
+						h("span", { className: "text-gray-500" }, "Days Left"),
+						h("p", { className: "font-semibold text-blue-600" }, remainingWorkDays),
+					),
 				),
 			),
 			// Quick action button
@@ -749,19 +808,19 @@ function TimeTrackingPage() {
 				),
 		),
 
-		// Calendar view with sidebar layout
-		viewMode === "calendar" &&
+		// Main content area with sidebar layout (shared between calendar and table views)
+		h(
+			"div",
+			{ className: "flex gap-6" },
+			// Left column: Calendar or Table
 			h(
 				"div",
-				{ className: "flex gap-6" },
-				// Left column: Calendar + Day Detail
-				h(
-					"div",
-					{ className: "flex-1 min-w-0" },
-					// Calendar grid
+				{ className: "flex-1 min-w-0" },
+				// Calendar grid (when calendar view is active)
+				viewMode === "calendar" &&
 					h(
 						"div",
-						{ className: "bg-white rounded-lg shadow mb-4" },
+						{ className: "bg-white rounded-lg shadow" },
 						// Day headers
 						h(
 							"div",
@@ -816,40 +875,288 @@ function TimeTrackingPage() {
 							}),
 						),
 					),
-					// Day detail panel (when a day is selected)
-					selectedDay &&
+				// Week view table (when table view is active)
+				viewMode === "table" &&
+					h(
+						"div",
+						{ className: "bg-white rounded-lg shadow overflow-hidden" },
 						h(
-							"div",
-							{ className: "bg-white rounded-lg shadow p-4" },
+							"table",
+							{ className: "w-full" },
 							h(
-								"div",
-								{ className: "flex justify-between items-start mb-3" },
+								"thead",
+								{ className: "bg-gray-50" },
 								h(
-									"div",
+									"tr",
 									null,
-									h(
-										"h3",
-										{ className: "font-semibold text-lg" },
-										formatDate(`${selectedDay.year}-${String(selectedDay.month).padStart(2, "0")}-${String(selectedDay.day).padStart(2, "0")}`),
-									),
-									h("p", { className: "text-sm text-gray-500" }, getDayName(`${selectedDay.year}-${String(selectedDay.month).padStart(2, "0")}-${String(selectedDay.day).padStart(2, "0")}`)),
-								),
-								h(
-									"button",
-									{
-										onClick: () => setSelectedDay(null),
-										className: "text-gray-400 hover:text-gray-600",
-									},
-									"Close",
+									h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Date"),
+									h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Day"),
+									h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Company"),
+									h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Type"),
+									h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Check In"),
+									h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Check Out"),
+									h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Break"),
+									h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Net"),
+									h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Actions"),
 								),
 							),
+							h(
+								"tbody",
+								null,
+								weekRecords.length === 0
+									? h(
+											"tr",
+											null,
+											h(
+												"td",
+												{ colSpan: 9, className: "px-4 py-8 text-center text-gray-500" },
+												"No records this week",
+											),
+										)
+									: weekRecords.map((record, i) =>
+											h(
+												"tr",
+												{
+													key: record.id,
+													className: `${i % 2 === 0 ? "bg-white" : "bg-gray-50"} ${record.is_locked ? "opacity-60" : ""} cursor-pointer hover:bg-blue-50`,
+													onClick: () => {
+														const [year, month, day] = record.date.split("-").map(Number)
+														setSelectedDay({ year, month, day })
+													},
+												},
+												h("td", { className: "px-4 py-3" }, formatDate(record.date)),
+												h("td", { className: "px-4 py-3" }, getDayName(record.date)),
+												h("td", { className: "px-4 py-3 text-gray-600" }, getCompanyName(record.company_id)),
+												h(
+													"td",
+													{ className: "px-4 py-3" },
+													h(
+														"span",
+														{
+															className: `px-2 py-1 rounded text-xs ${DAY_TYPE_COLORS[record.day_type] || "bg-gray-100"}`,
+														},
+														DAY_TYPE_LABELS[record.day_type] || record.day_type,
+													),
+												),
+												h("td", { className: "px-4 py-3" }, formatTime(record.check_in)),
+												h("td", { className: "px-4 py-3" }, formatTime(record.check_out)),
+												h("td", { className: "px-4 py-3" }, record.break_minutes ? `${record.break_minutes}m` : "-"),
+												h("td", { className: "px-4 py-3 font-medium" }, record.net_hours ? `${record.net_hours.toFixed(1)}h` : "-"),
+												h(
+													"td",
+													{ className: "px-4 py-3" },
+													record.is_locked
+														? h("span", { className: "px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs" }, "Locked")
+														: h(
+																"div",
+																{ className: "flex gap-2" },
+																h(
+																	"button",
+																	{
+																		onClick: (e) => { e.stopPropagation(); openEditModal(record) },
+																		className: "text-gray-400 hover:text-blue-600 text-sm",
+																	},
+																	"Edit",
+																),
+																h(
+																	"button",
+																	{
+																		onClick: (e) => { e.stopPropagation(); handleDeleteRecord(record.id) },
+																		className: "text-gray-400 hover:text-red-600 text-sm",
+																	},
+																	"Delete",
+																),
+															),
+												),
+											),
+										),
+							),
+						),
+					),
+			),
+			// Right column: Sidebar with Leave Balance + Monthly Submission (always visible)
+			h(
+				"div",
+				{ className: "w-72 flex-shrink-0 space-y-4" },
+				// Leave Balance card
+				balance &&
+					h(
+						"div",
+						{ className: "bg-white rounded-lg shadow p-4" },
+						h("h3", { className: "text-sm font-semibold text-gray-700 mb-3" }, "Leave Balance"),
+						h(
+							"div",
+							{ className: "space-y-3" },
+							h(
+								"div",
+								{ className: "flex justify-between items-center" },
+								h("span", { className: "text-sm text-gray-600" }, "Vacation Days"),
+								h("span", { className: "text-lg font-bold text-green-600" }, balance.vacation_remaining),
+							),
+							h(
+								"div",
+								{ className: "flex justify-between items-center" },
+								h("span", { className: "text-sm text-gray-600" }, "Comp Time"),
+								h("span", { className: "text-lg font-bold text-blue-600" }, `${balance.comp_time_balance?.toFixed(1) || 0}h`),
+							),
+							h(
+								"div",
+								{ className: "flex justify-between items-center" },
+								h("span", { className: "text-sm text-gray-600" }, "Sick Days Used"),
+								h("span", { className: "text-lg font-bold text-gray-600" }, balance.sick_days_taken),
+							),
+						),
+					),
+				// Monthly Submission card
+				h(
+					"div",
+					{ className: "bg-white rounded-lg shadow p-4" },
+					h("h3", { className: "text-sm font-semibold text-gray-700 mb-3" }, "Monthly Submission"),
+					h(
+						"div",
+						{ className: "space-y-3" },
+						// Month selector
+						h(
+							"select",
+							{
+								value: `${selectedMonth.year}-${selectedMonth.month}`,
+								onChange: (e) => {
+									const [y, m] = e.target.value.split("-").map(Number)
+									setSelectedMonth({ year: y, month: m })
+								},
+								className: "w-full border border-gray-300 rounded-md px-3 py-2 text-sm",
+							},
+							getLastMonths().map((m) =>
+								h("option", { key: `${m.year}-${m.month}`, value: `${m.year}-${m.month}` }, formatMonth(m.year, m.month)),
+							),
+						),
+						// Stats
+						h(
+							"div",
+							{ className: "grid grid-cols-2 gap-2 text-sm" },
+							h("div", { className: "text-gray-500" }, "Work Days:"),
+							h("div", { className: "text-right font-medium" }, monthWorkDays),
+							h("div", { className: "text-gray-500" }, "Total Hours:"),
+							h("div", { className: "text-right font-medium" }, `${monthTotalHours.toFixed(1)}h`),
+							monthOvertime !== 0 && h("div", { className: "text-gray-500" }, "Overtime:"),
+							monthOvertime !== 0 && h("div", { className: `text-right font-medium ${monthOvertime > 0 ? "text-amber-600" : "text-gray-600"}` }, `${monthOvertime > 0 ? "+" : ""}${monthOvertime.toFixed(1)}h`),
+						),
+						// Status + Submit button
+						h(
+							"div",
+							{ className: "flex items-center justify-between pt-2 border-t" },
+							isMonthSubmitted(selectedMonth.year, selectedMonth.month)
+								? h("span", { className: "text-sm text-green-600 font-medium" }, "Submitted")
+								: h("span", { className: "text-sm text-gray-400" }, "Pending"),
+							h(
+								"button",
+								{
+									onClick: openSubmissionModal,
+									disabled: isMonthSubmitted(selectedMonth.year, selectedMonth.month) || monthRecords.length === 0,
+									className: `px-3 py-1.5 rounded text-sm font-medium ${
+										isMonthSubmitted(selectedMonth.year, selectedMonth.month) || monthRecords.length === 0
+											? "bg-gray-100 text-gray-400 cursor-not-allowed"
+											: "bg-blue-600 text-white hover:bg-blue-700"
+									}`,
+								},
+								"Submit",
+							),
+						),
+						// Submission history link
+						submissions.length > 0 &&
+							h(
+								"details",
+								{ className: "text-xs" },
+								h("summary", { className: "text-gray-500 cursor-pointer hover:text-gray-700" }, `${submissions.length} previous submission${submissions.length > 1 ? "s" : ""}`),
+								h(
+									"div",
+									{ className: "mt-2 space-y-1" },
+									submissions.slice(0, 3).map((s) =>
+										h(
+											"div",
+											{ key: s.id, className: "flex justify-between items-center text-xs" },
+											h("span", { className: "text-gray-600" }, formatMonth(new Date(s.period_start).getFullYear(), new Date(s.period_start).getMonth() + 1)),
+											h(
+												"span",
+												{
+													className: `px-1.5 py-0.5 rounded ${
+														s.status === "sent"
+															? "bg-green-100 text-green-700"
+															: s.status === "failed"
+																? "bg-red-100 text-red-700"
+																: "bg-yellow-100 text-yellow-700"
+													}`,
+												},
+												s.status,
+											),
+										),
+									),
+								),
+							),
+					),
+				),
+			),
+		),
+
+		// Day Detail Modal (when a day is selected)
+		selectedDay &&
+			h(
+				React.Fragment,
+				null,
+				h("div", {
+					key: "detail-backdrop",
+					className: "fixed inset-0 bg-black/50 z-40",
+					onClick: () => setSelectedDay(null),
+				}),
+				h(
+					"div",
+					{ key: "detail-container", className: "fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none" },
+					h(
+						"div",
+						{
+							className: "bg-white rounded-lg shadow-xl w-full max-w-md pointer-events-auto",
+							role: "dialog",
+							"aria-modal": "true",
+						},
+						// Modal header
+						h(
+							"div",
+							{ className: "flex items-center justify-between px-6 py-4 border-b border-gray-200" },
+							h(
+								"div",
+								null,
+								h(
+									"h2",
+									{ className: "text-lg font-semibold text-gray-900" },
+									formatDate(`${selectedDay.year}-${String(selectedDay.month).padStart(2, "0")}-${String(selectedDay.day).padStart(2, "0")}`),
+								),
+								h("p", { className: "text-sm text-gray-500" }, getDayName(`${selectedDay.year}-${String(selectedDay.month).padStart(2, "0")}-${String(selectedDay.day).padStart(2, "0")}`)),
+							),
+							h(
+								"button",
+								{
+									type: "button",
+									onClick: () => setSelectedDay(null),
+									className: "text-gray-400 hover:text-gray-600 transition-colors",
+								},
+								h(
+									"svg",
+									{ className: "h-5 w-5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 2 },
+									h("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M6 18L18 6M6 6l12 12" }),
+								),
+							),
+						),
+						// Modal content
+						h(
+							"div",
+							{ className: "p-6" },
 							(() => {
 								const dayRecord = getRecordForDate(selectedDay.year, selectedDay.month, selectedDay.day)
 								if (!dayRecord) {
 									return h(
 										"div",
-										{ className: "text-gray-500 text-center py-4" },
-										"No record for this day. ",
+										{ className: "text-center py-6" },
+										h("p", { className: "text-gray-500 mb-4" }, "No record for this day."),
 										h(
 											"button",
 											{
@@ -858,42 +1165,88 @@ function TimeTrackingPage() {
 														...formData,
 														date: `${selectedDay.year}-${String(selectedDay.month).padStart(2, "0")}-${String(selectedDay.day).padStart(2, "0")}`,
 													})
+													setSelectedDay(null)
 													setShowAddModal(true)
 												},
-												className: "text-blue-600 hover:underline",
+												className: "px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700",
 											},
-											"Add entry",
+											"Add Entry",
 										),
 									)
 								}
 								return h(
 									"div",
 									null,
+									// Company name
 									h(
 										"div",
-										{ className: "flex items-center gap-2 mb-3" },
+										{ className: "mb-4" },
+										h("span", { className: "text-sm text-gray-500" }, "Company"),
+										h("p", { className: "font-medium text-gray-900" }, getCompanyName(dayRecord.company_id)),
+									),
+									// Type badge and lock status
+									h(
+										"div",
+										{ className: "flex items-center gap-2 mb-4" },
 										h("span", { className: `px-2 py-1 rounded text-sm ${DAY_TYPE_COLORS[dayRecord.day_type] || "bg-gray-100"}` }, DAY_TYPE_LABELS[dayRecord.day_type] || dayRecord.day_type),
 										dayRecord.is_locked && h("span", { className: "px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs" }, "Locked"),
 									),
+									// Time details for work days
 									dayRecord.day_type === "work" &&
 										h(
 											"div",
-											{ className: "grid grid-cols-4 gap-4 text-sm mb-3" },
-											h("div", null, h("span", { className: "text-gray-500" }, "Check In: "), formatTime(dayRecord.check_in)),
-											h("div", null, h("span", { className: "text-gray-500" }, "Check Out: "), formatTime(dayRecord.check_out)),
-											h("div", null, h("span", { className: "text-gray-500" }, "Break: "), dayRecord.break_minutes ? `${dayRecord.break_minutes}m` : "-"),
-											h("div", null, h("span", { className: "text-gray-500" }, "Net: "), dayRecord.net_hours ? `${dayRecord.net_hours.toFixed(1)}h` : "-"),
+											{ className: "grid grid-cols-2 gap-4 mb-4" },
+											h(
+												"div",
+												null,
+												h("span", { className: "text-sm text-gray-500 block" }, "Check In"),
+												h("span", { className: "font-medium" }, formatTime(dayRecord.check_in)),
+											),
+											h(
+												"div",
+												null,
+												h("span", { className: "text-sm text-gray-500 block" }, "Check Out"),
+												h("span", { className: "font-medium" }, formatTime(dayRecord.check_out)),
+											),
+											h(
+												"div",
+												null,
+												h("span", { className: "text-sm text-gray-500 block" }, "Break"),
+												h("span", { className: "font-medium" }, dayRecord.break_minutes ? `${dayRecord.break_minutes} min` : "-"),
+											),
+											h(
+												"div",
+												null,
+												h("span", { className: "text-sm text-gray-500 block" }, "Net Hours"),
+												h("span", { className: "font-medium" }, dayRecord.net_hours ? `${dayRecord.net_hours.toFixed(1)}h` : "-"),
+											),
 										),
-									dayRecord.notes && h("p", { className: "text-sm text-gray-600 mb-3" }, dayRecord.notes),
+									// Work location
+									dayRecord.work_location &&
+										h(
+											"div",
+											{ className: "mb-4" },
+											h("span", { className: "text-sm text-gray-500 block" }, "Location"),
+											h("span", { className: "font-medium" }, WORK_LOCATIONS[dayRecord.work_location] || dayRecord.work_location),
+										),
+									// Notes
+									dayRecord.notes &&
+										h(
+											"div",
+											{ className: "mb-4" },
+											h("span", { className: "text-sm text-gray-500 block" }, "Notes"),
+											h("p", { className: "text-gray-700" }, dayRecord.notes),
+										),
+									// Action buttons
 									!dayRecord.is_locked &&
 										h(
 											"div",
-											{ className: "flex gap-3" },
+											{ className: "flex gap-3 pt-4 border-t" },
 											h(
 												"button",
 												{
-													onClick: () => openEditModal(dayRecord),
-													className: "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors",
+													onClick: () => { setSelectedDay(null); openEditModal(dayRecord) },
+													className: "flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors",
 												},
 												h("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 2 },
 													h("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" }),
@@ -903,8 +1256,8 @@ function TimeTrackingPage() {
 											h(
 												"button",
 												{
-													onClick: () => handleDeleteRecord(dayRecord.id),
-													className: "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-colors",
+													onClick: () => { setSelectedDay(null); handleDeleteRecord(dayRecord.id) },
+													className: "flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-colors",
 												},
 												h("svg", { className: "w-4 h-4", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 2 },
 													h("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" }),
@@ -915,366 +1268,9 @@ function TimeTrackingPage() {
 								)
 							})(),
 						),
-				),
-				// Right column: Sidebar with Leave Balance + Monthly Submission
-				h(
-					"div",
-					{ className: "w-72 flex-shrink-0 space-y-4" },
-					// Leave Balance card (always visible)
-					balance &&
-						h(
-							"div",
-							{ className: "bg-white rounded-lg shadow p-4" },
-							h("h3", { className: "text-sm font-semibold text-gray-700 mb-3" }, "Leave Balance"),
-							h(
-								"div",
-								{ className: "space-y-3" },
-								h(
-									"div",
-									{ className: "flex justify-between items-center" },
-									h("span", { className: "text-sm text-gray-600" }, "Vacation Days"),
-									h("span", { className: "text-lg font-bold text-green-600" }, balance.vacation_remaining),
-								),
-								h(
-									"div",
-									{ className: "flex justify-between items-center" },
-									h("span", { className: "text-sm text-gray-600" }, "Comp Time"),
-									h("span", { className: "text-lg font-bold text-blue-600" }, `${balance.comp_time_balance?.toFixed(1) || 0}h`),
-								),
-								h(
-									"div",
-									{ className: "flex justify-between items-center" },
-									h("span", { className: "text-sm text-gray-600" }, "Sick Days Used"),
-									h("span", { className: "text-lg font-bold text-gray-600" }, balance.sick_days_taken),
-								),
-							),
-						),
-					// Monthly Submission card
-					h(
-						"div",
-						{ className: "bg-white rounded-lg shadow p-4" },
-						h("h3", { className: "text-sm font-semibold text-gray-700 mb-3" }, "Monthly Submission"),
-						h(
-							"div",
-							{ className: "space-y-3" },
-							// Month selector
-							h(
-								"select",
-								{
-									value: `${selectedMonth.year}-${selectedMonth.month}`,
-									onChange: (e) => {
-										const [y, m] = e.target.value.split("-").map(Number)
-										setSelectedMonth({ year: y, month: m })
-									},
-									className: "w-full border border-gray-300 rounded-md px-3 py-2 text-sm",
-								},
-								getLastMonths().map((m) =>
-									h("option", { key: `${m.year}-${m.month}`, value: `${m.year}-${m.month}` }, formatMonth(m.year, m.month)),
-								),
-							),
-							// Stats
-							h(
-								"div",
-								{ className: "grid grid-cols-2 gap-2 text-sm" },
-								h("div", { className: "text-gray-500" }, "Work Days:"),
-								h("div", { className: "text-right font-medium" }, monthWorkDays),
-								h("div", { className: "text-gray-500" }, "Total Hours:"),
-								h("div", { className: "text-right font-medium" }, `${monthTotalHours.toFixed(1)}h`),
-								monthOvertime !== 0 && h("div", { className: "text-gray-500" }, "Overtime:"),
-								monthOvertime !== 0 && h("div", { className: `text-right font-medium ${monthOvertime > 0 ? "text-amber-600" : "text-gray-600"}` }, `${monthOvertime > 0 ? "+" : ""}${monthOvertime.toFixed(1)}h`),
-							),
-							// Status + Submit button
-							h(
-								"div",
-								{ className: "flex items-center justify-between pt-2 border-t" },
-								isMonthSubmitted(selectedMonth.year, selectedMonth.month)
-									? h("span", { className: "text-sm text-green-600 font-medium" }, "Submitted")
-									: h("span", { className: "text-sm text-gray-400" }, "Pending"),
-								h(
-									"button",
-									{
-										onClick: openSubmissionModal,
-										disabled: isMonthSubmitted(selectedMonth.year, selectedMonth.month) || monthRecords.length === 0,
-										className: `px-3 py-1.5 rounded text-sm font-medium ${
-											isMonthSubmitted(selectedMonth.year, selectedMonth.month) || monthRecords.length === 0
-												? "bg-gray-100 text-gray-400 cursor-not-allowed"
-												: "bg-blue-600 text-white hover:bg-blue-700"
-										}`,
-									},
-									"Submit",
-								),
-							),
-							// Submission history link
-							submissions.length > 0 &&
-								h(
-									"details",
-									{ className: "text-xs" },
-									h("summary", { className: "text-gray-500 cursor-pointer hover:text-gray-700" }, `${submissions.length} previous submission${submissions.length > 1 ? "s" : ""}`),
-									h(
-										"div",
-										{ className: "mt-2 space-y-1" },
-										submissions.slice(0, 3).map((s) =>
-											h(
-												"div",
-												{ key: s.id, className: "flex justify-between items-center text-xs" },
-												h("span", { className: "text-gray-600" }, formatMonth(new Date(s.period_start).getFullYear(), new Date(s.period_start).getMonth() + 1)),
-												h(
-													"span",
-													{
-														className: `px-1.5 py-0.5 rounded ${
-															s.status === "sent"
-																? "bg-green-100 text-green-700"
-																: s.status === "failed"
-																	? "bg-red-100 text-red-700"
-																	: "bg-yellow-100 text-yellow-700"
-														}`,
-													},
-													s.status,
-												),
-											),
-										),
-									),
-								),
-						),
 					),
 				),
 			),
-
-		// Week view table (hidden when calendar view is active)
-		viewMode === "table" &&
-			h(
-				"div",
-				{ className: "bg-white rounded-lg shadow overflow-hidden mb-6" },
-				h(
-					"table",
-					{ className: "w-full" },
-					h(
-						"thead",
-						{ className: "bg-gray-50" },
-						h(
-							"tr",
-							null,
-							h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Date"),
-							h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Day"),
-							h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Company"),
-							h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Type"),
-							h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Check In"),
-							h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Check Out"),
-							h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Break"),
-							h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Net"),
-							h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Actions"),
-						),
-					),
-					h(
-						"tbody",
-						null,
-						weekRecords.length === 0
-							? h(
-									"tr",
-									null,
-									h(
-										"td",
-										{ colSpan: 9, className: "px-4 py-8 text-center text-gray-500" },
-										"No records this week",
-									),
-								)
-							: weekRecords.map((record, i) =>
-									h(
-										"tr",
-										{
-											key: record.id,
-											className: `${i % 2 === 0 ? "bg-white" : "bg-gray-50"} ${record.is_locked ? "opacity-60" : ""}`,
-										},
-										h("td", { className: "px-4 py-3" }, formatDate(record.date)),
-										h("td", { className: "px-4 py-3" }, getDayName(record.date)),
-										h("td", { className: "px-4 py-3 text-gray-600" }, getCompanyName(record.company_id)),
-										h(
-											"td",
-											{ className: "px-4 py-3" },
-											h(
-												"span",
-												{
-													className: `px-2 py-1 rounded text-xs ${DAY_TYPE_COLORS[record.day_type] || "bg-gray-100"}`,
-												},
-												DAY_TYPE_LABELS[record.day_type] || record.day_type,
-											),
-										),
-										h("td", { className: "px-4 py-3" }, formatTime(record.check_in)),
-										h("td", { className: "px-4 py-3" }, formatTime(record.check_out)),
-										h("td", { className: "px-4 py-3" }, record.break_minutes ? `${record.break_minutes}m` : "-"),
-										h("td", { className: "px-4 py-3 font-medium" }, record.net_hours ? `${record.net_hours.toFixed(1)}h` : "-"),
-										h(
-											"td",
-											{ className: "px-4 py-3" },
-											record.is_locked
-												? h("span", { className: "px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs" }, "Locked")
-												: h(
-														"div",
-														{ className: "flex gap-2" },
-														h(
-															"button",
-															{
-																onClick: () => openEditModal(record),
-																className: "text-gray-400 hover:text-blue-600 text-sm",
-															},
-															"Edit",
-														),
-														h(
-															"button",
-															{
-																onClick: () => handleDeleteRecord(record.id),
-																className: "text-gray-400 hover:text-red-600 text-sm",
-															},
-															"Delete",
-														),
-													),
-										),
-									),
-								),
-					),
-				),
-			),
-
-		// Leave Balance (only shown in table view - calendar view has it in sidebar)
-		viewMode === "table" &&
-			balance &&
-			h(
-				"div",
-				{ className: "bg-white rounded-lg shadow p-4 mb-4" },
-				h("h3", { className: "text-sm font-semibold text-gray-700 mb-3" }, "Leave Balance"),
-				h(
-					"div",
-					{ className: "grid grid-cols-3 gap-4" },
-					h(
-						"div",
-						{ className: "flex justify-between items-center" },
-						h("span", { className: "text-sm text-gray-600" }, "Vacation Days"),
-						h("span", { className: "text-lg font-bold text-green-600" }, balance.vacation_remaining),
-					),
-					h(
-						"div",
-						{ className: "flex justify-between items-center" },
-						h("span", { className: "text-sm text-gray-600" }, "Comp Time"),
-						h("span", { className: "text-lg font-bold text-blue-600" }, `${balance.comp_time_balance?.toFixed(1) || 0}h`),
-					),
-					h(
-						"div",
-						{ className: "flex justify-between items-center" },
-						h("span", { className: "text-sm text-gray-600" }, "Sick Days Used"),
-						h("span", { className: "text-lg font-bold text-gray-600" }, balance.sick_days_taken),
-					),
-				),
-			),
-
-		// Monthly Submission Section (only shown in table view - calendar view has it in sidebar)
-		viewMode === "table" &&
-			h(
-				"div",
-				{ className: "bg-white rounded-lg shadow p-4 mb-4" },
-			// Header row with stats inline
-			h(
-				"div",
-				{ className: "flex items-center justify-between" },
-				h(
-					"div",
-					{ className: "flex items-center gap-6" },
-					h("h2", { className: "text-sm font-semibold text-gray-700" }, "Monthly Submission"),
-					h(
-						"div",
-						{ className: "flex items-center gap-4 text-sm" },
-						h("span", { className: "text-gray-500" }, `${monthWorkDays} days`),
-						h("span", { className: "text-gray-500" }, `${monthTotalHours.toFixed(1)}h`),
-						monthOvertime !== 0 && h("span", { className: monthOvertime > 0 ? "text-amber-600" : "text-gray-500" }, `${monthOvertime > 0 ? "+" : ""}${monthOvertime.toFixed(1)}h OT`),
-						isMonthSubmitted(selectedMonth.year, selectedMonth.month)
-							? h("span", { className: "text-green-600 font-medium" }, "Submitted")
-							: h("span", { className: "text-gray-400" }, "Pending"),
-					),
-				),
-				h(
-					"div",
-					{ className: "flex items-center gap-2" },
-					h(
-						"select",
-						{
-							value: `${selectedMonth.year}-${selectedMonth.month}`,
-							onChange: (e) => {
-								const [y, m] = e.target.value.split("-").map(Number)
-								setSelectedMonth({ year: y, month: m })
-							},
-							className: "border rounded px-2 py-1 text-sm",
-						},
-						getLastMonths().map((m) =>
-							h("option", { key: `${m.year}-${m.month}`, value: `${m.year}-${m.month}` }, formatMonth(m.year, m.month)),
-						),
-					),
-					h(
-						"button",
-						{
-							onClick: openSubmissionModal,
-							disabled: isMonthSubmitted(selectedMonth.year, selectedMonth.month) || monthRecords.length === 0,
-							className: `px-3 py-1 rounded text-sm font-medium ${
-								isMonthSubmitted(selectedMonth.year, selectedMonth.month) || monthRecords.length === 0
-									? "bg-gray-100 text-gray-400 cursor-not-allowed"
-									: "bg-blue-600 text-white hover:bg-blue-700"
-							}`,
-						},
-						"Submit",
-					),
-					submissions.length > 0 &&
-						h(
-							"button",
-							{
-								onClick: () => {
-									const el = document.getElementById("submission-history")
-									if (el) el.open = !el.open
-								},
-								className: "text-gray-400 hover:text-gray-600 text-sm",
-							},
-							`(${submissions.length})`,
-						),
-				),
-			),
-			// Submission history (hidden by default)
-			submissions.length > 0 &&
-				h(
-					"details",
-					{ id: "submission-history", className: "mt-3" },
-					h(
-						"summary",
-						{ className: "text-xs text-gray-500 cursor-pointer hover:text-gray-700" },
-						"Submission History",
-					),
-					h(
-						"div",
-						{ className: "mt-2 space-y-1" },
-						submissions.slice(0, 5).map((s) =>
-							h(
-								"div",
-								{ key: s.id, className: "flex justify-between items-center bg-gray-50 p-2 rounded text-xs" },
-								h(
-									"div",
-									null,
-									h("span", { className: "font-medium" }, `${formatDate(s.period_start)} - ${formatDate(s.period_end)}`),
-									h("span", { className: "text-gray-500 ml-2" }, `→ ${s.sent_to_email}`),
-								),
-								h(
-									"span",
-									{
-										className: `px-2 py-0.5 rounded ${
-											s.status === "sent"
-												? "bg-green-100 text-green-800"
-												: s.status === "failed"
-													? "bg-red-100 text-red-800"
-													: "bg-yellow-100 text-yellow-800"
-										}`,
-									},
-									s.status.charAt(0).toUpperCase() + s.status.slice(1),
-								),
-							),
-						),
-					),
-				),
-		),
 
 		// Add/Edit Entry Modal
 		showAddModal &&

@@ -212,6 +212,14 @@ function TimeTrackingPage() {
 	const [recipientEmail, setRecipientEmail] = useState("")
 	const [submissionNotes, setSubmissionNotes] = useState("")
 	const [monthRecords, setMonthRecords] = useState([])
+	// Phase 3: Calendar view state
+	const [viewMode, setViewMode] = useState("calendar") // 'table' or 'calendar'
+	const [calendarMonth, setCalendarMonth] = useState(() => {
+		const now = new Date()
+		return { year: now.getFullYear(), month: now.getMonth() + 1 }
+	})
+	const [selectedDay, setSelectedDay] = useState(null)
+	const [calendarRecords, setCalendarRecords] = useState([])
 	const [formData, setFormData] = useState({
 		date: new Date().toISOString().split("T")[0],
 		day_type: "work",
@@ -259,6 +267,81 @@ function TimeTrackingPage() {
 	const monthTotalHours = monthRecords.reduce((sum, r) => sum + (r.net_hours || 0), 0)
 	const monthOvertime = Math.max(0, monthTotalHours - monthWorkDays * 8)
 
+	// Calendar helper functions
+	const getCalendarDays = (year, month) => {
+		const days = []
+		const firstDay = new Date(year, month - 1, 1)
+		const lastDay = new Date(year, month, 0)
+
+		// Adjust for Monday start (European week)
+		let startOffset = firstDay.getDay() - 1
+		if (startOffset < 0) startOffset = 6
+
+		// Add previous month days
+		const prevMonth = month === 1 ? 12 : month - 1
+		const prevYear = month === 1 ? year - 1 : year
+		const prevMonthLastDay = new Date(prevYear, prevMonth, 0).getDate()
+		for (let i = startOffset - 1; i >= 0; i--) {
+			days.push({
+				day: prevMonthLastDay - i,
+				month: prevMonth,
+				year: prevYear,
+				isCurrentMonth: false,
+			})
+		}
+
+		// Add current month days
+		for (let d = 1; d <= lastDay.getDate(); d++) {
+			days.push({ day: d, month, year, isCurrentMonth: true })
+		}
+
+		// Add next month days to fill 6 rows (42 cells)
+		const nextMonth = month === 12 ? 1 : month + 1
+		const nextYear = month === 12 ? year + 1 : year
+		let nextDay = 1
+		while (days.length < 42) {
+			days.push({
+				day: nextDay++,
+				month: nextMonth,
+				year: nextYear,
+				isCurrentMonth: false,
+			})
+		}
+
+		return days
+	}
+
+	const getRecordForDate = (year, month, day) => {
+		const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+		return calendarRecords.find((r) => r.date === dateStr)
+	}
+
+	const isToday = (year, month, day) => {
+		const today = new Date()
+		return today.getFullYear() === year && today.getMonth() + 1 === month && today.getDate() === day
+	}
+
+	const isWeekend = (year, month, day) => {
+		const d = new Date(year, month - 1, day)
+		return d.getDay() === 0 || d.getDay() === 6
+	}
+
+	const navigateMonth = (direction) => {
+		setCalendarMonth((prev) => {
+			let newMonth = prev.month + direction
+			let newYear = prev.year
+			if (newMonth < 1) {
+				newMonth = 12
+				newYear--
+			} else if (newMonth > 12) {
+				newMonth = 1
+				newYear++
+			}
+			return { year: newYear, month: newMonth }
+		})
+		setSelectedDay(null)
+	}
+
 	// Fetch companies on mount
 	useEffect(() => {
 		fetch("/api/v1/companies", { credentials: "include" })
@@ -284,6 +367,12 @@ function TimeTrackingPage() {
 		if (!selectedCompanyId) return
 		fetchMonthRecords()
 	}, [selectedCompanyId, selectedMonth])
+
+	// Fetch calendar month records when calendarMonth changes
+	useEffect(() => {
+		if (!selectedCompanyId) return
+		fetchCalendarRecords()
+	}, [selectedCompanyId, calendarMonth])
 
 	async function fetchData() {
 		setLoading(true)
@@ -341,6 +430,21 @@ function TimeTrackingPage() {
 			setMonthRecords(records)
 		} catch (e) {
 			console.error("Failed to fetch month records:", e)
+		}
+	}
+
+	async function fetchCalendarRecords() {
+		try {
+			const { year, month } = calendarMonth
+			const lastDay = new Date(year, month, 0).getDate()
+			const fromDate = `${year}-${String(month).padStart(2, "0")}-01`
+			const toDate = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`
+			const records = await apiGet(
+				`/records?from=${fromDate}&to=${toDate}&company_id=${selectedCompanyId}`,
+			)
+			setCalendarRecords(records)
+		} catch (e) {
+			console.error("Failed to fetch calendar records:", e)
 		}
 	}
 
@@ -597,99 +701,303 @@ function TimeTrackingPage() {
 					),
 		),
 
-		// Week view table
+		// View toggle
 		h(
 			"div",
-			{ className: "bg-white rounded-lg shadow overflow-hidden mb-6" },
+			{ className: "flex items-center justify-between mb-4" },
 			h(
-				"table",
-				{ className: "w-full" },
+				"div",
+				{ className: "flex gap-2" },
 				h(
-					"thead",
-					{ className: "bg-gray-50" },
-					h(
-						"tr",
-						null,
-						h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Date"),
-						h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Day"),
-						h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Company"),
-						h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Type"),
-						h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Check In"),
-						h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Check Out"),
-						h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Break"),
-						h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Net"),
-						h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Actions"),
-					),
+					"button",
+					{
+						onClick: () => setViewMode("calendar"),
+						className: `px-3 py-1.5 rounded text-sm font-medium ${viewMode === "calendar" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`,
+					},
+					"Calendar",
 				),
 				h(
-					"tbody",
-					null,
-					weekRecords.length === 0
-						? h(
-								"tr",
-								null,
-								h(
-									"td",
-									{ colSpan: 9, className: "px-4 py-8 text-center text-gray-500" },
-									"No records this week",
-								),
-							)
-						: weekRecords.map((record, i) =>
-								h(
-									"tr",
-									{
-										key: record.id,
-										className: `${i % 2 === 0 ? "bg-white" : "bg-gray-50"} ${record.is_locked ? "opacity-60" : ""}`,
-									},
-									h("td", { className: "px-4 py-3" }, formatDate(record.date)),
-									h("td", { className: "px-4 py-3" }, getDayName(record.date)),
-									h("td", { className: "px-4 py-3 text-gray-600" }, getCompanyName(record.company_id)),
-									h(
-										"td",
-										{ className: "px-4 py-3" },
-										h(
-											"span",
-											{
-												className: `px-2 py-1 rounded text-xs ${DAY_TYPE_COLORS[record.day_type] || "bg-gray-100"}`,
-											},
-											DAY_TYPE_LABELS[record.day_type] || record.day_type,
-										),
-									),
-									h("td", { className: "px-4 py-3" }, formatTime(record.check_in)),
-									h("td", { className: "px-4 py-3" }, formatTime(record.check_out)),
-									h("td", { className: "px-4 py-3" }, record.break_minutes ? `${record.break_minutes}m` : "-"),
-									h("td", { className: "px-4 py-3 font-medium" }, record.net_hours ? `${record.net_hours.toFixed(1)}h` : "-"),
-									h(
-										"td",
-										{ className: "px-4 py-3" },
-										record.is_locked
-											? h("span", { className: "px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs" }, "Locked")
-											: h(
-													"div",
-													{ className: "flex gap-2" },
-													h(
-														"button",
-														{
-															onClick: () => openEditModal(record),
-															className: "text-gray-400 hover:text-blue-600 text-sm",
-														},
-														"Edit",
-													),
-													h(
-														"button",
-														{
-															onClick: () => handleDeleteRecord(record.id),
-															className: "text-gray-400 hover:text-red-600 text-sm",
-														},
-														"Delete",
-													),
-												),
-									),
-								),
-							),
+					"button",
+					{
+						onClick: () => setViewMode("table"),
+						className: `px-3 py-1.5 rounded text-sm font-medium ${viewMode === "table" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`,
+					},
+					"Table",
 				),
 			),
+			viewMode === "calendar" &&
+				h(
+					"div",
+					{ className: "flex items-center gap-3" },
+					h(
+						"button",
+						{
+							onClick: () => navigateMonth(-1),
+							className: "px-2 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded",
+						},
+						"<",
+					),
+					h("span", { className: "font-medium min-w-32 text-center" }, formatMonth(calendarMonth.year, calendarMonth.month)),
+					h(
+						"button",
+						{
+							onClick: () => navigateMonth(1),
+							className: "px-2 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded",
+						},
+						">",
+					),
+				),
 		),
+
+		// Calendar view
+		viewMode === "calendar" &&
+			h(
+				"div",
+				{ className: "bg-white rounded-lg shadow mb-6" },
+				// Day headers
+				h(
+					"div",
+					{ className: "grid grid-cols-7 border-b" },
+					["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) =>
+						h("div", { key: day, className: "px-2 py-3 text-center text-sm font-medium text-gray-500" }, day),
+					),
+				),
+				// Calendar grid
+				h(
+					"div",
+					{ className: "grid grid-cols-7" },
+					getCalendarDays(calendarMonth.year, calendarMonth.month).map((cell, idx) => {
+						const record = cell.isCurrentMonth ? getRecordForDate(cell.year, cell.month, cell.day) : null
+						const isTodayCell = isToday(cell.year, cell.month, cell.day)
+						const isWeekendDay = isWeekend(cell.year, cell.month, cell.day)
+						const isSelected = selectedDay && selectedDay.year === cell.year && selectedDay.month === cell.month && selectedDay.day === cell.day
+
+						return h(
+							"div",
+							{
+								key: idx,
+								onClick: () => cell.isCurrentMonth && setSelectedDay(cell),
+								className: `min-h-20 p-2 border-b border-r cursor-pointer transition-colors ${
+									!cell.isCurrentMonth ? "bg-gray-50 text-gray-400" : isWeekendDay ? "bg-gray-50" : "bg-white hover:bg-blue-50"
+								} ${isSelected ? "ring-2 ring-blue-500 ring-inset" : ""}`,
+							},
+							// Day number
+							h(
+								"div",
+								{
+									className: `text-sm font-medium ${isTodayCell ? "bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center" : ""}`,
+								},
+								cell.day,
+							),
+							// Record indicator
+							record &&
+								h(
+									"div",
+									{ className: "mt-1" },
+									h(
+										"span",
+										{
+											className: `text-xs px-1.5 py-0.5 rounded ${DAY_TYPE_COLORS[record.day_type] || "bg-gray-100"}`,
+										},
+										DAY_TYPE_LABELS[record.day_type]?.substring(0, 4) || record.day_type.substring(0, 4),
+									),
+									record.net_hours &&
+										h("div", { className: "text-xs text-gray-600 mt-0.5" }, `${record.net_hours.toFixed(1)}h`),
+								),
+						)
+					}),
+				),
+			),
+
+		// Day detail panel (when a day is selected)
+		selectedDay &&
+			viewMode === "calendar" &&
+			h(
+				"div",
+				{ className: "bg-white rounded-lg shadow p-4 mb-6" },
+				h(
+					"div",
+					{ className: "flex justify-between items-start mb-3" },
+					h(
+						"div",
+						null,
+						h(
+							"h3",
+							{ className: "font-semibold text-lg" },
+							formatDate(`${selectedDay.year}-${String(selectedDay.month).padStart(2, "0")}-${String(selectedDay.day).padStart(2, "0")}`),
+						),
+						h("p", { className: "text-sm text-gray-500" }, getDayName(`${selectedDay.year}-${String(selectedDay.month).padStart(2, "0")}-${String(selectedDay.day).padStart(2, "0")}`)),
+					),
+					h(
+						"button",
+						{
+							onClick: () => setSelectedDay(null),
+							className: "text-gray-400 hover:text-gray-600",
+						},
+						"Close",
+					),
+				),
+				(() => {
+					const dayRecord = getRecordForDate(selectedDay.year, selectedDay.month, selectedDay.day)
+					if (!dayRecord) {
+						return h(
+							"div",
+							{ className: "text-gray-500 text-center py-4" },
+							"No record for this day. ",
+							h(
+								"button",
+								{
+									onClick: () => {
+										setFormData({
+											...formData,
+											date: `${selectedDay.year}-${String(selectedDay.month).padStart(2, "0")}-${String(selectedDay.day).padStart(2, "0")}`,
+										})
+										setShowAddModal(true)
+									},
+									className: "text-blue-600 hover:underline",
+								},
+								"Add entry",
+							),
+						)
+					}
+					return h(
+						"div",
+						null,
+						h(
+							"div",
+							{ className: "flex items-center gap-2 mb-3" },
+							h("span", { className: `px-2 py-1 rounded text-sm ${DAY_TYPE_COLORS[dayRecord.day_type] || "bg-gray-100"}` }, DAY_TYPE_LABELS[dayRecord.day_type] || dayRecord.day_type),
+							dayRecord.is_locked && h("span", { className: "px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs" }, "Locked"),
+						),
+						dayRecord.day_type === "work" &&
+							h(
+								"div",
+								{ className: "grid grid-cols-4 gap-4 text-sm mb-3" },
+								h("div", null, h("span", { className: "text-gray-500" }, "Check In: "), formatTime(dayRecord.check_in)),
+								h("div", null, h("span", { className: "text-gray-500" }, "Check Out: "), formatTime(dayRecord.check_out)),
+								h("div", null, h("span", { className: "text-gray-500" }, "Break: "), dayRecord.break_minutes ? `${dayRecord.break_minutes}m` : "-"),
+								h("div", null, h("span", { className: "text-gray-500" }, "Net: "), dayRecord.net_hours ? `${dayRecord.net_hours.toFixed(1)}h` : "-"),
+							),
+						dayRecord.notes && h("p", { className: "text-sm text-gray-600 mb-3" }, dayRecord.notes),
+						!dayRecord.is_locked &&
+							h(
+								"div",
+								{ className: "flex gap-2" },
+								h(
+									"button",
+									{
+										onClick: () => openEditModal(dayRecord),
+										className: "text-sm text-blue-600 hover:underline",
+									},
+									"Edit",
+								),
+								h(
+									"button",
+									{
+										onClick: () => handleDeleteRecord(dayRecord.id),
+										className: "text-sm text-red-600 hover:underline",
+									},
+									"Delete",
+								),
+							),
+					)
+				})(),
+			),
+
+		// Week view table (hidden when calendar view is active)
+		viewMode === "table" &&
+			h(
+				"div",
+				{ className: "bg-white rounded-lg shadow overflow-hidden mb-6" },
+				h(
+					"table",
+					{ className: "w-full" },
+					h(
+						"thead",
+						{ className: "bg-gray-50" },
+						h(
+							"tr",
+							null,
+							h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Date"),
+							h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Day"),
+							h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Company"),
+							h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Type"),
+							h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Check In"),
+							h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Check Out"),
+							h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Break"),
+							h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Net"),
+							h("th", { className: "px-4 py-3 text-left text-sm font-medium text-gray-500" }, "Actions"),
+						),
+					),
+					h(
+						"tbody",
+						null,
+						weekRecords.length === 0
+							? h(
+									"tr",
+									null,
+									h(
+										"td",
+										{ colSpan: 9, className: "px-4 py-8 text-center text-gray-500" },
+										"No records this week",
+									),
+								)
+							: weekRecords.map((record, i) =>
+									h(
+										"tr",
+										{
+											key: record.id,
+											className: `${i % 2 === 0 ? "bg-white" : "bg-gray-50"} ${record.is_locked ? "opacity-60" : ""}`,
+										},
+										h("td", { className: "px-4 py-3" }, formatDate(record.date)),
+										h("td", { className: "px-4 py-3" }, getDayName(record.date)),
+										h("td", { className: "px-4 py-3 text-gray-600" }, getCompanyName(record.company_id)),
+										h(
+											"td",
+											{ className: "px-4 py-3" },
+											h(
+												"span",
+												{
+													className: `px-2 py-1 rounded text-xs ${DAY_TYPE_COLORS[record.day_type] || "bg-gray-100"}`,
+												},
+												DAY_TYPE_LABELS[record.day_type] || record.day_type,
+											),
+										),
+										h("td", { className: "px-4 py-3" }, formatTime(record.check_in)),
+										h("td", { className: "px-4 py-3" }, formatTime(record.check_out)),
+										h("td", { className: "px-4 py-3" }, record.break_minutes ? `${record.break_minutes}m` : "-"),
+										h("td", { className: "px-4 py-3 font-medium" }, record.net_hours ? `${record.net_hours.toFixed(1)}h` : "-"),
+										h(
+											"td",
+											{ className: "px-4 py-3" },
+											record.is_locked
+												? h("span", { className: "px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs" }, "Locked")
+												: h(
+														"div",
+														{ className: "flex gap-2" },
+														h(
+															"button",
+															{
+																onClick: () => openEditModal(record),
+																className: "text-gray-400 hover:text-blue-600 text-sm",
+															},
+															"Edit",
+														),
+														h(
+															"button",
+															{
+																onClick: () => handleDeleteRecord(record.id),
+																className: "text-gray-400 hover:text-red-600 text-sm",
+															},
+															"Delete",
+														),
+													),
+										),
+									),
+								),
+					),
+				),
+			),
 
 		// Monthly Submission Section
 		h(

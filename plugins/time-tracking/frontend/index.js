@@ -114,6 +114,13 @@ const DAY_TYPE_COLORS = {
 // Main Time Tracking Page
 // ============================================================================
 
+const WORK_LOCATIONS = {
+	office: "Office",
+	remote: "Remote/Home",
+	client_site: "Client Site",
+	travel: "Travel",
+}
+
 function TimeTrackingPage() {
 	const React = window.React
 	const { useState, useEffect } = React
@@ -126,6 +133,15 @@ function TimeTrackingPage() {
 	const [error, setError] = useState(null)
 	const [companies, setCompanies] = useState([])
 	const [selectedCompanyId, setSelectedCompanyId] = useState(null)
+	const [showAddModal, setShowAddModal] = useState(false)
+	const [formData, setFormData] = useState({
+		date: new Date().toISOString().split("T")[0],
+		day_type: "work",
+		check_in: "09:00",
+		check_out: "17:00",
+		work_location: "remote",
+		notes: "",
+	})
 
 	// Fetch companies on mount
 	useEffect(() => {
@@ -207,6 +223,40 @@ function TimeTrackingPage() {
 		}
 	}
 
+	async function handleAddEntry(e) {
+		e.preventDefault()
+		setError(null)
+		try {
+			const data = {
+				date: formData.date,
+				day_type: formData.day_type,
+				company_id: selectedCompanyId,
+				work_location: formData.day_type === "work" ? formData.work_location : null,
+				notes: formData.notes || null,
+			}
+			// Only add times for work days
+			if (formData.day_type === "work" && formData.check_in) {
+				data.check_in = formData.check_in + ":00"
+			}
+			if (formData.day_type === "work" && formData.check_out) {
+				data.check_out = formData.check_out + ":00"
+			}
+			await apiPost("/records", data)
+			setShowAddModal(false)
+			setFormData({
+				date: new Date().toISOString().split("T")[0],
+				day_type: "work",
+				check_in: "09:00",
+				check_out: "17:00",
+				work_location: "remote",
+				notes: "",
+			})
+			fetchData()
+		} catch (e) {
+			setError(e.message)
+		}
+	}
+
 	if (loading) {
 		return h(
 			"div",
@@ -219,19 +269,31 @@ function TimeTrackingPage() {
 		"div",
 		{ className: "p-6 max-w-6xl mx-auto" },
 
-		// Header with company selector
+		// Header with company selector and Add Entry button
 		h(
 			"div",
 			{ className: "flex justify-between items-center mb-6" },
 			h("h1", { className: "text-2xl font-bold" }, "Time Tracking"),
 			h(
-				"select",
-				{
-					value: selectedCompanyId || "",
-					onChange: (e) => setSelectedCompanyId(e.target.value),
-					className: "border rounded px-3 py-2",
-				},
-				companies.map((c) => h("option", { key: c.id, value: c.id }, c.name)),
+				"div",
+				{ className: "flex gap-3 items-center" },
+				h(
+					"button",
+					{
+						onClick: () => setShowAddModal(true),
+						className: "bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700",
+					},
+					"Add Entry",
+				),
+				h(
+					"select",
+					{
+						value: selectedCompanyId || "",
+						onChange: (e) => setSelectedCompanyId(e.target.value),
+						className: "border rounded px-3 py-2",
+					},
+					companies.map((c) => h("option", { key: c.id, value: c.id }, c.name)),
+				),
 			),
 		),
 
@@ -486,6 +548,139 @@ function TimeTrackingPage() {
 				),
 			),
 		),
+
+		// Add Entry Modal
+		showAddModal &&
+			h(
+				"div",
+				{
+					className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
+					onClick: (e) => {
+						if (e.target === e.currentTarget) setShowAddModal(false)
+					},
+				},
+				h(
+					"div",
+					{ className: "bg-white rounded-lg shadow-xl p-6 w-full max-w-md" },
+					h("h2", { className: "text-xl font-bold mb-4" }, "Add Time Entry"),
+					h(
+						"form",
+						{ onSubmit: handleAddEntry },
+						// Date
+						h(
+							"div",
+							{ className: "mb-4" },
+							h("label", { className: "block text-sm font-medium mb-1" }, "Date"),
+							h("input", {
+								type: "date",
+								value: formData.date,
+								onChange: (e) => setFormData({ ...formData, date: e.target.value }),
+								className: "w-full border rounded px-3 py-2",
+								required: true,
+							}),
+						),
+						// Day Type
+						h(
+							"div",
+							{ className: "mb-4" },
+							h("label", { className: "block text-sm font-medium mb-1" }, "Type"),
+							h(
+								"select",
+								{
+									value: formData.day_type,
+									onChange: (e) => setFormData({ ...formData, day_type: e.target.value }),
+									className: "w-full border rounded px-3 py-2",
+								},
+								Object.entries(DAY_TYPE_LABELS).map(([value, label]) =>
+									h("option", { key: value, value }, label),
+								),
+							),
+						),
+						// Work-specific fields
+						formData.day_type === "work" &&
+							h(
+								"div",
+								null,
+								// Check In Time
+								h(
+									"div",
+									{ className: "mb-4" },
+									h("label", { className: "block text-sm font-medium mb-1" }, "Check In"),
+									h("input", {
+										type: "time",
+										value: formData.check_in,
+										onChange: (e) => setFormData({ ...formData, check_in: e.target.value }),
+										className: "w-full border rounded px-3 py-2",
+									}),
+								),
+								// Check Out Time
+								h(
+									"div",
+									{ className: "mb-4" },
+									h("label", { className: "block text-sm font-medium mb-1" }, "Check Out"),
+									h("input", {
+										type: "time",
+										value: formData.check_out,
+										onChange: (e) => setFormData({ ...formData, check_out: e.target.value }),
+										className: "w-full border rounded px-3 py-2",
+									}),
+								),
+								// Work Location
+								h(
+									"div",
+									{ className: "mb-4" },
+									h("label", { className: "block text-sm font-medium mb-1" }, "Location"),
+									h(
+										"select",
+										{
+											value: formData.work_location,
+											onChange: (e) => setFormData({ ...formData, work_location: e.target.value }),
+											className: "w-full border rounded px-3 py-2",
+										},
+										Object.entries(WORK_LOCATIONS).map(([value, label]) =>
+											h("option", { key: value, value }, label),
+										),
+									),
+								),
+							),
+						// Notes
+						h(
+							"div",
+							{ className: "mb-4" },
+							h("label", { className: "block text-sm font-medium mb-1" }, "Notes"),
+							h("textarea", {
+								value: formData.notes,
+								onChange: (e) => setFormData({ ...formData, notes: e.target.value }),
+								className: "w-full border rounded px-3 py-2",
+								rows: 2,
+								placeholder: "Optional notes...",
+							}),
+						),
+						// Buttons
+						h(
+							"div",
+							{ className: "flex justify-end gap-3" },
+							h(
+								"button",
+								{
+									type: "button",
+									onClick: () => setShowAddModal(false),
+									className: "px-4 py-2 border rounded hover:bg-gray-100",
+								},
+								"Cancel",
+							),
+							h(
+								"button",
+								{
+									type: "submit",
+									className: "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700",
+								},
+								"Save",
+							),
+						),
+					),
+				),
+			),
 	)
 }
 

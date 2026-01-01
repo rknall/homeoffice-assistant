@@ -9,7 +9,6 @@ from datetime import time
 
 import pytest
 
-
 # --- Simplified implementations for testing ---
 
 

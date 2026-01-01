@@ -9,10 +9,6 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from enum import Enum
-from typing import Any
-
-import pytest
-
 
 # --- Simplified implementations for testing ---
 
@@ -46,7 +42,9 @@ class LeaveBalance:
     @property
     def available_days(self) -> Decimal:
         """Calculate available days."""
-        return self.entitled_days + self.carried_over - self.used_days - self.pending_days
+        return (
+            self.entitled_days + self.carried_over - self.used_days - self.pending_days
+        )
 
 
 @dataclass
@@ -227,9 +225,9 @@ class TestCompTimeEarned:
     def test_comp_time_sunday_and_holiday(self):
         """Sunday that is also a holiday still earns 2x (not 4x)."""
         # When is_sunday=True AND is_holiday=True, the multiplier is still 2x
-        assert calculate_comp_time_earned(
-            9.0, 8.0, is_sunday=True, is_holiday=True
-        ) == 2.0
+        assert (
+            calculate_comp_time_earned(9.0, 8.0, is_sunday=True, is_holiday=True) == 2.0
+        )
 
     def test_no_comp_time_on_sunday_without_overtime(self):
         """No extra comp time for working standard hours on Sunday."""
@@ -242,8 +240,12 @@ class TestVacationUsed:
     def test_count_vacation_days(self):
         """Count vacation days from records."""
         records = [
-            TimeRecord(day_type=DayType.VACATION, net_hours=None, date=date(2025, 1, 6)),
-            TimeRecord(day_type=DayType.VACATION, net_hours=None, date=date(2025, 1, 7)),
+            TimeRecord(
+                day_type=DayType.VACATION, net_hours=None, date=date(2025, 1, 6)
+            ),
+            TimeRecord(
+                day_type=DayType.VACATION, net_hours=None, date=date(2025, 1, 7)
+            ),
             TimeRecord(day_type=DayType.WORK, net_hours=8.0, date=date(2025, 1, 8)),
         ]
         assert calculate_vacation_used(records) == Decimal("2")
@@ -260,7 +262,9 @@ class TestVacationUsed:
         """Sick days should not count as vacation."""
         records = [
             TimeRecord(day_type=DayType.SICK, net_hours=None, date=date(2025, 1, 6)),
-            TimeRecord(day_type=DayType.VACATION, net_hours=None, date=date(2025, 1, 7)),
+            TimeRecord(
+                day_type=DayType.VACATION, net_hours=None, date=date(2025, 1, 7)
+            ),
         ]
         assert calculate_vacation_used(records) == Decimal("1")
 
@@ -305,7 +309,9 @@ class TestYearEndCarryover:
             pending_days=Decimal("0"),
         )
         # 3 days available, limit is 5
-        carryover = calculate_year_end_carryover(balance, max_carryover_days=Decimal("5"))
+        carryover = calculate_year_end_carryover(
+            balance, max_carryover_days=Decimal("5")
+        )
         assert carryover == Decimal("3")
 
     def test_carryover_at_limit(self):
@@ -321,7 +327,9 @@ class TestYearEndCarryover:
             pending_days=Decimal("0"),
         )
         # 5 days available, limit is 5
-        carryover = calculate_year_end_carryover(balance, max_carryover_days=Decimal("5"))
+        carryover = calculate_year_end_carryover(
+            balance, max_carryover_days=Decimal("5")
+        )
         assert carryover == Decimal("5")
 
     def test_carryover_over_limit_is_capped(self):
@@ -337,7 +345,9 @@ class TestYearEndCarryover:
             pending_days=Decimal("0"),
         )
         # 10 days available, limit is 5
-        carryover = calculate_year_end_carryover(balance, max_carryover_days=Decimal("5"))
+        carryover = calculate_year_end_carryover(
+            balance, max_carryover_days=Decimal("5")
+        )
         assert carryover == Decimal("5")
 
     def test_no_carryover_when_nothing_remaining(self):
@@ -352,7 +362,9 @@ class TestYearEndCarryover:
             used_days=Decimal("25"),
             pending_days=Decimal("0"),
         )
-        carryover = calculate_year_end_carryover(balance, max_carryover_days=Decimal("5"))
+        carryover = calculate_year_end_carryover(
+            balance, max_carryover_days=Decimal("5")
+        )
         assert carryover == Decimal("0")
 
     def test_no_carryover_when_negative_balance(self):
@@ -367,7 +379,9 @@ class TestYearEndCarryover:
             used_days=Decimal("27"),
             pending_days=Decimal("0"),
         )
-        carryover = calculate_year_end_carryover(balance, max_carryover_days=Decimal("5"))
+        carryover = calculate_year_end_carryover(
+            balance, max_carryover_days=Decimal("5")
+        )
         assert carryover == Decimal("0")
 
 

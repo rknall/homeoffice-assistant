@@ -88,9 +88,10 @@ class ExpenseReportGenerator:
             by_payment_type[pt] = by_payment_type.get(pt, Decimal(0)) + amount
 
             # Track conversion rates for display
-            if expense.currency.upper() != base_currency.upper():
-                if expense.exchange_rate is not None:
-                    conversion_rates[expense.currency.upper()] = expense.exchange_rate
+            if (expense.currency.upper() != base_currency.upper()) and (
+                expense.exchange_rate is not None
+            ):
+                conversion_rates[expense.currency.upper()] = expense.exchange_rate
 
         return {
             "event_id": event.id,
@@ -278,7 +279,8 @@ class ExpenseReportGenerator:
         else:
             # Get all non-private expenses for the event
             expenses = [
-                e for e in expense_service.get_expenses(self.db, event.id)
+                e
+                for e in expense_service.get_expenses(self.db, event.id)
                 if not e.is_private
             ]
 

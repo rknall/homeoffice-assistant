@@ -12,7 +12,6 @@ from unittest.mock import MagicMock
 import holidays
 import pytest
 
-
 # --- Simplified implementations for testing ---
 
 
@@ -153,7 +152,7 @@ class AustrianComplianceValidator:
     ) -> dict[date, str]:
         """Get Austrian public holidays for a year."""
         at_holidays = holidays.Austria(years=year, subdiv=region)
-        return {d: name for d, name in at_holidays.items()}
+        return dict(at_holidays.items())
 
     def is_public_holiday(
         self,
@@ -299,7 +298,7 @@ class TestAustrianComplianceValidator:
     def test_validate_weekly_hours_within_limit(self, validator):
         """No warnings for weekly hours within 40h limit."""
         records = []
-        for i in range(5):
+        for _i in range(5):
             record = MagicMock()
             record.day_type = "work"
             record.net_hours = 8.0
@@ -311,7 +310,7 @@ class TestAustrianComplianceValidator:
     def test_validate_weekly_hours_overtime(self, validator):
         """Info warning for weekly hours between 40h and 50h."""
         records = []
-        for i in range(5):
+        for _i in range(5):
             record = MagicMock()
             record.day_type = "work"
             record.net_hours = 9.0  # 45h total
@@ -325,7 +324,7 @@ class TestAustrianComplianceValidator:
     def test_validate_weekly_hours_exceeds_max(self, validator):
         """Error warning for weekly hours over 50h."""
         records = []
-        for i in range(5):
+        for _i in range(5):
             record = MagicMock()
             record.day_type = "work"
             record.net_hours = 11.0  # 55h total

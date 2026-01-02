@@ -13,6 +13,25 @@ import { usePlugins } from '@/plugins'
 import type { DiscoveredPlugin, PluginInfo, PluginSummary } from '@/plugins/types'
 import { useBreadcrumb } from '@/stores/breadcrumb'
 
+/**
+ * Build a warning message for destructive uninstall options.
+ */
+function buildUninstallWarning(
+  dropTables: boolean,
+  removePermissions: boolean,
+  deleteFiles: boolean,
+): string {
+  const actions: string[] = []
+  if (dropTables) actions.push('permanently delete all data stored by this plugin')
+  if (removePermissions) actions.push('remove its custom permissions from roles')
+  if (deleteFiles) actions.push('delete plugin files from disk')
+
+  if (actions.length === 0) return ''
+  if (actions.length === 1) return `This will ${actions[0]}.`
+  const last = actions.pop()
+  return `This will ${actions.join(', ')} and ${last}.`
+}
+
 export function PluginSettings() {
   const { setItems: setBreadcrumb } = useBreadcrumb()
   const {
@@ -522,15 +541,7 @@ export function PluginSettings() {
 
           {(dropTables || removePermissions || deleteFiles) && (
             <Alert variant="warning">
-              {`${[
-                dropTables && 'permanently delete all data stored by this plugin',
-                removePermissions && 'remove its custom permissions from roles',
-                deleteFiles && 'delete plugin files from disk',
-              ]
-                .filter(Boolean)
-                .join(', ')
-                .replace(/,([^,]*)$/, ' and$1')
-                .replace(/^./, (c) => c.toUpperCase())}.`}
+              {buildUninstallWarning(dropTables, removePermissions, deleteFiles)}
             </Alert>
           )}
 

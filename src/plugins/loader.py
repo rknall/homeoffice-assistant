@@ -5,6 +5,7 @@
 import importlib.util
 import json
 import logging
+import re
 import shutil
 import subprocess
 import sys
@@ -31,6 +32,14 @@ logger = logging.getLogger(__name__)
 # Default plugins directory relative to project root
 PLUGINS_DIR = Path("./plugins")
 PLUGIN_MANIFEST_FILE = "plugin.manifest.json"
+
+# Regex for validating pip requirement specifiers (PEP 508 simplified)
+# Matches: package, package>=1.0, package[extra]>=1.0,<2.0, etc.
+DEPENDENCY_PATTERN = re.compile(
+    r"^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?"  # Package name
+    r"(\[[a-zA-Z0-9,._-]+\])?"  # Optional extras like [dev,test]
+    r"([<>=!~]+[\d.]+(\s*,\s*[<>=!~]+[\d.]+)*)?$"  # Version specifiers
+)
 
 
 class PluginLoadError(Exception):
@@ -174,9 +183,24 @@ def parse_manifest(manifest_path: Path) -> PluginManifest:
     )
 
 
+def validate_dependency_format(dependency: str) -> bool:
+    """Validate that a dependency string matches expected pip format.
+
+    This prevents potential security issues from malformed dependency strings.
+
+    Args:
+        dependency: A pip requirement specifier (e.g., "holidays>=0.62")
+
+    Returns:
+        True if valid, False otherwise
+    """
+    return DEPENDENCY_PATTERN.match(dependency) is not None
+
+
 def install_plugin_dependencies(
     plugin_id: str,
     dependencies: list[str],
+    verbose: bool = False,
 ) -> tuple[bool, str]:
     """Install Python dependencies for a plugin.
 
@@ -186,6 +210,7 @@ def install_plugin_dependencies(
     Args:
         plugin_id: Plugin ID for logging
         dependencies: List of pip requirement specifiers (e.g., ["holidays>=0.62"])
+        verbose: If True, use --verbose flag for pip (default False)
 
     Returns:
         Tuple of (success, message)
@@ -193,19 +218,34 @@ def install_plugin_dependencies(
     if not dependencies:
         return True, "No dependencies to install"
 
+    # Validate dependency formats for security
+    invalid_deps = [d for d in dependencies if not validate_dependency_format(d)]
+    if invalid_deps:
+        error_msg = f"Invalid dependency format: {', '.join(invalid_deps)}"
+        logger.error(f"Plugin {plugin_id}: {error_msg}")
+        return False, error_msg
+
     logger.debug(f"Installing dependencies for plugin {plugin_id}: {dependencies}")
     logger.debug(f"Using Python executable: {sys.executable}")
 
     try:
+        cmd = [sys.executable, "-m", "pip", "install"]
+        if verbose or logger.isEnabledFor(logging.DEBUG):
+            cmd.append("--verbose")
+        else:
+            cmd.append("--quiet")
+        cmd.extend(dependencies)
+
         result = subprocess.run(  # noqa: S603
-            [sys.executable, "-m", "pip", "install", "--verbose", *dependencies],
+            cmd,
             capture_output=True,
             text=True,
             check=True,
         )
-        logger.debug(f"pip stdout: {result.stdout}")
-        if result.stderr:
-            logger.debug(f"pip stderr: {result.stderr}")
+        if verbose or logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"pip stdout: {result.stdout}")
+            if result.stderr:
+                logger.debug(f"pip stderr: {result.stderr}")
         installed = ", ".join(dependencies)
         logger.info(f"Successfully installed dependencies for {plugin_id}: {installed}")
         return True, f"Installed: {installed}"

@@ -5,6 +5,7 @@
 	"description": "Track working hours, vacation balances, and comp time",
 	"author": "Roland Knall",
 	"homepage": "https://github.com/rknall/homeoffice-assistant",
+	"python_dependencies": ["holidays>=0.62"],
 	"capabilities": {
 		"backend": true,
 		"frontend": true,

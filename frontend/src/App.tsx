@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
 import { useEffect } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Layout } from '@/components/layout/Layout'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { Spinner } from '@/components/ui/Spinner'
@@ -23,12 +23,25 @@ import { Roles } from '@/pages/settings/Roles'
 import { TodoTemplateSettings } from '@/pages/settings/TodoTemplateSettings'
 import { UserDetail } from '@/pages/settings/UserDetail'
 import { Users } from '@/pages/settings/Users'
-import { PluginProvider, usePluginRoutes } from '@/plugins'
+import { PluginProvider, usePluginContext, usePluginRoutes } from '@/plugins'
 import { useAuth } from '@/stores/auth'
 import { useLocale } from '@/stores/locale'
 
 function AppRoutes() {
   const pluginRoutes = usePluginRoutes()
+  const { isInitialized: pluginsInitialized } = usePluginContext()
+  const location = useLocation()
+
+  // If we're on a plugin route and plugins haven't initialized yet, show loading
+  // This prevents the catch-all route from redirecting before plugins register their routes
+  const isPluginRoute = location.pathname.startsWith('/plugins/')
+  if (isPluginRoute && !pluginsInitialized) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Spinner size="lg" />
+      </div>
+    )
+  }
 
   return (
     <Routes>

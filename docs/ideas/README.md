@@ -16,7 +16,6 @@ Completed ideas are moved to the `done/` subdirectory.
 ### Plugins
 | Idea | Status | Description |
 |------|--------|-------------|
-| [Time/Working Hours Tracking](time-tracking.md) | Not Started | Track working hours per event/company/project (plugin) |
 | [Business Card Scanner](business-card-scanner.md) | Not Started | Vision-based contact extraction from business cards (plugin) |
 | [Local OCR for Expenses](local-ocr-expense-recognition.md) | Not Started | Use Ollama vision models to extract expense data from receipts |
 
@@ -36,6 +35,7 @@ See the [done/](done/) folder for implemented features:
 |------|-------------|-------------|
 | [Incremental Expense Submission](done/incremental-expense-submission.md) | v0.3.0-rc1 | Submit expenses in stages, track submission status |
 | [Task Management (Internal)](done/task-management-integration.md) | v0.3.0 | Todo CRUD, categories, templates, auto-completion |
+| [Time/Working Hours Tracking](done/time-tracking.md) | Implemented as plugin | Track working hours per event/company/project (plugin) |
 
 ## Contributing Ideas
 

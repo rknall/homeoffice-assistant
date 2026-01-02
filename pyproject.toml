@@ -20,6 +20,8 @@ dependencies = [
     "bcrypt>=5.0.0",
     "cryptography>=46.0.3",
     "python-slugify>=8.0.4",
+    "holidays>=0.62",
+    "tzdata>=2025.1",
 ]
 
 [project.optional-dependencies]

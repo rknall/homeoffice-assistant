@@ -46,7 +46,6 @@ class PluginSummary(BaseModel):
 
     plugin_id: str
     plugin_version: str
-    is_enabled: bool
     manifest: PluginManifestResponse | None = None
     has_frontend: bool
     has_backend: bool
@@ -65,7 +64,6 @@ class PluginInfoResponse(BaseModel):
 
     plugin_id: str
     plugin_version: str
-    is_enabled: bool
     manifest: dict[str, Any] | None = None
     config_schema: dict[str, Any]
     settings: dict[str, Any]
@@ -101,7 +99,6 @@ class PluginEnableResponse(BaseModel):
 
     success: bool
     plugin_id: str
-    is_enabled: bool
     message: str = ""
 
 

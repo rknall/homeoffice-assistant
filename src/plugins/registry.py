@@ -9,9 +9,7 @@ from typing import TYPE_CHECKING, ClassVar
 from src.plugins.base import BasePlugin, PluginConfig, PluginManifest
 from src.plugins.events import AppEvent, event_bus
 from src.plugins.loader import (
-    PLUGIN_MANIFEST_FILE,
     PluginLoader,
-    parse_manifest,
 )
 from src.plugins.router_proxy import get_plugin_router_manager
 
@@ -77,14 +75,6 @@ class PluginRegistry:
         """
         return list(self._plugins.values())
 
-    def get_enabled_plugins(self) -> list[BasePlugin]:
-        """Get all enabled plugins.
-
-        Returns:
-            List of enabled plugin instances
-        """
-        return [p for p in self._plugins.values() if p.config.enabled]
-
     def is_plugin_loaded(self, plugin_id: str) -> bool:
         """Check if a plugin is loaded.
 
@@ -125,13 +115,8 @@ class PluginRegistry:
                 continue
 
             config = PluginConfig(
-                enabled=db_config.is_enabled,
                 settings=db_config.get_decrypted_settings(),
             )
-
-            if not config.enabled:
-                logger.info(f"Plugin {manifest.id} is disabled, skipping load")
-                continue
 
             try:
                 await self._load_single_plugin(plugin_path, manifest, config)
@@ -214,9 +199,7 @@ class PluginRegistry:
 
         # Register plugin-provided permissions
         if manifest.provided_permissions:
-            register_plugin_permissions(
-                db, manifest.id, manifest.provided_permissions
-            )
+            register_plugin_permissions(db, manifest.id, manifest.provided_permissions)
             logger.info(
                 f"Registered {len(manifest.provided_permissions)} permissions "
                 f"for plugin {manifest.id}"
@@ -226,14 +209,13 @@ class PluginRegistry:
         db_config = PluginConfigModel(
             plugin_id=manifest.id,
             plugin_version=manifest.version,
-            is_enabled=True,
             settings_encrypted=None,
         )
         db.add(db_config)
         db.commit()
 
         # Load the plugin
-        config = PluginConfig(enabled=True, settings={})
+        config = PluginConfig(settings={})
         plugin = await self._load_single_plugin(plugin_path, manifest, config)
 
         # Call on_install lifecycle hook
@@ -253,6 +235,7 @@ class PluginRegistry:
         db: Session,
         drop_tables: bool = False,
         remove_permissions: bool = False,
+        keep_files: bool = False,
     ) -> None:
         """Uninstall a plugin.
 
@@ -261,6 +244,7 @@ class PluginRegistry:
             db: Database session
             drop_tables: Whether to drop plugin's database tables
             remove_permissions: Whether to remove plugin-provided permissions
+            keep_files: If True, keep plugin files on disk (for dev workflow)
         """
         from src.models.plugin_config import PluginConfigModel
         from src.plugins.migrations import PluginMigrationRunner
@@ -300,8 +284,17 @@ class PluginRegistry:
         ).delete()
         db.commit()
 
-        # Remove files
-        self._loader.uninstall(plugin_id)
+        # Remove files (unless keep_files is True for dev workflow)
+        if not keep_files:
+            self._loader.uninstall(plugin_id)
+        else:
+            logger.info(
+                "Keeping files for plugin %s (dev mode): plugin files remain on disk, "
+                "any previously installed Python dependencies are not removed, and "
+                "the plugin may be rediscovered on restart but will not be auto-loaded "
+                "because its database configuration was deleted.",
+                plugin_id,
+            )
 
         # Publish event
         await event_bus.publish(
@@ -310,86 +303,6 @@ class PluginRegistry:
         )
 
         logger.info(f"Uninstalled plugin {plugin_id}")
-
-    async def enable_plugin(self, plugin_id: str, db: Session) -> None:
-        """Enable a disabled plugin.
-
-        Args:
-            plugin_id: Plugin to enable
-            db: Database session
-        """
-        from src.models.plugin_config import PluginConfigModel
-
-        db_config = (
-            db.query(PluginConfigModel)
-            .filter(PluginConfigModel.plugin_id == plugin_id)
-            .first()
-        )
-
-        if not db_config:
-            raise ValueError(f"Plugin {plugin_id} not found in database")
-
-        db_config.is_enabled = True
-        db.commit()
-
-        # Load if not already loaded
-        if plugin_id not in self._plugins:
-            plugin_path = self._loader.get_plugin_path(plugin_id)
-            if plugin_path:
-                manifest_path = plugin_path / PLUGIN_MANIFEST_FILE
-                manifest = parse_manifest(manifest_path)
-                config = PluginConfig(
-                    enabled=True,
-                    settings=db_config.get_decrypted_settings(),
-                )
-                await self._load_single_plugin(plugin_path, manifest, config)
-
-        await event_bus.publish(
-            AppEvent.PLUGIN_ENABLED,
-            {"plugin_id": plugin_id},
-        )
-
-        logger.info(f"Enabled plugin {plugin_id}")
-
-    async def disable_plugin(self, plugin_id: str, db: Session) -> None:
-        """Disable an enabled plugin.
-
-        Args:
-            plugin_id: Plugin to disable
-            db: Database session
-        """
-        from src.models.plugin_config import PluginConfigModel
-
-        plugin = self._plugins.get(plugin_id)
-
-        if plugin:
-            # Call lifecycle hook
-            await plugin.on_disable()
-            # Remove event handlers
-            event_bus.unsubscribe_plugin(plugin_id)
-            # Remove router
-            router_manager = get_plugin_router_manager()
-            router_manager.remove_plugin_router(plugin_id)
-            # Remove from registry
-            del self._plugins[plugin_id]
-
-        # Update database
-        db_config = (
-            db.query(PluginConfigModel)
-            .filter(PluginConfigModel.plugin_id == plugin_id)
-            .first()
-        )
-
-        if db_config:
-            db_config.is_enabled = False
-            db.commit()
-
-        await event_bus.publish(
-            AppEvent.PLUGIN_DISABLED,
-            {"plugin_id": plugin_id},
-        )
-
-        logger.info(f"Disabled plugin {plugin_id}")
 
     async def update_plugin_settings(
         self,

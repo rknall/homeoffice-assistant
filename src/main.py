@@ -17,7 +17,18 @@ from src.database import SessionLocal
 from src.plugins import PluginRegistry, get_plugin_router_manager
 from src.services import rbac_seed_service, todo_template_service
 
+# Configure application logger; rely on external/root logging configuration
+log_level_name = os.getenv("APP_LOG_LEVEL")
 logger = logging.getLogger(__name__)
+if log_level_name:
+    try:
+        logger.setLevel(getattr(logging, log_level_name.upper()))
+    except AttributeError:
+        # Fallback to existing level if invalid env var is provided
+        logger.warning(
+            "Invalid APP_LOG_LEVEL '%s'; using existing logger level",
+            log_level_name,
+        )
 
 # Ensure directories exist
 os.makedirs("static/avatars", exist_ok=True)
@@ -45,7 +56,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             logger.info(f"Seeded {templates_created} default todo templates.")
 
         await registry.load_all_plugins(db)
-        logger.info(f"Loaded {len(registry.get_enabled_plugins())} enabled plugins")
+        logger.info(f"Loaded {len(registry.get_all_plugins())} available plugins")
     except Exception as e:
         logger.error(f"Error during startup: {e}")
     finally:
@@ -55,6 +66,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Shutdown: Cleanup
     logger.info("Shutting down plugin system...")
+
 
 app = FastAPI(
     title="HomeOffice Assistant",

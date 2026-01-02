@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
 
-import { Download, Pause, Play, Plus, Settings, Trash2, Upload } from 'lucide-react'
+import { Download, Plus, Settings, Trash2, Upload } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
@@ -12,6 +12,25 @@ import { Spinner } from '@/components/ui/Spinner'
 import { usePlugins } from '@/plugins'
 import type { DiscoveredPlugin, PluginInfo, PluginSummary } from '@/plugins/types'
 import { useBreadcrumb } from '@/stores/breadcrumb'
+
+/**
+ * Build a warning message for destructive uninstall options.
+ */
+function buildUninstallWarning(
+  dropTables: boolean,
+  removePermissions: boolean,
+  deleteFiles: boolean,
+): string {
+  const actions: string[] = []
+  if (dropTables) actions.push('permanently delete all data stored by this plugin')
+  if (removePermissions) actions.push('remove its custom permissions from roles')
+  if (deleteFiles) actions.push('delete plugin files from disk')
+
+  if (actions.length === 0) return ''
+  if (actions.length === 1) return `This will ${actions[0]}.`
+  const last = actions.pop()
+  return `This will ${actions.join(', ')} and ${last}.`
+}
 
 export function PluginSettings() {
   const { setItems: setBreadcrumb } = useBreadcrumb()
@@ -25,8 +44,6 @@ export function PluginSettings() {
     installPlugin,
     installDiscoveredPlugin,
     uninstallPlugin,
-    enablePlugin,
-    disablePlugin,
   } = usePlugins()
 
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false)
@@ -37,6 +54,7 @@ export function PluginSettings() {
   const [isLoadingInfo, setIsLoadingInfo] = useState(false)
   const [dropTables, setDropTables] = useState(false)
   const [removePermissions, setRemovePermissions] = useState(false)
+  const [deleteFiles, setDeleteFiles] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState<string | null>(null)
@@ -94,36 +112,11 @@ export function PluginSettings() {
     }
   }
 
-  const handleEnablePlugin = async (pluginId: string) => {
-    setIsProcessing(pluginId)
-    setError(null)
-    try {
-      await enablePlugin(pluginId)
-      setSuccessMessage('Plugin enabled successfully')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to enable plugin')
-    } finally {
-      setIsProcessing(null)
-    }
-  }
-
-  const handleDisablePlugin = async (pluginId: string) => {
-    setIsProcessing(pluginId)
-    setError(null)
-    try {
-      await disablePlugin(pluginId)
-      setSuccessMessage('Plugin disabled successfully')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to disable plugin')
-    } finally {
-      setIsProcessing(null)
-    }
-  }
-
   const openUninstallModal = (plugin: PluginSummary) => {
     setSelectedPlugin(plugin)
     setDropTables(false)
     setRemovePermissions(false)
+    setDeleteFiles(false)
     setIsUninstallModalOpen(true)
   }
 
@@ -133,10 +126,12 @@ export function PluginSettings() {
     setIsProcessing(selectedPlugin.plugin_id)
     setError(null)
     try {
-      await uninstallPlugin(selectedPlugin.plugin_id, dropTables, removePermissions)
-      setSuccessMessage(
-        `Plugin "${selectedPlugin.manifest?.name || selectedPlugin.plugin_id}" uninstalled`,
-      )
+      // keepFiles is the inverse of deleteFiles (default: keep files)
+      await uninstallPlugin(selectedPlugin.plugin_id, dropTables, removePermissions, !deleteFiles)
+      const message = deleteFiles
+        ? `Plugin "${selectedPlugin.manifest?.name || selectedPlugin.plugin_id}" uninstalled`
+        : `Plugin "${selectedPlugin.manifest?.name || selectedPlugin.plugin_id}" uninstalled (files kept for reinstallation)`
+      setSuccessMessage(message)
       setIsUninstallModalOpen(false)
       setSelectedPlugin(null)
     } catch (err) {
@@ -222,9 +217,6 @@ export function PluginSettings() {
                         <h3 className="font-medium text-gray-900">
                           {plugin.manifest?.name || plugin.plugin_id}
                         </h3>
-                        <Badge variant={plugin.is_enabled ? 'success' : 'default'}>
-                          {plugin.is_enabled ? 'Enabled' : 'Disabled'}
-                        </Badge>
                         {plugin.has_frontend && (
                           <Badge variant="info" className="text-xs">
                             Frontend
@@ -249,25 +241,6 @@ export function PluginSettings() {
                         <Spinner className="h-5 w-5" />
                       ) : (
                         <>
-                          {plugin.is_enabled ? (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => handleDisablePlugin(plugin.plugin_id)}
-                              title="Disable plugin"
-                            >
-                              <Pause className="h-4 w-4" />
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => handleEnablePlugin(plugin.plugin_id)}
-                              title="Enable plugin"
-                            >
-                              <Play className="h-4 w-4" />
-                            </Button>
-                          )}
                           <Button
                             size="sm"
                             variant="secondary"
@@ -422,14 +395,6 @@ export function PluginSettings() {
                   <dt className="text-gray-500">Version</dt>
                   <dd>{pluginInfo.plugin_version}</dd>
                 </div>
-                <div>
-                  <dt className="text-gray-500">Status</dt>
-                  <dd>
-                    <Badge variant={pluginInfo.is_enabled ? 'success' : 'default'}>
-                      {pluginInfo.is_enabled ? 'Enabled' : 'Disabled'}
-                    </Badge>
-                  </dd>
-                </div>
                 {pluginInfo.migration_version && (
                   <div>
                     <dt className="text-gray-500">Migration Version</dt>
@@ -562,13 +527,21 @@ export function PluginSettings() {
               </label>
             )}
 
-          {(dropTables || removePermissions) && (
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={deleteFiles}
+              onChange={(e) => setDeleteFiles(e.target.checked)}
+              className="rounded border-gray-300"
+            />
+            <span className="text-sm text-gray-700">
+              Also delete plugin files from disk (cannot be reinstalled without re-uploading)
+            </span>
+          </label>
+
+          {(dropTables || removePermissions || deleteFiles) && (
             <Alert variant="warning">
-              {dropTables && removePermissions
-                ? 'This will permanently delete all data stored by this plugin and remove its custom permissions from roles.'
-                : dropTables
-                  ? 'This will permanently delete all data stored by this plugin.'
-                  : 'This will remove all custom permissions provided by this plugin from roles.'}
+              {buildUninstallWarning(dropTables, removePermissions, deleteFiles)}
             </Alert>
           )}
 

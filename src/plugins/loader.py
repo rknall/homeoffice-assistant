@@ -5,7 +5,10 @@
 import importlib.util
 import json
 import logging
+import re
 import shutil
+import subprocess
+import sys
 import zipfile
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -29,6 +32,15 @@ logger = logging.getLogger(__name__)
 # Default plugins directory relative to project root
 PLUGINS_DIR = Path("./plugins")
 PLUGIN_MANIFEST_FILE = "plugin.manifest.json"
+
+# Regex for validating pip requirement specifiers (PEP 508 simplified)
+# Matches: package, package>=1.0, package[extra]>=1.0,<2.0, etc.
+# Note: PEP 508 requires package names to start with a letter
+DEPENDENCY_PATTERN = re.compile(
+    r"^[a-zA-Z]([a-zA-Z0-9._-]*[a-zA-Z0-9])?"  # Package name (must start with letter)
+    r"(\[[a-zA-Z0-9,._-]+\])?"  # Optional extras like [dev,test]
+    r"([<>=!~]+[\d.]+(\s*,\s*[<>=!~]+[\d.]+)*)?$"  # Version specifiers
+)
 
 
 class PluginLoadError(Exception):
@@ -168,7 +180,83 @@ def parse_manifest(manifest_path: Path) -> PluginManifest:
         required_permissions=required_permissions,
         provided_permissions=provided_permissions,
         dependencies=data.get("dependencies", []),
+        python_dependencies=data.get("python_dependencies", []),
     )
+
+
+def validate_dependency_format(dependency: str) -> bool:
+    """Validate that a dependency string matches expected pip format.
+
+    This prevents potential security issues from malformed dependency strings.
+
+    Args:
+        dependency: A pip requirement specifier (e.g., "holidays>=0.62")
+
+    Returns:
+        True if valid, False otherwise
+    """
+    return DEPENDENCY_PATTERN.match(dependency) is not None
+
+
+def install_plugin_dependencies(
+    plugin_id: str,
+    dependencies: list[str],
+    verbose: bool = False,
+) -> tuple[bool, str]:
+    """Install Python dependencies for a plugin.
+
+    Uses pip to install the specified packages. This is called before
+    the plugin module is loaded to ensure all imports succeed.
+
+    Args:
+        plugin_id: Plugin ID for logging
+        dependencies: List of pip requirement specifiers (e.g., ["holidays>=0.62"])
+        verbose: If True, use --verbose flag for pip (default False)
+
+    Returns:
+        Tuple of (success, message)
+    """
+    if not dependencies:
+        return True, "No dependencies to install"
+
+    # Validate dependency formats for security
+    invalid_deps = [d for d in dependencies if not validate_dependency_format(d)]
+    if invalid_deps:
+        error_msg = f"Invalid dependency format: {', '.join(invalid_deps)}"
+        logger.error(f"Plugin {plugin_id}: {error_msg}")
+        return False, error_msg
+
+    logger.debug(f"Installing dependencies for plugin {plugin_id}: {dependencies}")
+    logger.debug(f"Using Python executable: {sys.executable}")
+
+    try:
+        cmd = [sys.executable, "-m", "pip", "install"]
+        if verbose or logger.isEnabledFor(logging.DEBUG):
+            cmd.append("--verbose")
+        else:
+            cmd.append("--quiet")
+        cmd.extend(dependencies)
+
+        result = subprocess.run(  # noqa: S603
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        if verbose or logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"pip stdout: {result.stdout}")
+            if result.stderr:
+                logger.debug(f"pip stderr: {result.stderr}")
+        installed = ", ".join(dependencies)
+        logger.info(f"Successfully installed dependencies for {plugin_id}: {installed}")
+        return True, f"Installed: {installed}"
+    except subprocess.CalledProcessError as e:
+        error_msg = e.stderr.strip() if e.stderr else str(e)
+        logger.error(f"Failed to install dependencies for {plugin_id}: {error_msg}")
+        return False, f"Failed to install dependencies: {error_msg}"
+    except Exception as e:
+        logger.error(f"Unexpected error installing dependencies for {plugin_id}: {e}")
+        return False, f"Unexpected error: {e}"
 
 
 def load_plugin_class(
@@ -246,6 +334,7 @@ class PluginLoader:
             List of tuples (plugin_path, manifest) for each valid plugin
         """
         discovered: list[tuple[Path, PluginManifest]] = []
+        logger.debug(f"Discovering plugins in {self.plugins_dir}")
 
         if not self.plugins_dir.exists():
             return discovered
@@ -295,6 +384,8 @@ class PluginLoader:
         if not zipfile.is_zipfile(zip_path):
             raise PluginValidationError(f"Not a valid ZIP file: {zip_path}")
 
+        logger.debug(f"Installing plugin from ZIP: {zip_path}")
+
         with TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
@@ -312,7 +403,8 @@ class PluginLoader:
             if not manifest_path.exists():
                 # Check for single subdirectory containing manifest
                 subdirs = [
-                    d for d in temp_path.iterdir()
+                    d
+                    for d in temp_path.iterdir()
                     if d.is_dir() and not d.name.startswith(".")
                 ]
                 if len(subdirs) == 1:
@@ -320,9 +412,7 @@ class PluginLoader:
                     source_path = subdirs[0]
 
             if not manifest_path.exists():
-                raise PluginValidationError(
-                    f"No {PLUGIN_MANIFEST_FILE} found in ZIP"
-                )
+                raise PluginValidationError(f"No {PLUGIN_MANIFEST_FILE} found in ZIP")
 
             manifest = parse_manifest(manifest_path)
 
@@ -391,7 +481,20 @@ class PluginLoader:
 
         Returns:
             Instantiated plugin instance
+
+        Raises:
+            PluginLoadError: If dependencies cannot be installed or plugin fails to load
         """
+        # Install Python dependencies before loading the module
+        if manifest.python_dependencies:
+            success, msg = install_plugin_dependencies(
+                manifest.id, manifest.python_dependencies
+            )
+            if not success:
+                raise PluginLoadError(
+                    f"Failed to install dependencies for {manifest.id}: {msg}"
+                )
+
         plugin_class = load_plugin_class(plugin_path, manifest)
         return plugin_class(manifest, config, str(plugin_path))
 

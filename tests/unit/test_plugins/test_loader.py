@@ -14,7 +14,9 @@ from src.plugins.loader import (
     PluginLoader,
     PluginLoadError,
     PluginValidationError,
+    install_plugin_dependencies,
     parse_manifest,
+    validate_dependency_format,
 )
 
 
@@ -553,3 +555,153 @@ class TestLoadPluginClass:
 
         with pytest.raises(PluginLoadError, match="not found"):
             loader.load_plugin(plugin_dir, manifest, PluginConfig())
+
+
+class TestValidateDependencyFormat:
+    """Tests for dependency format validation."""
+
+    @pytest.mark.parametrize(
+        "dependency",
+        [
+            "requests",
+            "holidays",
+            "my-package",
+            "my_package",
+            "Package123",  # PEP 508: must start with letter, can contain numbers
+            "requests>=2.0",
+            "requests>=2.0.0",
+            "requests>=2.0,<3.0",
+            "requests>=2.0.0,<3.0.0",
+            "requests==2.28.1",
+            "requests~=2.28",
+            "requests!=2.0",
+            "package[extra]",
+            "package[extra1,extra2]",
+            "package[dev]>=1.0",
+        ],
+    )
+    def test_valid_dependencies(self, dependency):
+        """Test that valid dependency formats are accepted."""
+        assert validate_dependency_format(dependency) is True
+
+    @pytest.mark.parametrize(
+        "dependency",
+        [
+            "123package",  # PEP 508: must start with letter
+            "9lives",  # PEP 508: must start with letter
+        ],
+    )
+    def test_pep508_package_name_must_start_with_letter(self, dependency):
+        """Test that package names must start with a letter per PEP 508."""
+        assert validate_dependency_format(dependency) is False
+
+    @pytest.mark.parametrize(
+        "dependency",
+        [
+            "",
+            "package; rm -rf /",
+            "package && echo bad",
+            "package | cat /etc/passwd",
+            "package`whoami`",
+            "package$(whoami)",
+            "../../../etc/passwd",
+            "http://evil.com/package.tar.gz",
+            "-e git+https://github.com/user/repo",
+            "--index-url http://evil.com",
+        ],
+    )
+    def test_invalid_dependencies(self, dependency):
+        """Test that potentially malicious dependency formats are rejected."""
+        assert validate_dependency_format(dependency) is False
+
+
+class TestInstallPluginDependencies:
+    """Tests for install_plugin_dependencies function."""
+
+    def test_empty_dependencies(self):
+        """Test that empty dependencies list returns success."""
+        success, message = install_plugin_dependencies("test-plugin", [])
+        assert success is True
+        assert message == "No dependencies to install"
+
+    def test_invalid_dependency_format_rejected(self):
+        """Test that invalid dependency formats are rejected."""
+        success, message = install_plugin_dependencies(
+            "test-plugin", ["valid-package", "invalid; rm -rf /"]
+        )
+        assert success is False
+        assert "Invalid dependency format" in message
+
+    def test_all_invalid_dependencies_rejected(self):
+        """Test that all invalid dependencies are listed in error."""
+        success, message = install_plugin_dependencies(
+            "test-plugin", ["bad$(cmd)", "also-bad`cmd`"]
+        )
+        assert success is False
+        assert "bad$(cmd)" in message
+        assert "also-bad`cmd`" in message
+
+
+class TestPythonDependenciesParsing:
+    """Tests for python_dependencies field in manifest."""
+
+    @pytest.fixture
+    def manifest_dir(self, tmp_path):
+        """Create a temporary directory for manifest files."""
+        return tmp_path
+
+    def write_manifest(self, path: Path, data: dict):
+        """Helper to write manifest JSON."""
+        manifest_path = path / PLUGIN_MANIFEST_FILE
+        manifest_path.write_text(json.dumps(data))
+        return manifest_path
+
+    def test_parse_python_dependencies(self, manifest_dir):
+        """Test parsing python_dependencies from manifest."""
+        manifest_path = self.write_manifest(
+            manifest_dir,
+            {
+                "id": "test-plugin",
+                "name": "Test Plugin",
+                "version": "1.0.0",
+                "description": "Test",
+                "python_dependencies": ["holidays>=0.62", "requests>=2.0"],
+            },
+        )
+
+        manifest = parse_manifest(manifest_path)
+
+        assert manifest.python_dependencies == ["holidays>=0.62", "requests>=2.0"]
+
+    def test_parse_empty_python_dependencies(self, manifest_dir):
+        """Test parsing manifest without python_dependencies."""
+        manifest_path = self.write_manifest(
+            manifest_dir,
+            {
+                "id": "test-plugin",
+                "name": "Test Plugin",
+                "version": "1.0.0",
+                "description": "Test",
+            },
+        )
+
+        manifest = parse_manifest(manifest_path)
+
+        assert manifest.python_dependencies == []
+
+    def test_parse_python_dependencies_empty_list(self, manifest_dir):
+        """Test parsing manifest with empty python_dependencies list."""
+        manifest_path = self.write_manifest(
+            manifest_dir,
+            {
+                "id": "test-plugin",
+                "name": "Test Plugin",
+                "version": "1.0.0",
+                "description": "Test",
+                "python_dependencies": [],
+            },
+        )
+
+        manifest = parse_manifest(manifest_path)
+
+        assert manifest.python_dependencies == []

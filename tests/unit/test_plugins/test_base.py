@@ -129,16 +129,13 @@ class TestPluginConfig:
     def test_create_default_config(self):
         """Test creating a config with defaults."""
         config = PluginConfig()
-        assert config.enabled is True
         assert config.settings == {}
 
     def test_create_custom_config(self):
         """Test creating a config with custom values."""
         config = PluginConfig(
-            enabled=False,
             settings={"api_key": "secret", "timeout": 30},
         )
-        assert config.enabled is False
         assert config.settings["api_key"] == "secret"
         assert config.settings["timeout"] == 30
 
@@ -179,7 +176,7 @@ class TestBasePlugin:
     @pytest.fixture
     def config(self):
         """Create a test config."""
-        return PluginConfig(enabled=True, settings={"key": "value"})
+        return PluginConfig(settings={"key": "value"})
 
     @pytest.fixture
     def plugin(self, manifest, config):
@@ -239,22 +236,22 @@ class TestBasePlugin:
     def test_has_all_permissions_true(self, plugin):
         """Test has_all_permissions returns True when all granted."""
         assert plugin.has_all_permissions({Permission.USER_READ}) is True
-        assert plugin.has_all_permissions(
-            {Permission.USER_READ, Permission.EVENT_READ}
-        ) is True
+        assert (
+            plugin.has_all_permissions({Permission.USER_READ, Permission.EVENT_READ})
+            is True
+        )
 
     def test_has_all_permissions_false(self, plugin):
         """Test has_all_permissions returns False when some missing."""
-        assert plugin.has_all_permissions(
-            {Permission.USER_READ, Permission.EXPENSE_WRITE}
-        ) is False
+        assert (
+            plugin.has_all_permissions({Permission.USER_READ, Permission.EXPENSE_WRITE})
+            is False
+        )
 
     @pytest.mark.asyncio
     async def test_lifecycle_hooks_are_async(self, plugin):
         """Test that lifecycle hooks are async and can be awaited."""
         # These should not raise
         await plugin.on_install()
-        await plugin.on_enable()
-        await plugin.on_disable()
         await plugin.on_uninstall()
         await plugin.on_upgrade("0.9.0")

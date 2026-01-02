@@ -1,9 +1,27 @@
+import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
+
+// Get git commit hash for version tracking (build-time only, no user input)
+function getGitCommitHash(): string {
+  try {
+    return execFileSync('git', ['rev-parse', '--short', 'HEAD']).toString().trim()
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn('[vite] Failed to determine git commit hash:', message)
+    }
+    return 'unknown'
+  }
+}
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    // biome-ignore lint/style/useNamingConvention: Vite convention for global constants
+    __GIT_COMMIT__: JSON.stringify(getGitCommitHash()),
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -13,5 +31,11 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:8000',
     },
+  },
+  test: {
+    include: [
+      'src/**/*.{test,spec}.{js,ts,tsx}',
+      '../plugins/*/frontend/tests/**/*.{test,spec}.{js,ts,tsx}',
+    ],
   },
 })

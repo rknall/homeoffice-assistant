@@ -3,8 +3,9 @@
 """Time Tracking plugin API routes."""
 
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
@@ -85,6 +86,31 @@ def _record_to_response(
     # Convert entries
     entries = [_entry_to_response(e) for e in record.entries]
 
+    # Derive check_in/check_out from entries (multi-entry support)
+    # For display purposes, use the first entry's check_in and last entry's check_out
+    # If there's an open entry, use its check_in as the "current" check_in
+    derived_check_in = record.check_in
+    derived_check_in_tz = record.check_in_timezone
+    derived_check_out = record.check_out
+    derived_check_out_tz = record.check_out_timezone
+
+    if record.entries:
+        # Find open entry (no check_out) - this is the active check-in
+        open_entry = next((e for e in record.entries if e.check_out is None), None)
+        if open_entry:
+            derived_check_in = open_entry.check_in
+            derived_check_in_tz = open_entry.check_in_timezone
+            derived_check_out = None
+            derived_check_out_tz = None
+        else:
+            # No open entry - use first entry's check_in and last entry's check_out
+            sorted_entries = sorted(record.entries, key=lambda e: e.check_in)
+            if sorted_entries:
+                derived_check_in = sorted_entries[0].check_in
+                derived_check_in_tz = sorted_entries[0].check_in_timezone
+                derived_check_out = sorted_entries[-1].check_out
+                derived_check_out_tz = sorted_entries[-1].check_out_timezone
+
     return TimeRecordResponse(
         id=str(record.id),
         user_id=str(record.user_id),
@@ -92,10 +118,10 @@ def _record_to_response(
         company_id=str(record.company_id) if record.company_id else None,
         company_name=company_name,
         day_type=DayType(record.day_type),
-        check_in=record.check_in,
-        check_in_timezone=record.check_in_timezone,
-        check_out=record.check_out,
-        check_out_timezone=record.check_out_timezone,
+        check_in=derived_check_in,
+        check_in_timezone=derived_check_in_tz,
+        check_out=derived_check_out,
+        check_out_timezone=derived_check_out_tz,
         partial_absence_type=(
             DayType(record.partial_absence_type)
             if record.partial_absence_type
@@ -121,7 +147,9 @@ def _record_to_response(
     )
 
 
-def _balance_to_response(balance: LeaveBalance) -> LeaveBalanceResponse:
+def _balance_to_response(
+    balance: LeaveBalance, vacation_planned: float = 0.0
+) -> LeaveBalanceResponse:
     """Convert a LeaveBalance to a response schema."""
     return LeaveBalanceResponse(
         id=str(balance.id),
@@ -131,6 +159,7 @@ def _balance_to_response(balance: LeaveBalance) -> LeaveBalanceResponse:
         vacation_entitled=balance.vacation_entitled,
         vacation_carryover=balance.vacation_carryover,
         vacation_taken=balance.vacation_taken,
+        vacation_planned=vacation_planned,
         vacation_remaining=balance.vacation_remaining,
         comp_time_balance=balance.comp_time_balance,
         sick_days_taken=balance.sick_days_taken,
@@ -336,6 +365,44 @@ def delete_record(
 # --- Quick Actions ---
 
 
+def _round_time_employer_benefit(dt: datetime, is_check_in: bool) -> datetime:
+    """Round time to 5-minute intervals in favor of employer.
+
+    For check-in: round UP to next 5-min (employee starts later)
+    For check-out: round DOWN to previous 5-min (employee ends earlier)
+    """
+    minutes = dt.minute
+    remainder = minutes % 5
+
+    if remainder == 0:
+        return dt.replace(second=0, microsecond=0)
+
+    if is_check_in:
+        # Round up for check-in
+        rounded_minutes = minutes + (5 - remainder)
+        if rounded_minutes >= 60:
+            dt = dt + timedelta(hours=1)
+            rounded_minutes = 0
+        return dt.replace(minute=rounded_minutes, second=0, microsecond=0)
+    else:
+        # Round down for check-out
+        rounded_minutes = minutes - remainder
+        return dt.replace(minute=rounded_minutes, second=0, microsecond=0)
+
+
+def _get_local_datetime(timezone_str: str | None) -> datetime:
+    """Get current datetime in the specified timezone."""
+    if timezone_str:
+        try:
+            tz = ZoneInfo(timezone_str)
+            return datetime.now(tz)
+        except (KeyError, ValueError):
+            # Invalid timezone string - fall through to UTC
+            pass
+    # Fallback to UTC
+    return datetime.now(ZoneInfo("UTC"))
+
+
 @router.post("/check-in", response_model=TimeRecordResponse)
 def check_in(
     data: CheckInRequest,
@@ -348,7 +415,13 @@ def check_in(
     If there's already an open entry (no check-out), returns an error.
     """
     service = TimeRecordService(db)
-    today = date.today()
+
+    # Get current time in user's timezone
+    local_now = _get_local_datetime(data.timezone)
+    today = local_now.date()
+
+    # Round to 5 minutes in favor of employer (round up for check-in)
+    rounded_now = _round_time_employer_benefit(local_now, is_check_in=True)
 
     # Get or create the daily record
     record = service.get_or_create_record(
@@ -365,10 +438,10 @@ def check_in(
             detail="You have an open entry - please check out first",
         )
 
-    # Create new entry
+    # Create new entry with rounded time
     service.create_entry(
         record_id=record.id,
-        check_in=datetime.now().time(),
+        check_in=rounded_now.time(),
         timezone=data.timezone,
     )
 
@@ -401,7 +474,13 @@ def check_out(
     Searches across all companies for an open entry.
     """
     service = TimeRecordService(db)
-    today = date.today()
+
+    # Get current time in user's timezone
+    local_now = _get_local_datetime(data.timezone)
+    today = local_now.date()
+
+    # Round to 5 minutes in favor of employer (round down for check-out)
+    rounded_now = _round_time_employer_benefit(local_now, is_check_in=False)
 
     # Find any record with an open entry for today (across all companies)
     records = service.list_records(current_user.id, today, today)
@@ -420,10 +499,10 @@ def check_out(
             detail="No active check-in to close",
         )
 
-    # Close the entry
+    # Close the entry with rounded time
     service.close_entry(
         entry_id=open_entry.id,
-        check_out=datetime.now().time(),
+        check_out=rounded_now.time(),
         timezone=data.timezone,
     )
 
@@ -784,7 +863,25 @@ def get_leave_balance(
     )
     db.commit()
 
-    return _balance_to_response(balance)
+    # Calculate planned vacation (future vacation days in this year)
+    today = date.today()
+    year_end = date(year, 12, 31)
+    vacation_planned = 0.0
+
+    if today <= year_end:
+        planned_query = db.query(TimeRecord).filter(
+            TimeRecord.user_id == current_user.id,
+            TimeRecord.day_type == DayType.VACATION.value,
+            TimeRecord.date > today,
+            TimeRecord.date <= year_end,
+        )
+        if company_id:
+            planned_query = planned_query.filter(
+                TimeRecord.company_id == UUID(company_id)
+            )
+        vacation_planned = float(planned_query.count())
+
+    return _balance_to_response(balance, vacation_planned)
 
 
 @router.put("/leave-balance", response_model=LeaveBalanceResponse)

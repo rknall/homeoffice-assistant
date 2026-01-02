@@ -147,7 +147,7 @@ export function MonthCalendarView({
 								<span>{String(day.date.getDate()).padStart(2, "0")}</span>
 								{holidayName && (
 									<span
-										className={`text-xs font-medium truncate ml-1 ${day.isToday ? "text-blue-100" : "text-purple-600"}`}
+										className={`text-xs font-medium truncate ml-2 ${day.isToday ? "text-blue-100" : "text-purple-600"}`}
 										title={holidayName}
 									>
 										{holidayName}

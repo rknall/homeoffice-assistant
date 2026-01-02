@@ -51,6 +51,7 @@ export function TimeRecordForm({
 	const initialCompanyId =
 		preselectedCompanyId || record?.company_id || companyId;
 	const [selectedCompanyId, setSelectedCompanyId] = useState(initialCompanyId);
+	const [selectedDate, setSelectedDate] = useState(date);
 	const [dayType, setDayType] = useState<DayType>(record?.day_type || "work");
 	const [checkIn, setCheckIn] = useState(record?.check_in || "");
 	const [checkOut, setCheckOut] = useState(record?.check_out || "");
@@ -59,9 +60,34 @@ export function TimeRecordForm({
 	);
 	const [notes, setNotes] = useState(record?.notes || "");
 	const [error, setError] = useState<string | null>(null);
+	const [timeError, setTimeError] = useState<string | null>(null);
 
 	const isWorkType = dayType === "work" || dayType === "doctor_visit";
 	const showCompanyDropdown = companies && companies.length > 0;
+	const isNewRecord = !record;
+
+	// Validate times: check-out must be after check-in
+	const validateTimes = (inTime: string, outTime: string): boolean => {
+		if (!inTime || !outTime) return true; // No validation if times are incomplete
+		const [inH, inM] = inTime.split(":").map(Number);
+		const [outH, outM] = outTime.split(":").map(Number);
+		const inMinutes = inH * 60 + inM;
+		const outMinutes = outH * 60 + outM;
+		return outMinutes > inMinutes;
+	};
+
+	// Update time error when times change
+	useEffect(() => {
+		if (isWorkType && checkIn && checkOut) {
+			if (!validateTimes(checkIn, checkOut)) {
+				setTimeError("Check-out time must be after check-in time");
+			} else {
+				setTimeError(null);
+			}
+		} else {
+			setTimeError(null);
+		}
+	}, [checkIn, checkOut, isWorkType]);
 
 	useEffect(() => {
 		// Reset time fields when switching to non-work types
@@ -76,11 +102,16 @@ export function TimeRecordForm({
 		e.preventDefault();
 		setError(null);
 
+		// Prevent submission if there's a time validation error
+		if (timeError) {
+			return;
+		}
+
 		try {
 			// Use selectedCompanyId for new records, or the record's existing company
 			const effectiveCompanyId = record ? record.company_id : selectedCompanyId;
 			const data: TimeRecordCreate | TimeRecordUpdate = {
-				...(record ? {} : { company_id: effectiveCompanyId, date }),
+				...(record ? {} : { company_id: effectiveCompanyId, date: selectedDate }),
 				day_type: dayType,
 				check_in: isWorkType && checkIn ? checkIn : null,
 				check_out: isWorkType && checkOut ? checkOut : null,
@@ -95,15 +126,34 @@ export function TimeRecordForm({
 
 	return (
 		<form onSubmit={handleSubmit} className="space-y-4">
-			{/* Date display */}
-			<div className="text-sm text-gray-500">
-				{new Date(date).toLocaleDateString("de-AT", {
-					weekday: "long",
-					year: "numeric",
-					month: "long",
-					day: "numeric",
-				})}
-			</div>
+			{/* Date selection (editable for new records) */}
+			{isNewRecord ? (
+				<div>
+					<label
+						htmlFor="record-date"
+						className="block text-sm font-medium text-gray-700 mb-1"
+					>
+						Date
+					</label>
+					<input
+						type="date"
+						id="record-date"
+						value={selectedDate}
+						onChange={(e) => setSelectedDate(e.target.value)}
+						className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+						disabled={isLoading}
+					/>
+				</div>
+			) : (
+				<div className="text-sm text-gray-500">
+					{new Date(date).toLocaleDateString("de-AT", {
+						weekday: "long",
+						year: "numeric",
+						month: "long",
+						day: "numeric",
+					})}
+				</div>
+			)}
 
 			{/* Company selection (only for unified view with multiple companies) */}
 			{showCompanyDropdown && (
@@ -174,7 +224,11 @@ export function TimeRecordForm({
 								id="check-in"
 								value={checkIn}
 								onChange={(e) => setCheckIn(e.target.value)}
-								className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+								className={`w-full rounded-md shadow-sm focus:ring-blue-500 ${
+									timeError
+										? "border-red-500 focus:border-red-500"
+										: "border-gray-300 focus:border-blue-500"
+								}`}
 								disabled={record?.is_locked || isLoading}
 							/>
 						</div>
@@ -190,11 +244,19 @@ export function TimeRecordForm({
 								id="check-out"
 								value={checkOut}
 								onChange={(e) => setCheckOut(e.target.value)}
-								className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+								className={`w-full rounded-md shadow-sm focus:ring-blue-500 ${
+									timeError
+										? "border-red-500 focus:border-red-500"
+										: "border-gray-300 focus:border-blue-500"
+								}`}
 								disabled={record?.is_locked || isLoading}
 							/>
 						</div>
 					</div>
+					{/* Time validation error */}
+					{timeError && (
+						<p className="text-sm text-red-600">{timeError}</p>
+					)}
 
 					<div>
 						<label
@@ -283,7 +345,7 @@ export function TimeRecordForm({
 				</button>
 				<button
 					type="submit"
-					disabled={record?.is_locked || isLoading}
+					disabled={record?.is_locked || isLoading || !!timeError}
 					className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
 				>
 					{isLoading ? "Saving..." : record ? "Update" : "Create"}

@@ -114,10 +114,12 @@ export function TableView({
 		return date.toLocaleDateString("en-US", { weekday: "short" });
 	};
 
-	// Format time for display
+	// Format time for display (only HH:MM, no seconds)
 	const formatTime = (time: string | null): string => {
 		if (!time) return "--:--";
-		return time;
+		// Remove seconds if present (e.g., "09:15:00" -> "09:15")
+		const parts = time.split(":");
+		return `${parts[0]}:${parts[1]}`;
 	};
 
 	// Calculate duration in hours
@@ -163,9 +165,6 @@ export function TableView({
 								Date
 								<SortIndicator field="date" />
 							</th>
-							<th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
-								Day
-							</th>
 							<th
 								className="px-4 py-3 text-left text-sm font-medium text-gray-500 cursor-pointer hover:bg-gray-100"
 								onClick={() => handleSort("company")}
@@ -193,7 +192,7 @@ export function TableView({
 					<tbody>
 						{tableRows.length === 0 ? (
 							<tr>
-								<td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+								<td colSpan={7} className="px-4 py-8 text-center text-gray-500">
 									{isLoading ? "Loading..." : "No records this month"}
 								</td>
 							</tr>
@@ -217,11 +216,6 @@ export function TableView({
 										{/* Date */}
 										<td className="px-4 py-2 text-sm text-gray-900">
 											{row.isFirstOfDay ? formatDate(row.record.date) : ""}
-										</td>
-
-										{/* Day name */}
-										<td className="px-4 py-2 text-sm text-gray-600">
-											{row.isFirstOfDay ? getDayName(row.record.date) : ""}
 										</td>
 
 										{/* Company */}

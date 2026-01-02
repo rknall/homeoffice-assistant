@@ -15,8 +15,11 @@ RUN npm ci
 # Copy frontend source
 COPY frontend/ ./
 
-# Build production bundle
-RUN npm run build
+# Copy plugins for building
+COPY plugins/ /app/plugins/
+
+# Build plugins and production bundle
+RUN npm run build:all
 
 
 # Stage 2: Build Python dependencies
@@ -67,6 +70,9 @@ COPY alembic/ /app/alembic/
 
 # Copy built frontend
 COPY --from=frontend-builder /app/frontend/dist /app/static
+
+# Copy plugins (backend + built frontend)
+COPY --from=frontend-builder /app/plugins /app/plugins
 
 # Copy entrypoint script
 COPY docker-entrypoint.sh /app/

@@ -61,9 +61,9 @@ export function TodayStatusBar({
 		}
 	}, [companies, selectedCompanyId]);
 
-	// Find the active record (checked in but not checked out)
+	// Find the active record (has an open entry - checked in but not checked out)
 	const activeRecord = todayRecords.find(
-		(r) => r.check_in && !r.check_out && r.day_type === "work",
+		(r) => r.has_open_entry && r.day_type === "work",
 	);
 
 	// Calculate OVERALL monthly stats from records
@@ -177,7 +177,7 @@ export function TodayStatusBar({
 
 		setIsLoading(true);
 		try {
-			await timeRecordsApi.checkOut(activeRecord.id);
+			await timeRecordsApi.checkOut();
 			await loadTodayStatus();
 			onStatusChange?.();
 		} catch (err) {
@@ -209,7 +209,7 @@ export function TodayStatusBar({
 
 	return (
 		<div className="bg-white rounded-lg shadow p-4">
-			<div className="flex items-center gap-6 flex-wrap">
+			<div className="flex items-center justify-between gap-6 flex-wrap">
 				{/* Today's status */}
 				<div className="flex items-center gap-4">
 					{activeRecord ? (
@@ -222,14 +222,16 @@ export function TodayStatusBar({
 							<div>
 								<div className="text-sm font-medium text-gray-900">
 									Checked in at{" "}
-									<span className="font-semibold">{activeRecord.check_in}</span>
+									<span className="font-semibold">
+										{activeRecord.check_in?.substring(0, 5) || "--:--"}
+									</span>
 									{elapsedTime && (
 										<span className="text-gray-500 ml-2">({elapsedTime})</span>
 									)}
 								</div>
-								<div className="text-xs text-gray-500">
+								<div className="text-xs text-gray-500 mt-1">
 									<span
-										className="inline-block px-1.5 py-0.5 rounded text-white text-xs"
+										className="inline-block px-2 py-0.5 rounded text-white text-xs"
 										style={{
 											backgroundColor: getCompanyColor(activeRecord.company_id),
 										}}
@@ -301,14 +303,14 @@ export function TodayStatusBar({
 						</button>
 					) : (
 						<>
-							{/* Company selector - only if multiple companies with records */}
-							{companiesWithRecords.length > 1 && (
+							{/* Company selector - show if multiple companies available */}
+							{companies.length > 1 && (
 								<select
 									value={selectedCompanyId}
 									onChange={(e) => setSelectedCompanyId(e.target.value)}
 									className="text-sm border border-gray-300 rounded-md px-2 py-2"
 								>
-									{companiesWithRecords.map((company) => (
+									{companies.map((company) => (
 										<option key={company.id} value={company.id}>
 											{company.name}
 										</option>
@@ -319,7 +321,10 @@ export function TodayStatusBar({
 								type="button"
 								onClick={handleCheckIn}
 								disabled={isLoading}
-								className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+								className="px-4 py-2 text-sm font-medium text-white rounded-md disabled:opacity-50"
+								style={{ backgroundColor: isLoading ? "#9CA3AF" : "#16A34A" }}
+								onMouseEnter={(e) => !isLoading && (e.currentTarget.style.backgroundColor = "#15803D")}
+								onMouseLeave={(e) => !isLoading && (e.currentTarget.style.backgroundColor = "#16A34A")}
 							>
 								{isLoading ? "..." : "Check In"}
 							</button>

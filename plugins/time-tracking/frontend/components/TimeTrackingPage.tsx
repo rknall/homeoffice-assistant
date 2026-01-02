@@ -159,10 +159,11 @@ export function TimeTrackingPage({
 				result = await timeRecordsApi.create(data as TimeRecordCreate);
 			}
 
-			setFormWarnings(result.warnings);
+			const warnings = result.warnings || [];
+			setFormWarnings(warnings);
 
 			// If no errors, close the form
-			if (!result.warnings.some((w) => w.level === "error")) {
+			if (!warnings.some((w) => w.level === "error")) {
 				setSelectedDate(null);
 				setSelectedRecord(null);
 				setFormWarnings([]);

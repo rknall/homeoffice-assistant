@@ -53,6 +53,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 		throw new ApiError(response.status, error.detail || "Request failed");
 	}
 
+	// Handle 204 No Content (e.g., from DELETE requests)
+	if (response.status === 204) {
+		return undefined as T;
+	}
+
 	return response.json();
 }
 
@@ -109,13 +114,19 @@ export const timeRecordsApi = {
 	checkIn: (companyId: Uuid): Promise<CheckInOutResponse> => {
 		return request<CheckInOutResponse>("/check-in", {
 			method: "POST",
-			body: JSON.stringify({ company_id: companyId }),
+			body: JSON.stringify({
+				company_id: companyId,
+				timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+			}),
 		});
 	},
 
-	checkOut: (recordId: Uuid): Promise<CheckInOutResponse> => {
-		return request<CheckInOutResponse>(`/check-out/${recordId}`, {
+	checkOut: (): Promise<CheckInOutResponse> => {
+		return request<CheckInOutResponse>("/check-out", {
 			method: "POST",
+			body: JSON.stringify({
+				timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+			}),
 		});
 	},
 
@@ -171,11 +182,11 @@ export const allocationsApi = {
 
 // Leave Balance API
 export const leaveBalanceApi = {
-	get: (companyId: Uuid, year?: number): Promise<LeaveBalanceResponse> => {
+	get: (year?: number): Promise<LeaveBalanceResponse> => {
 		const params = new URLSearchParams();
-		params.set("company_id", companyId);
 		if (year) params.set("year", String(year));
-		return request<LeaveBalanceResponse>(`/leave-balance?${params.toString()}`);
+		const query = params.toString();
+		return request<LeaveBalanceResponse>(`/leave-balance${query ? `?${query}` : ""}`);
 	},
 };
 

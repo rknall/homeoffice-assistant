@@ -198,6 +198,7 @@ class LeaveBalanceResponse(BaseModel):
     vacation_entitled: float
     vacation_carryover: float
     vacation_taken: float
+    vacation_planned: float = 0.0
     vacation_remaining: float
     comp_time_balance: float
     sick_days_taken: int

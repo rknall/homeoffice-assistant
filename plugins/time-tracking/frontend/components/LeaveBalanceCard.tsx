@@ -1,314 +1,146 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
 
-import { useCallback, useEffect, useState } from "react";
-import { leaveBalanceApi } from "../api";
-import type { CompanyInfo, LeaveBalanceResponse } from "../types";
+import { useCallback, useEffect, useState } from 'react'
+import { leaveBalanceApi } from '../api'
+import type { LeaveBalanceResponse } from '../types'
 
 interface LeaveBalanceCardProps {
-	companies: CompanyInfo[];
-	currentDate: Date;
+  currentDate: Date
 }
 
 /**
- * LeaveBalanceCard - Shows vacation and comp time balances
+ * LeaveBalanceCard - Shows vacation, comp time, and sick days
  *
- * Displays leave balances for all companies or a selected company,
- * showing entitled days, used days, and remaining balance.
+ * Displays system-wide leave balances showing entitled days,
+ * used days, and remaining balance.
  */
-export function LeaveBalanceCard({
-	companies,
-	currentDate,
-}: LeaveBalanceCardProps) {
-	const [balances, setBalances] = useState<
-		Map<string, LeaveBalanceResponse>
-	>(new Map());
-	const [isLoading, setIsLoading] = useState(true);
-	const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(
-		null,
-	);
+export function LeaveBalanceCard({ currentDate }: LeaveBalanceCardProps) {
+  const [balance, setBalance] = useState<LeaveBalanceResponse | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-	// Load balances for all companies
-	const loadBalances = useCallback(async () => {
-		if (companies.length === 0) return;
+  const loadBalance = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+    const year = currentDate.getFullYear()
 
-		setIsLoading(true);
-		const year = currentDate.getFullYear();
-		const newBalances = new Map<string, LeaveBalanceResponse>();
+    try {
+      const data = await leaveBalanceApi.get(year)
+      setBalance(data)
+    } catch (err) {
+      console.error('Failed to load leave balance:', err)
+      setError('Failed to load')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [currentDate])
 
-		try {
-			// Load balances for all companies in parallel
-			const results = await Promise.all(
-				companies.map(async (company) => {
-					try {
-						const balance = await leaveBalanceApi.get(company.id, year);
-						return { companyId: company.id, balance };
-					} catch {
-						return { companyId: company.id, balance: null };
-					}
-				}),
-			);
+  useEffect(() => {
+    loadBalance()
+  }, [loadBalance])
 
-			for (const result of results) {
-				if (result.balance) {
-					newBalances.set(result.companyId, result.balance);
-				}
-			}
+  // Calculate total vacation entitlement
+  const vacationTotal = balance ? balance.vacation_entitled + balance.vacation_carryover : 0
+  const vacationUsedPercent =
+    vacationTotal > 0 ? (balance!.vacation_taken / vacationTotal) * 100 : 0
 
-			setBalances(newBalances);
-		} catch (err) {
-			console.error("Failed to load leave balances:", err);
-		} finally {
-			setIsLoading(false);
-		}
-	}, [companies, currentDate]);
+  return (
+    <div className="bg-white rounded-lg shadow p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-gray-900">Leave Balance</h3>
+        <span className="text-xs text-gray-500">{currentDate.getFullYear()}</span>
+      </div>
 
-	useEffect(() => {
-		loadBalances();
-	}, [loadBalances]);
+      {isLoading ? (
+        <div className="text-sm text-gray-500 text-center py-4">Loading...</div>
+      ) : error ? (
+        <div className="text-sm text-red-500 text-center py-4">{error}</div>
+      ) : balance ? (
+        <div className="space-y-4">
+          {/* Vacation balance */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-medium text-gray-700">Vacation</span>
+              <span className="text-sm font-semibold text-blue-600">{vacationTotal} days</span>
+            </div>
 
-	// Initialize selected company
-	useEffect(() => {
-		if (companies.length > 0 && selectedCompanyId === null) {
-			setSelectedCompanyId(companies[0].id);
-		}
-	}, [companies, selectedCompanyId]);
+            {/* Progress bar showing used + planned */}
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-1 relative">
+              {/* Used portion (solid blue) */}
+              <div
+                className="h-full bg-blue-500 absolute left-0"
+                style={{ width: `${Math.min(vacationUsedPercent, 100)}%` }}
+              />
+              {/* Planned portion (lighter blue, after used) */}
+              {balance.vacation_planned > 0 && (
+                <div
+                  className="h-full bg-blue-300 absolute"
+                  style={{
+                    left: `${Math.min(vacationUsedPercent, 100)}%`,
+                    width: `${Math.min((balance.vacation_planned / vacationTotal) * 100, 100 - vacationUsedPercent)}%`,
+                  }}
+                />
+              )}
+            </div>
 
-	// Get company name
-	const getCompanyName = (companyId: string): string => {
-		const company = companies.find((c) => c.id === companyId);
-		return company?.name || "Unknown";
-	};
+            {/* Details - Used / Planned */}
+            <div className="text-xs text-gray-500 text-right">
+              Used / Planned: {balance.vacation_taken} / {balance.vacation_planned}
+            </div>
+          </div>
 
-	// Get company color
-	const getCompanyColor = (companyId: string): string => {
-		const company = companies.find((c) => c.id === companyId);
-		return company?.color || "#3B82F6";
-	};
+          {/* Comp Time balance */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-medium text-gray-700">Comp Time</span>
+              <span
+                className={`text-sm font-semibold ${
+                  balance.comp_time_balance >= 0 ? 'text-green-600' : 'text-red-600'
+                }`}
+              >
+                {balance.comp_time_balance >= 0 ? '+' : ''}
+                {balance.comp_time_balance.toFixed(1)}h
+              </span>
+            </div>
 
-	// Calculate totals across all companies or for selected company
-	const displayBalance = selectedCompanyId
-		? balances.get(selectedCompanyId)
-		: null;
+            {/* Simple bar showing positive/negative */}
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-1 relative">
+              <div className="absolute inset-y-0 left-1/2 w-px bg-gray-300" />
+              {balance.comp_time_balance !== 0 && (
+                <div
+                  className={`h-full transition-all ${
+                    balance.comp_time_balance >= 0 ? 'bg-green-500' : 'bg-red-500'
+                  }`}
+                  style={{
+                    width: `${Math.min(Math.abs(balance.comp_time_balance) * 2, 50)}%`,
+                    marginLeft: balance.comp_time_balance >= 0 ? '50%' : undefined,
+                    marginRight: balance.comp_time_balance < 0 ? '50%' : undefined,
+                    float: balance.comp_time_balance < 0 ? 'right' : undefined,
+                  }}
+                />
+              )}
+            </div>
 
-	// Calculate aggregate totals for "All Companies" view
-	const aggregateTotals = {
-		vacation: {
-			entitled: 0,
-			used: 0,
-			pending: 0,
-			available: 0,
-		},
-		compTime: {
-			entitled: 0,
-			used: 0,
-			pending: 0,
-			available: 0,
-		},
-	};
+            <div className="text-xs text-gray-500 text-center">
+              {balance.comp_time_balance >= 0 ? 'Overtime accumulated' : 'Time owed'}
+            </div>
+          </div>
 
-	if (!selectedCompanyId) {
-		for (const balance of balances.values()) {
-			if (balance.vacation) {
-				aggregateTotals.vacation.entitled +=
-					balance.vacation.entitled_days + balance.vacation.carried_over;
-				aggregateTotals.vacation.used += balance.vacation.used_days;
-				aggregateTotals.vacation.pending += balance.vacation.pending_days;
-				aggregateTotals.vacation.available += balance.vacation.available_days;
-			}
-			if (balance.comp_time) {
-				aggregateTotals.compTime.entitled +=
-					balance.comp_time.entitled_days + balance.comp_time.carried_over;
-				aggregateTotals.compTime.used += balance.comp_time.used_days;
-				aggregateTotals.compTime.pending += balance.comp_time.pending_days;
-				aggregateTotals.compTime.available += balance.comp_time.available_days;
-			}
-		}
-	}
-
-	return (
-		<div className="bg-white rounded-lg shadow p-4">
-			<div className="flex items-center justify-between mb-3">
-				<h3 className="text-sm font-semibold text-gray-900">Leave Balance</h3>
-				<span className="text-xs text-gray-500">
-					{currentDate.getFullYear()}
-				</span>
-			</div>
-
-			{/* Company selector */}
-			{companies.length > 1 && (
-				<div className="mb-3">
-					<select
-						value={selectedCompanyId || ""}
-						onChange={(e) =>
-							setSelectedCompanyId(e.target.value || null)
-						}
-						className="w-full text-sm border border-gray-300 rounded-md px-2 py-1.5"
-					>
-						<option value="">All Companies</option>
-						{companies.map((company) => (
-							<option key={company.id} value={company.id}>
-								{company.name}
-							</option>
-						))}
-					</select>
-				</div>
-			)}
-
-			{isLoading ? (
-				<div className="text-sm text-gray-500 text-center py-4">
-					Loading...
-				</div>
-			) : balances.size === 0 ? (
-				<div className="text-sm text-gray-500 text-center py-4">
-					No leave balances configured
-				</div>
-			) : (
-				<div className="space-y-4">
-					{/* Vacation balance */}
-					<BalanceSection
-						title="Vacation"
-						entitled={
-							selectedCompanyId && displayBalance?.vacation
-								? displayBalance.vacation.entitled_days +
-									displayBalance.vacation.carried_over
-								: aggregateTotals.vacation.entitled
-						}
-						used={
-							selectedCompanyId && displayBalance?.vacation
-								? displayBalance.vacation.used_days
-								: aggregateTotals.vacation.used
-						}
-						pending={
-							selectedCompanyId && displayBalance?.vacation
-								? displayBalance.vacation.pending_days
-								: aggregateTotals.vacation.pending
-						}
-						available={
-							selectedCompanyId && displayBalance?.vacation
-								? displayBalance.vacation.available_days
-								: aggregateTotals.vacation.available
-						}
-						color={
-							selectedCompanyId
-								? getCompanyColor(selectedCompanyId)
-								: "#3B82F6"
-						}
-						hasData={
-							selectedCompanyId
-								? !!displayBalance?.vacation
-								: aggregateTotals.vacation.entitled > 0
-						}
-					/>
-
-					{/* Comp Time balance */}
-					<BalanceSection
-						title="Comp Time"
-						entitled={
-							selectedCompanyId && displayBalance?.comp_time
-								? displayBalance.comp_time.entitled_days +
-									displayBalance.comp_time.carried_over
-								: aggregateTotals.compTime.entitled
-						}
-						used={
-							selectedCompanyId && displayBalance?.comp_time
-								? displayBalance.comp_time.used_days
-								: aggregateTotals.compTime.used
-						}
-						pending={
-							selectedCompanyId && displayBalance?.comp_time
-								? displayBalance.comp_time.pending_days
-								: aggregateTotals.compTime.pending
-						}
-						available={
-							selectedCompanyId && displayBalance?.comp_time
-								? displayBalance.comp_time.available_days
-								: aggregateTotals.compTime.available
-						}
-						color={
-							selectedCompanyId
-								? getCompanyColor(selectedCompanyId)
-								: "#10B981"
-						}
-						hasData={
-							selectedCompanyId
-								? !!displayBalance?.comp_time
-								: aggregateTotals.compTime.entitled > 0
-						}
-					/>
-				</div>
-			)}
-		</div>
-	);
-}
-
-interface BalanceSectionProps {
-	title: string;
-	entitled: number;
-	used: number;
-	pending: number;
-	available: number;
-	color: string;
-	hasData: boolean;
-}
-
-function BalanceSection({
-	title,
-	entitled,
-	used,
-	pending,
-	available,
-	color,
-	hasData,
-}: BalanceSectionProps) {
-	if (!hasData) {
-		return (
-			<div className="text-sm text-gray-400">
-				<span className="font-medium">{title}:</span> Not configured
-			</div>
-		);
-	}
-
-	const usedPercent = entitled > 0 ? (used / entitled) * 100 : 0;
-	const pendingPercent = entitled > 0 ? (pending / entitled) * 100 : 0;
-
-	return (
-		<div>
-			<div className="flex items-center justify-between mb-1">
-				<span className="text-sm font-medium text-gray-700">{title}</span>
-				<span className="text-sm font-semibold" style={{ color }}>
-					{available} days
-				</span>
-			</div>
-
-			{/* Progress bar */}
-			<div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-1">
-				<div className="h-full flex">
-					<div
-						className="h-full transition-all"
-						style={{
-							width: `${usedPercent}%`,
-							backgroundColor: color,
-						}}
-					/>
-					<div
-						className="h-full transition-all opacity-50"
-						style={{
-							width: `${pendingPercent}%`,
-							backgroundColor: color,
-						}}
-					/>
-				</div>
-			</div>
-
-			{/* Details */}
-			<div className="flex justify-between text-xs text-gray-500">
-				<span>
-					Used: {used}
-					{pending > 0 && ` (+${pending} pending)`}
-				</span>
-				<span>of {entitled}</span>
-			</div>
-		</div>
-	);
+          {/* Sick Days */}
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-700">Sick Days</span>
+              <span className="text-sm font-semibold text-red-600">
+                {balance.sick_days_taken} days
+              </span>
+            </div>
+            <div className="text-xs text-gray-500">Used this year</div>
+          </div>
+        </div>
+      ) : (
+        <div className="text-sm text-gray-400 text-center py-4">No data available</div>
+      )}
+    </div>
+  )
 }

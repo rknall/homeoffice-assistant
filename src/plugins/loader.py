@@ -193,15 +193,19 @@ def install_plugin_dependencies(
     if not dependencies:
         return True, "No dependencies to install"
 
-    logger.info(f"Installing dependencies for plugin {plugin_id}: {dependencies}")
+    logger.debug(f"Installing dependencies for plugin {plugin_id}: {dependencies}")
+    logger.debug(f"Using Python executable: {sys.executable}")
 
     try:
-        _result = subprocess.run(  # noqa: S603
-            [sys.executable, "-m", "pip", "install", "--quiet", *dependencies],
+        result = subprocess.run(  # noqa: S603
+            [sys.executable, "-m", "pip", "install", "--verbose", *dependencies],
             capture_output=True,
             text=True,
             check=True,
         )
+        logger.debug(f"pip stdout: {result.stdout}")
+        if result.stderr:
+            logger.debug(f"pip stderr: {result.stderr}")
         installed = ", ".join(dependencies)
         logger.info(f"Successfully installed dependencies for {plugin_id}: {installed}")
         return True, f"Installed: {installed}"
@@ -289,6 +293,7 @@ class PluginLoader:
             List of tuples (plugin_path, manifest) for each valid plugin
         """
         discovered: list[tuple[Path, PluginManifest]] = []
+        logger.debug(f"Discovering plugins in {self.plugins_dir}")
 
         if not self.plugins_dir.exists():
             return discovered
@@ -337,6 +342,8 @@ class PluginLoader:
 
         if not zipfile.is_zipfile(zip_path):
             raise PluginValidationError(f"Not a valid ZIP file: {zip_path}")
+
+        logger.debug(f"Installing plugin from ZIP: {zip_path}")
 
         with TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)

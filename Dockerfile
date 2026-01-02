@@ -64,7 +64,7 @@ COPY --from=python-builder /app/dist/*.whl /tmp/
 RUN pip install --no-cache-dir /tmp/*.whl && rm /tmp/*.whl
 
 # Allow appuser to install plugin dependencies at runtime
-RUN chmod -R a+w /usr/local/lib/python3.14/site-packages
+RUN chown -R appuser:appuser /usr/local/lib/python3.14/site-packages
 
 # Copy application code
 COPY src/ /app/src/

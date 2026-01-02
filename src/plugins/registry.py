@@ -253,6 +253,7 @@ class PluginRegistry:
         db: Session,
         drop_tables: bool = False,
         remove_permissions: bool = False,
+        keep_files: bool = False,
     ) -> None:
         """Uninstall a plugin.
 
@@ -261,6 +262,7 @@ class PluginRegistry:
             db: Database session
             drop_tables: Whether to drop plugin's database tables
             remove_permissions: Whether to remove plugin-provided permissions
+            keep_files: If True, keep plugin files on disk (for dev workflow)
         """
         from src.models.plugin_config import PluginConfigModel
         from src.plugins.migrations import PluginMigrationRunner
@@ -300,8 +302,11 @@ class PluginRegistry:
         ).delete()
         db.commit()
 
-        # Remove files
-        self._loader.uninstall(plugin_id)
+        # Remove files (unless keep_files is True for dev workflow)
+        if not keep_files:
+            self._loader.uninstall(plugin_id)
+        else:
+            logger.info(f"Keeping files for plugin {plugin_id} (dev mode)")
 
         # Publish event
         await event_bus.publish(

@@ -387,6 +387,7 @@ async def uninstall_plugin(
     plugin_id: str,
     drop_tables: bool = False,
     remove_permissions: bool = False,
+    keep_files: bool = False,
     db: Session = Depends(get_db),
     _admin: User = Depends(get_current_admin),
 ) -> PluginUninstallResponse:
@@ -398,6 +399,8 @@ async def uninstall_plugin(
         plugin_id: Plugin to uninstall
         drop_tables: If True, also drops the plugin's database tables
         remove_permissions: If True, also removes plugin-provided permissions
+        keep_files: If True, keep plugin files on disk (for dev workflow).
+            The plugin will appear in "discovered" list and can be reinstalled.
         db: Database session
     """
     config = (
@@ -414,15 +417,23 @@ async def uninstall_plugin(
 
     registry = PluginRegistry.get_instance()
     await registry.uninstall_plugin(
-        plugin_id, db, drop_tables=drop_tables, remove_permissions=remove_permissions
+        plugin_id,
+        db,
+        drop_tables=drop_tables,
+        remove_permissions=remove_permissions,
+        keep_files=keep_files,
     )
+
+    message = f"Plugin {plugin_id} uninstalled successfully"
+    if keep_files:
+        message += " (files kept for reinstallation)"
 
     return PluginUninstallResponse(
         success=True,
         plugin_id=plugin_id,
         tables_dropped=drop_tables,
         permissions_removed=remove_permissions,
-        message=f"Plugin {plugin_id} uninstalled successfully",
+        message=message,
     )
 
 

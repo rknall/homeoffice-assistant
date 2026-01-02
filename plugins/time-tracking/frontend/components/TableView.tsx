@@ -108,12 +108,6 @@ export function TableView({
 		});
 	};
 
-	// Get weekday name
-	const getDayName = (dateStr: string): string => {
-		const date = new Date(dateStr);
-		return date.toLocaleDateString("en-US", { weekday: "short" });
-	};
-
 	// Format time for display (only HH:MM, no seconds)
 	const formatTime = (time: string | null): string => {
 		if (!time) return "--:--";

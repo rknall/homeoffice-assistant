@@ -23,9 +23,8 @@ import type {
 const manifest: PluginManifest = {
 	id: "time-tracking",
 	name: "Time Tracking",
-	version: "0.1.0",
-	description:
-		"Track working hours with Austrian labor law compliance, vacation balances, and comp time",
+	version: "1.0.3",
+	description: "Track working hours, vacation balances, and comp time",
 	author: "Roland Knall",
 	license: "GPL-2.0-only",
 	capabilities: {

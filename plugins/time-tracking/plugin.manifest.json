@@ -1,76 +1,71 @@
 {
-  "id": "time-tracking",
-  "name": "Time Tracking",
-  "version": "1.0.3",
-  "description": "Track working hours with legal compliance for Austrian labor law",
-  "author": "Roland Knall",
-  "homepage": "https://github.com/rknall/homeoffice-assistant",
-  "capabilities": {
-    "backend": true,
-    "frontend": true,
-    "config": true
-  },
-  "permissions": {
-    "required": [
-      "user.read",
-      "company.read",
-      "event.read",
-      "integration.use"
-    ],
-    "provided": [
-      {
-        "code": "time-tracking.records.read",
-        "description": "View time records"
-      },
-      {
-        "code": "time-tracking.records.write",
-        "description": "Create and edit time records"
-      },
-      {
-        "code": "time-tracking.records.delete",
-        "description": "Delete time records"
-      },
-      {
-        "code": "time-tracking.reports.read",
-        "description": "View time tracking reports"
-      },
-      {
-        "code": "time-tracking.reports.submit",
-        "description": "Submit timesheets to employers"
-      },
-      {
-        "code": "time-tracking.settings.write",
-        "description": "Manage company time settings"
-      }
-    ]
-  },
-  "config_schema": {
-    "type": "object",
-    "properties": {
-      "default_work_hours": {
-        "type": "number",
-        "title": "Default Work Hours",
-        "description": "Default daily work hours for new records",
-        "default": 8.0
-      },
-      "default_break_minutes": {
-        "type": "integer",
-        "title": "Default Break Minutes",
-        "description": "Default break duration in minutes",
-        "default": 30
-      },
-      "enable_project_allocation": {
-        "type": "boolean",
-        "title": "Enable Project Allocation",
-        "description": "Allow splitting hours across projects",
-        "default": true
-      },
-      "default_country": {
-        "type": "string",
-        "title": "Default Country",
-        "description": "Default country for compliance validation",
-        "default": "AT"
-      }
-    }
-  }
+	"id": "time-tracking",
+	"name": "Time Tracking",
+	"version": "1.0.3",
+	"description": "Track working hours, vacation balances, and comp time",
+	"author": "Roland Knall",
+	"homepage": "https://github.com/rknall/homeoffice-assistant",
+	"capabilities": {
+		"backend": true,
+		"frontend": true,
+		"config": true
+	},
+	"permissions": {
+		"required": ["user.read", "company.read", "event.read", "integration.use"],
+		"provided": [
+			{
+				"code": "time-tracking.records.read",
+				"description": "View time records"
+			},
+			{
+				"code": "time-tracking.records.write",
+				"description": "Create and edit time records"
+			},
+			{
+				"code": "time-tracking.records.delete",
+				"description": "Delete time records"
+			},
+			{
+				"code": "time-tracking.reports.read",
+				"description": "View time tracking reports"
+			},
+			{
+				"code": "time-tracking.reports.submit",
+				"description": "Submit timesheets to employers"
+			},
+			{
+				"code": "time-tracking.settings.write",
+				"description": "Manage company time settings"
+			}
+		]
+	},
+	"config_schema": {
+		"type": "object",
+		"properties": {
+			"default_work_hours": {
+				"type": "number",
+				"title": "Default Work Hours",
+				"description": "Default daily work hours for new records",
+				"default": 8.0
+			},
+			"default_break_minutes": {
+				"type": "integer",
+				"title": "Default Break Minutes",
+				"description": "Default break duration in minutes",
+				"default": 30
+			},
+			"enable_project_allocation": {
+				"type": "boolean",
+				"title": "Enable Project Allocation",
+				"description": "Allow splitting hours across projects",
+				"default": true
+			},
+			"default_country": {
+				"type": "string",
+				"title": "Default Country",
+				"description": "Default country for compliance validation",
+				"default": "AT"
+			}
+		}
+	}
 }

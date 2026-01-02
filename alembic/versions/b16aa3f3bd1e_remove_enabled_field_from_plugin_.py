@@ -23,7 +23,7 @@ def upgrade() -> None:
     op.drop_column("plugin_configs", "is_enabled")
 
 
-def downgrade():
+def downgrade() -> None:
     op.add_column(
         "plugin_configs",
         sa.Column(

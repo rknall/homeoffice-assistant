@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "build:plugins": "npx tsx scripts/build-plugins.ts",
     "build:all": "npm run build:plugins && npm run build",
+    "package:plugin": "npx tsx scripts/package-plugin.ts",
+    "package:plugins": "npx tsx scripts/package-plugin.ts --all",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
@@ -36,6 +38,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
+    "@types/archiver": "^6.0.3",
+    "archiver": "^7.0.1",
     "@tailwindcss/forms": "^0.5.10",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",

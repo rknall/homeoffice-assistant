@@ -196,7 +196,7 @@ def install_plugin_dependencies(
     logger.info(f"Installing dependencies for plugin {plugin_id}: {dependencies}")
 
     try:
-        result = subprocess.run(  # noqa: S603, S607
+        _result = subprocess.run(  # noqa: S603
             [sys.executable, "-m", "pip", "install", "--quiet", *dependencies],
             capture_output=True,
             text=True,
@@ -355,7 +355,8 @@ class PluginLoader:
             if not manifest_path.exists():
                 # Check for single subdirectory containing manifest
                 subdirs = [
-                    d for d in temp_path.iterdir()
+                    d
+                    for d in temp_path.iterdir()
                     if d.is_dir() and not d.name.startswith(".")
                 ]
                 if len(subdirs) == 1:
@@ -363,9 +364,7 @@ class PluginLoader:
                     source_path = subdirs[0]
 
             if not manifest_path.exists():
-                raise PluginValidationError(
-                    f"No {PLUGIN_MANIFEST_FILE} found in ZIP"
-                )
+                raise PluginValidationError(f"No {PLUGIN_MANIFEST_FILE} found in ZIP")
 
             manifest = parse_manifest(manifest_path)
 

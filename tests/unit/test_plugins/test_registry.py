@@ -61,12 +61,6 @@ class TestPluginRegistry:
         plugins = registry.get_all_plugins()
         assert plugins == []
 
-    def test_get_enabled_plugins_empty(self):
-        """Test getting enabled plugins when none loaded."""
-        registry = PluginRegistry.get_instance()
-        plugins = registry.get_enabled_plugins()
-        assert plugins == []
-
     def test_is_plugin_loaded_false(self):
         """Test is_plugin_loaded when not loaded."""
         registry = PluginRegistry.get_instance()
@@ -82,7 +76,7 @@ class TestPluginRegistry:
             version="1.0.0",
             description="Test",
         )
-        config = PluginConfig(enabled=True)
+        config = PluginConfig()
         plugin = ConcretePlugin(manifest, config, "/path/to/plugin")
 
         # Directly add to registry (normally done via load_all_plugins)
@@ -103,32 +97,12 @@ class TestPluginRegistry:
                 version="1.0.0",
                 description="Test",
             )
-            config = PluginConfig(enabled=(i % 2 == 0))
+            config = PluginConfig()
             plugin = ConcretePlugin(manifest, config, f"/path/{i}")
             registry._plugins[f"plugin-{i}"] = plugin
 
         all_plugins = registry.get_all_plugins()
         assert len(all_plugins) == 3
-
-    def test_get_enabled_plugins(self):
-        """Test getting only enabled plugins."""
-        registry = PluginRegistry.get_instance()
-
-        # Add enabled and disabled plugins
-        for i, enabled in enumerate([True, False, True]):
-            manifest = PluginManifest(
-                id=f"plugin-{i}",
-                name=f"Plugin {i}",
-                version="1.0.0",
-                description="Test",
-            )
-            config = PluginConfig(enabled=enabled)
-            plugin = ConcretePlugin(manifest, config, f"/path/{i}")
-            registry._plugins[f"plugin-{i}"] = plugin
-
-        enabled_plugins = registry.get_enabled_plugins()
-        assert len(enabled_plugins) == 2
-        assert all(p.config.enabled for p in enabled_plugins)
 
     def test_set_app(self):
         """Test setting FastAPI app."""
@@ -214,12 +188,16 @@ class TestPlugin(BasePlugin):
         from src.plugins.loader import PluginLoader
 
         # Create plugin on disk but not in database
-        self.create_plugin_structure(plugins_dir, "unregistered", {
-            "id": "unregistered",
-            "name": "Unregistered",
-            "version": "1.0.0",
-            "description": "Not in DB",
-        })
+        self.create_plugin_structure(
+            plugins_dir,
+            "unregistered",
+            {
+                "id": "unregistered",
+                "name": "Unregistered",
+                "version": "1.0.0",
+                "description": "Not in DB",
+            },
+        )
 
         original_init = PluginLoader.__init__
 
@@ -243,18 +221,21 @@ class TestPlugin(BasePlugin):
         from src.plugins.loader import PluginLoader
 
         # Create plugin on disk
-        self.create_plugin_structure(plugins_dir, "disabled-plugin", {
-            "id": "disabled-plugin",
-            "name": "Disabled",
-            "version": "1.0.0",
-            "description": "Disabled plugin",
-        })
+        self.create_plugin_structure(
+            plugins_dir,
+            "disabled-plugin",
+            {
+                "id": "disabled-plugin",
+                "name": "Disabled",
+                "version": "1.0.0",
+                "description": "Disabled plugin",
+            },
+        )
 
         # Register as disabled in database
         db_config = PluginConfigModel(
             plugin_id="disabled-plugin",
             plugin_version="1.0.0",
-            is_enabled=False,
         )
         db_session.add(db_config)
         db_session.commit()
@@ -271,14 +252,6 @@ class TestPlugin(BasePlugin):
 
         # Disabled plugin should not be loaded
         assert registry.get_plugin("disabled-plugin") is None
-
-    @pytest.mark.asyncio
-    async def test_enable_plugin_not_found(self, db_session):
-        """Test enabling a plugin that doesn't exist."""
-        registry = PluginRegistry.get_instance()
-
-        with pytest.raises(ValueError, match="not found"):
-            await registry.enable_plugin("nonexistent", db_session)
 
     @pytest.mark.asyncio
     async def test_update_plugin_settings_not_found(self, db_session):
@@ -299,7 +272,6 @@ class TestPlugin(BasePlugin):
         db_config = PluginConfigModel(
             plugin_id="test-plugin",
             plugin_version="1.0.0",
-            is_enabled=True,
         )
         db_session.add(db_config)
         db_session.commit()
@@ -313,7 +285,7 @@ class TestPlugin(BasePlugin):
             version="1.0.0",
             description="Test",
         )
-        config = PluginConfig(enabled=True, settings={})
+        config = PluginConfig(settings={})
         plugin = ConcretePlugin(manifest, config, "/path")
         registry._plugins["test-plugin"] = plugin
 
@@ -327,60 +299,27 @@ class TestPlugin(BasePlugin):
         assert plugin.config.settings["new_key"] == "new_value"
 
     @pytest.mark.asyncio
-    async def test_disable_plugin(self, db_session):
-        """Test disabling a plugin."""
-        from src.models.plugin_config import PluginConfigModel
-
-        # Create plugin config in database
-        db_config = PluginConfigModel(
-            plugin_id="test-plugin",
-            plugin_version="1.0.0",
-            is_enabled=True,
-        )
-        db_session.add(db_config)
-        db_session.commit()
-
-        registry = PluginRegistry.get_instance()
-
-        # Add plugin to registry
-        manifest = PluginManifest(
-            id="test-plugin",
-            name="Test",
-            version="1.0.0",
-            description="Test",
-        )
-        config = PluginConfig(enabled=True)
-        plugin = ConcretePlugin(manifest, config, "/path")
-        registry._plugins["test-plugin"] = plugin
-
-        await registry.disable_plugin("test-plugin", db_session)
-
-        # Plugin should be removed from registry
-        assert registry.get_plugin("test-plugin") is None
-
-        # Database should be updated
-        db_session.refresh(db_config)
-        assert db_config.is_enabled is False
-
-    @pytest.mark.asyncio
     async def test_uninstall_plugin(self, db_session, plugins_dir, monkeypatch):
         """Test uninstalling a plugin."""
         from src.models.plugin_config import PluginConfigModel
         from src.plugins.loader import PluginLoader
 
         # Create plugin on disk
-        self.create_plugin_structure(plugins_dir, "to-uninstall", {
-            "id": "to-uninstall",
-            "name": "To Uninstall",
-            "version": "1.0.0",
-            "description": "Will be uninstalled",
-        })
+        self.create_plugin_structure(
+            plugins_dir,
+            "to-uninstall",
+            {
+                "id": "to-uninstall",
+                "name": "To Uninstall",
+                "version": "1.0.0",
+                "description": "Will be uninstalled",
+            },
+        )
 
         # Create plugin config in database
         db_config = PluginConfigModel(
             plugin_id="to-uninstall",
             plugin_version="1.0.0",
-            is_enabled=True,
         )
         db_session.add(db_config)
         db_session.commit()
@@ -401,7 +340,7 @@ class TestPlugin(BasePlugin):
             version="1.0.0",
             description="Test",
         )
-        config = PluginConfig(enabled=True)
+        config = PluginConfig()
         plugin = ConcretePlugin(manifest, config, str(plugins_dir / "to-uninstall"))
         registry._plugins["to-uninstall"] = plugin
 

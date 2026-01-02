@@ -53,7 +53,6 @@ export interface PluginManifest {
 export interface PluginSummary {
   plugin_id: string
   plugin_version: string
-  is_enabled: boolean
   manifest: PluginManifest | null
   has_frontend: boolean
   has_backend: boolean
@@ -67,7 +66,6 @@ export interface PluginSummary {
 export interface PluginInfo {
   plugin_id: string
   plugin_version: string
-  is_enabled: boolean
   manifest: PluginManifest | null
   config_schema: Record<string, unknown>
   settings: Record<string, unknown>
@@ -113,7 +111,6 @@ export interface PluginUninstallResponse {
 export interface PluginEnableResponse {
   success: boolean
   plugin_id: string
-  is_enabled: boolean
   message: string
 }
 

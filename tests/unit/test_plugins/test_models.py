@@ -15,7 +15,6 @@ class TestPluginConfigModel:
         config = PluginConfigModel(
             plugin_id="test-plugin",
             plugin_version="1.0.0",
-            is_enabled=True,
         )
         db_session.add(config)
         db_session.commit()
@@ -23,7 +22,6 @@ class TestPluginConfigModel:
         assert config.id is not None
         assert config.plugin_id == "test-plugin"
         assert config.plugin_version == "1.0.0"
-        assert config.is_enabled is True
         assert config.created_at is not None
         assert config.updated_at is not None
 
@@ -32,7 +30,6 @@ class TestPluginConfigModel:
         config1 = PluginConfigModel(
             plugin_id="unique-plugin",
             plugin_version="1.0.0",
-            is_enabled=True,
         )
         db_session.add(config1)
         db_session.commit()
@@ -40,7 +37,6 @@ class TestPluginConfigModel:
         config2 = PluginConfigModel(
             plugin_id="unique-plugin",
             plugin_version="2.0.0",
-            is_enabled=False,
         )
         db_session.add(config2)
 
@@ -54,7 +50,6 @@ class TestPluginConfigModel:
         config = PluginConfigModel(
             plugin_id="encrypted-plugin",
             plugin_version="1.0.0",
-            is_enabled=True,
         )
 
         settings = {
@@ -85,7 +80,6 @@ class TestPluginConfigModel:
         config = PluginConfigModel(
             plugin_id="empty-settings",
             plugin_version="1.0.0",
-            is_enabled=True,
         )
         db_session.add(config)
         db_session.commit()
@@ -98,7 +92,6 @@ class TestPluginConfigModel:
         config = PluginConfigModel(
             plugin_id="empty-set",
             plugin_version="1.0.0",
-            is_enabled=True,
         )
         config.set_encrypted_settings({})
 
@@ -113,7 +106,6 @@ class TestPluginConfigModel:
         config = PluginConfigModel(
             plugin_id="update-settings",
             plugin_version="1.0.0",
-            is_enabled=True,
         )
         config.set_encrypted_settings({"key1": "value1"})
         db_session.add(config)
@@ -136,7 +128,6 @@ class TestPluginConfigModel:
         db_session.add(config)
         db_session.commit()
 
-        assert config.is_enabled is True
         assert config.settings_encrypted is None
         assert config.migration_version is None
         assert config.permissions_granted is None
@@ -146,7 +137,6 @@ class TestPluginConfigModel:
         config = PluginConfigModel(
             plugin_id="with-migration",
             plugin_version="1.0.0",
-            is_enabled=True,
             migration_version="abc123",
         )
         db_session.add(config)
@@ -164,7 +154,6 @@ class TestPluginConfigModel:
         config = PluginConfigModel(
             plugin_id="with-permissions",
             plugin_version="1.0.0",
-            is_enabled=True,
             permissions_granted="user.read,event.write",
         )
         db_session.add(config)
@@ -203,7 +192,7 @@ class TestPluginMigrationHistory:
             history = PluginMigrationHistory(
                 plugin_id="multi-migration",
                 revision=revision,
-                applied_at=f"2025-01-{15+i}T10:30:00",
+                applied_at=f"2025-01-{15 + i}T10:30:00",
             )
             db_session.add(history)
 

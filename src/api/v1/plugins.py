@@ -23,7 +23,6 @@ from src.plugins.loader import PLUGIN_MANIFEST_FILE, parse_manifest
 from src.schemas.plugin import (
     DiscoveredPlugin,
     DiscoveredPluginsResponse,
-    PluginEnableResponse,
     PluginInfoResponse,
     PluginInstallResponse,
     PluginListResponse,
@@ -114,7 +113,6 @@ async def list_plugins(
             PluginSummary(
                 plugin_id=config.plugin_id,
                 plugin_version=config.plugin_version,
-                is_enabled=config.is_enabled,
                 manifest=manifest,
                 has_frontend=has_frontend,
                 has_backend=has_backend,
@@ -140,9 +138,7 @@ async def list_discovered_plugins(
     discovered = loader.discover_plugins()
 
     # Get list of installed plugin IDs
-    installed_ids = {
-        config.plugin_id for config in db.query(PluginConfigModel).all()
-    }
+    installed_ids = {config.plugin_id for config in db.query(PluginConfigModel).all()}
 
     plugins = []
     for _plugin_path, manifest in discovered:
@@ -224,7 +220,6 @@ async def install_discovered_plugin(
         db_config = PluginConfigModel(
             plugin_id=manifest.id,
             plugin_version=manifest.version,
-            is_enabled=True,
             settings_encrypted=None,
         )
         db.add(db_config)
@@ -234,7 +229,7 @@ async def install_discovered_plugin(
         from src.plugins.base import PluginConfig
 
         registry = PluginRegistry.get_instance()
-        config = PluginConfig(enabled=True, settings={})
+        config = PluginConfig(settings={})
         plugin = await registry._load_single_plugin(plugin_path, manifest, config)
 
         # Call on_install lifecycle hook
@@ -323,7 +318,6 @@ async def get_plugin(
     return PluginInfoResponse(
         plugin_id=config.plugin_id,
         plugin_version=config.plugin_version,
-        is_enabled=config.is_enabled,
         manifest=manifest_dict,
         config_schema=config_schema,
         settings=config.get_decrypted_settings(),
@@ -434,88 +428,6 @@ async def uninstall_plugin(
         tables_dropped=drop_tables,
         permissions_removed=remove_permissions,
         message=message,
-    )
-
-
-@router.post("/{plugin_id}/enable", response_model=PluginEnableResponse)
-async def enable_plugin(
-    plugin_id: str,
-    db: Session = Depends(get_db),
-    _admin: User = Depends(get_current_admin),
-) -> PluginEnableResponse:
-    """Enable a disabled plugin.
-
-    Requires admin privileges.
-    """
-    config = (
-        db.query(PluginConfigModel)
-        .filter(PluginConfigModel.plugin_id == plugin_id)
-        .first()
-    )
-
-    if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Plugin {plugin_id} not found",
-        )
-
-    if config.is_enabled:
-        return PluginEnableResponse(
-            success=True,
-            plugin_id=plugin_id,
-            is_enabled=True,
-            message="Plugin is already enabled",
-        )
-
-    registry = PluginRegistry.get_instance()
-    await registry.enable_plugin(plugin_id, db)
-
-    return PluginEnableResponse(
-        success=True,
-        plugin_id=plugin_id,
-        is_enabled=True,
-        message=f"Plugin {plugin_id} enabled successfully",
-    )
-
-
-@router.post("/{plugin_id}/disable", response_model=PluginEnableResponse)
-async def disable_plugin(
-    plugin_id: str,
-    db: Session = Depends(get_db),
-    _admin: User = Depends(get_current_admin),
-) -> PluginEnableResponse:
-    """Disable an enabled plugin.
-
-    Requires admin privileges.
-    """
-    config = (
-        db.query(PluginConfigModel)
-        .filter(PluginConfigModel.plugin_id == plugin_id)
-        .first()
-    )
-
-    if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Plugin {plugin_id} not found",
-        )
-
-    if not config.is_enabled:
-        return PluginEnableResponse(
-            success=True,
-            plugin_id=plugin_id,
-            is_enabled=False,
-            message="Plugin is already disabled",
-        )
-
-    registry = PluginRegistry.get_instance()
-    await registry.disable_plugin(plugin_id, db)
-
-    return PluginEnableResponse(
-        success=True,
-        plugin_id=plugin_id,
-        is_enabled=False,
-        message=f"Plugin {plugin_id} disabled successfully",
     )
 
 

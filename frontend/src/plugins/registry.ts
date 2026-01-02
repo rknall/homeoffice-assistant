@@ -8,7 +8,6 @@ import type {
   DiscoveredPlugin,
   DiscoveredPluginsResponse,
   LoadedPlugin,
-  PluginEnableResponse,
   PluginInfo,
   PluginInstallResponse,
   PluginListResponse,
@@ -41,9 +40,8 @@ interface PluginsState {
     pluginId: string,
     dropTables?: boolean,
     removePermissions?: boolean,
+    keepFiles?: boolean,
   ) => Promise<void>
-  enablePlugin: (pluginId: string) => Promise<void>
-  disablePlugin: (pluginId: string) => Promise<void>
   updatePluginSettings: (
     pluginId: string,
     settings: Record<string, unknown>,
@@ -52,7 +50,6 @@ interface PluginsState {
   // Computed getters
   getNavItems: () => PluginNavItem[]
   getRoutes: () => PluginRoute[]
-  getEnabledPlugins: () => PluginSummary[]
 
   // Reset
   reset: () => void
@@ -89,10 +86,10 @@ export const usePlugins = create<PluginsState>((set, get) => ({
 
   loadAllFrontends: async () => {
     const { plugins } = get()
-    const enabledPlugins = plugins.filter((p) => p.is_enabled && p.has_frontend)
+    const frontendPlugins = plugins.filter((p) => p.has_frontend)
 
     const loaded: LoadedPlugin[] = []
-    for (const plugin of enabledPlugins) {
+    for (const plugin of frontendPlugins) {
       try {
         const loadedPlugin = await pluginLoader.loadPlugin(plugin)
         loaded.push(loadedPlugin)
@@ -161,7 +158,12 @@ export const usePlugins = create<PluginsState>((set, get) => ({
     }
   },
 
-  uninstallPlugin: async (pluginId: string, dropTables = false, removePermissions = false) => {
+  uninstallPlugin: async (
+    pluginId: string,
+    dropTables = false,
+    removePermissions = false,
+    keepFiles = true,
+  ) => {
     set({ isLoading: true, error: null })
     try {
       // Unload frontend if loaded
@@ -174,66 +176,23 @@ export const usePlugins = create<PluginsState>((set, get) => ({
       if (removePermissions) {
         params.set('remove_permissions', 'true')
       }
+      if (keepFiles) {
+        params.set('keep_files', 'true')
+      }
 
       await api.delete<PluginUninstallResponse>(
         `/plugins/${pluginId}${params.toString() ? `?${params.toString()}` : ''}`,
       )
 
-      // Refresh plugin list and loaded plugins
+      // Refresh plugin list, discovered plugins, and loaded plugins
       await get().fetchPlugins()
+      await get().fetchDiscoveredPlugins()
       set({
         loadedPlugins: get().loadedPlugins.filter((p) => p.id !== pluginId),
         isLoading: false,
       })
     } catch (e) {
       const error = e instanceof Error ? e.message : 'Failed to uninstall plugin'
-      set({ error, isLoading: false })
-      throw e
-    }
-  },
-
-  enablePlugin: async (pluginId: string) => {
-    set({ isLoading: true, error: null })
-    try {
-      await api.post<PluginEnableResponse>(`/plugins/${pluginId}/enable`)
-
-      // Refresh plugin list
-      await get().fetchPlugins()
-
-      // Load frontend if available
-      const plugin = get().plugins.find((p) => p.plugin_id === pluginId)
-      if (plugin?.has_frontend) {
-        const loaded = await pluginLoader.loadPlugin(plugin)
-        set((state) => ({
-          loadedPlugins: [...state.loadedPlugins, loaded],
-          isLoading: false,
-        }))
-      } else {
-        set({ isLoading: false })
-      }
-    } catch (e) {
-      const error = e instanceof Error ? e.message : 'Failed to enable plugin'
-      set({ error, isLoading: false })
-      throw e
-    }
-  },
-
-  disablePlugin: async (pluginId: string) => {
-    set({ isLoading: true, error: null })
-    try {
-      // Unload frontend first
-      await pluginLoader.unloadPlugin(pluginId)
-
-      await api.post<PluginEnableResponse>(`/plugins/${pluginId}/disable`)
-
-      // Refresh and update state
-      await get().fetchPlugins()
-      set({
-        loadedPlugins: get().loadedPlugins.filter((p) => p.id !== pluginId),
-        isLoading: false,
-      })
-    } catch (e) {
-      const error = e instanceof Error ? e.message : 'Failed to disable plugin'
       set({ error, isLoading: false })
       throw e
     }
@@ -294,10 +253,6 @@ export const usePlugins = create<PluginsState>((set, get) => ({
     }
 
     return routes
-  },
-
-  getEnabledPlugins: () => {
-    return get().plugins.filter((p) => p.is_enabled)
   },
 
   reset: () => {

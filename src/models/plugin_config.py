@@ -5,7 +5,7 @@
 import uuid as uuid_lib
 from typing import Any
 
-from sqlalchemy import Boolean, String, Text, Uuid
+from sqlalchemy import String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.encryption import decrypt_config, encrypt_config
@@ -34,11 +34,6 @@ class PluginConfigModel(Base, TimestampMixin):
     )
     plugin_version: Mapped[str] = mapped_column(
         String(50),
-        nullable=False,
-    )
-    is_enabled: Mapped[bool] = mapped_column(
-        Boolean,
-        default=True,
         nullable=False,
     )
     settings_encrypted: Mapped[str | None] = mapped_column(

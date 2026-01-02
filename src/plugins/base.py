@@ -108,7 +108,6 @@ class PluginManifest:
 class PluginConfig:
     """Runtime configuration for a plugin instance."""
 
-    enabled: bool = True
     settings: dict[str, Any] = field(default_factory=dict)
 
 
@@ -218,20 +217,6 @@ class BasePlugin(ABC):
 
         Use for one-time setup tasks like creating default data.
         Database migrations are run before this method is called.
-        """
-
-    async def on_enable(self) -> None:  # noqa: B027
-        """Called when plugin is enabled.
-
-        Called on application startup for enabled plugins,
-        and when an admin enables a previously disabled plugin.
-        """
-
-    async def on_disable(self) -> None:  # noqa: B027
-        """Called when plugin is disabled.
-
-        Use to clean up resources, cancel background tasks, etc.
-        The plugin's routes will be unmounted after this method returns.
         """
 
     async def on_uninstall(self) -> None:  # noqa: B027

@@ -288,7 +288,13 @@ class PluginRegistry:
         if not keep_files:
             self._loader.uninstall(plugin_id)
         else:
-            logger.info(f"Keeping files for plugin {plugin_id} (dev mode)")
+            logger.info(
+                "Keeping files for plugin %s (dev mode): plugin files remain on disk, "
+                "any previously installed Python dependencies are not removed, and "
+                "the plugin may be rediscovered on restart but will not be auto-loaded "
+                "because its database configuration was deleted.",
+                plugin_id,
+            )
 
         # Publish event
         await event_bus.publish(

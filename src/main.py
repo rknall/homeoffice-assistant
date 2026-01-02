@@ -17,10 +17,18 @@ from src.database import SessionLocal
 from src.plugins import PluginRegistry, get_plugin_router_manager
 from src.services import rbac_seed_service, todo_template_service
 
-# Configure logging for debugging
-logging.basicConfig(level=logging.INFO)
-logging.getLogger("src.plugins").setLevel(logging.INFO)
+# Configure application logger; rely on external/root logging configuration
+log_level_name = os.getenv("APP_LOG_LEVEL")
 logger = logging.getLogger(__name__)
+if log_level_name:
+    try:
+        logger.setLevel(getattr(logging, log_level_name.upper()))
+    except AttributeError:
+        # Fallback to existing level if invalid env var is provided
+        logger.warning(
+            "Invalid APP_LOG_LEVEL '%s'; using existing logger level",
+            log_level_name,
+        )
 
 # Ensure directories exist
 os.makedirs("static/avatars", exist_ok=True)

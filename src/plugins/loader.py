@@ -6,6 +6,8 @@ import importlib.util
 import json
 import logging
 import shutil
+import subprocess
+import sys
 import zipfile
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -168,7 +170,48 @@ def parse_manifest(manifest_path: Path) -> PluginManifest:
         required_permissions=required_permissions,
         provided_permissions=provided_permissions,
         dependencies=data.get("dependencies", []),
+        python_dependencies=data.get("python_dependencies", []),
     )
+
+
+def install_plugin_dependencies(
+    plugin_id: str,
+    dependencies: list[str],
+) -> tuple[bool, str]:
+    """Install Python dependencies for a plugin.
+
+    Uses pip to install the specified packages. This is called before
+    the plugin module is loaded to ensure all imports succeed.
+
+    Args:
+        plugin_id: Plugin ID for logging
+        dependencies: List of pip requirement specifiers (e.g., ["holidays>=0.62"])
+
+    Returns:
+        Tuple of (success, message)
+    """
+    if not dependencies:
+        return True, "No dependencies to install"
+
+    logger.info(f"Installing dependencies for plugin {plugin_id}: {dependencies}")
+
+    try:
+        result = subprocess.run(  # noqa: S603, S607
+            [sys.executable, "-m", "pip", "install", "--quiet", *dependencies],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        installed = ", ".join(dependencies)
+        logger.info(f"Successfully installed dependencies for {plugin_id}: {installed}")
+        return True, f"Installed: {installed}"
+    except subprocess.CalledProcessError as e:
+        error_msg = e.stderr.strip() if e.stderr else str(e)
+        logger.error(f"Failed to install dependencies for {plugin_id}: {error_msg}")
+        return False, f"Failed to install dependencies: {error_msg}"
+    except Exception as e:
+        logger.error(f"Unexpected error installing dependencies for {plugin_id}: {e}")
+        return False, f"Unexpected error: {e}"
 
 
 def load_plugin_class(
@@ -391,7 +434,20 @@ class PluginLoader:
 
         Returns:
             Instantiated plugin instance
+
+        Raises:
+            PluginLoadError: If dependencies cannot be installed or plugin fails to load
         """
+        # Install Python dependencies before loading the module
+        if manifest.python_dependencies:
+            success, msg = install_plugin_dependencies(
+                manifest.id, manifest.python_dependencies
+            )
+            if not success:
+                raise PluginLoadError(
+                    f"Failed to install dependencies for {manifest.id}: {msg}"
+                )
+
         plugin_class = load_plugin_class(plugin_path, manifest)
         return plugin_class(manifest, config, str(plugin_path))
 

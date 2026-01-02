@@ -94,6 +94,8 @@ class PluginManifest:
     # Permissions the plugin provides (adds to the system)
     provided_permissions: list[ProvidedPermission] = field(default_factory=list)
     dependencies: list[str] = field(default_factory=list)
+    # Python package dependencies (e.g., ["holidays>=0.62"])
+    python_dependencies: list[str] = field(default_factory=list)
 
     # Backward compatibility: alias 'permissions' to 'required_permissions'
     @property

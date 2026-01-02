@@ -7,7 +7,11 @@ import { defineConfig } from 'vitest/config'
 function getGitCommitHash(): string {
   try {
     return execFileSync('git', ['rev-parse', '--short', 'HEAD']).toString().trim()
-  } catch {
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn('[vite] Failed to determine git commit hash:', message)
+    }
     return 'unknown'
   }
 }

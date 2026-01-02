@@ -28,4 +28,10 @@ export default defineConfig({
       '/api': 'http://localhost:8000',
     },
   },
+  test: {
+    include: [
+      'src/**/*.{test,spec}.{js,ts,tsx}',
+      '../plugins/*/frontend/tests/**/*.{test,spec}.{js,ts,tsx}',
+    ],
+  },
 })

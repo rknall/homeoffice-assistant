@@ -567,7 +567,7 @@ class TestValidateDependencyFormat:
             "holidays",
             "my-package",
             "my_package",
-            "Package123",
+            "Package123",  # PEP 508: must start with letter, can contain numbers
             "requests>=2.0",
             "requests>=2.0.0",
             "requests>=2.0,<3.0",
@@ -583,6 +583,17 @@ class TestValidateDependencyFormat:
     def test_valid_dependencies(self, dependency):
         """Test that valid dependency formats are accepted."""
         assert validate_dependency_format(dependency) is True
+
+    @pytest.mark.parametrize(
+        "dependency",
+        [
+            "123package",  # PEP 508: must start with letter
+            "9lives",  # PEP 508: must start with letter
+        ],
+    )
+    def test_pep508_package_name_must_start_with_letter(self, dependency):
+        """Test that package names must start with a letter per PEP 508."""
+        assert validate_dependency_format(dependency) is False
 
     @pytest.mark.parametrize(
         "dependency",

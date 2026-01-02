@@ -35,8 +35,9 @@ PLUGIN_MANIFEST_FILE = "plugin.manifest.json"
 
 # Regex for validating pip requirement specifiers (PEP 508 simplified)
 # Matches: package, package>=1.0, package[extra]>=1.0,<2.0, etc.
+# Note: PEP 508 requires package names to start with a letter
 DEPENDENCY_PATTERN = re.compile(
-    r"^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?"  # Package name
+    r"^[a-zA-Z]([a-zA-Z0-9._-]*[a-zA-Z0-9])?"  # Package name (must start with letter)
     r"(\[[a-zA-Z0-9,._-]+\])?"  # Optional extras like [dev,test]
     r"([<>=!~]+[\d.]+(\s*,\s*[<>=!~]+[\d.]+)*)?$"  # Version specifiers
 )

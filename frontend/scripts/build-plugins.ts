@@ -8,16 +8,16 @@
  * that can be dynamically loaded at runtime by the plugin loader.
  */
 
-import * as esbuild from 'esbuild'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import * as esbuild from 'esbuild'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+const Filename = fileURLToPath(import.meta.url)
+const Dirname = path.dirname(Filename)
 
-const PLUGINS_DIR = path.resolve(__dirname, '../../plugins')
-const REACT_SHIM = path.resolve(__dirname, 'react-shim.js')
+const PLUGINS_DIR = path.resolve(Dirname, '../../plugins')
+const REACT_SHIM = path.resolve(Dirname, 'react-shim.js')
 
 // Find all plugins with frontend/index.ts
 function findPlugins(): string[] {

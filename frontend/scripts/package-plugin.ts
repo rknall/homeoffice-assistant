@@ -20,11 +20,11 @@ import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import archiver from 'archiver'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+const Filename = fileURLToPath(import.meta.url)
+const Dirname = path.dirname(Filename)
 
-const PLUGINS_DIR = path.resolve(__dirname, '../../plugins')
-const DIST_DIR = path.resolve(__dirname, '../../dist/plugins')
+const PLUGINS_DIR = path.resolve(Dirname, '../../plugins')
+const DIST_DIR = path.resolve(Dirname, '../../dist/plugins')
 
 interface PluginManifest {
   id: string
@@ -113,17 +113,25 @@ async function packagePlugin(pluginId: string): Promise<string | null> {
     // Add backend Python files (excluding __pycache__)
     const backendDir = path.join(pluginDir, 'backend')
     if (fs.existsSync(backendDir)) {
-      archive.glob('**/*.py', {
-        cwd: backendDir,
-        ignore: ['__pycache__/**', '**/__pycache__/**'],
-      }, { prefix: `${pluginId}/backend` })
+      archive.glob(
+        '**/*.py',
+        {
+          cwd: backendDir,
+          ignore: ['__pycache__/**', '**/__pycache__/**'],
+        },
+        { prefix: `${pluginId}/backend` },
+      )
 
       // Add migrations non-Python files (script.py.mako)
       const migrationsDir = path.join(backendDir, 'migrations')
       if (fs.existsSync(migrationsDir)) {
-        archive.glob('**/*.mako', {
-          cwd: migrationsDir,
-        }, { prefix: `${pluginId}/backend/migrations` })
+        archive.glob(
+          '**/*.mako',
+          {
+            cwd: migrationsDir,
+          },
+          { prefix: `${pluginId}/backend/migrations` },
+        )
       }
     }
 

@@ -5,28 +5,33 @@ import { useEffect, useState } from "react";
 import type {
 	CompanyInfo,
 	ComplianceWarning,
-	DayType,
-	TimeRecord,
-	TimeRecordCreate,
-	TimeRecordUpdate,
+	EntryType,
+	TimeEntry,
+	TimeEntryCreate,
+	TimeEntryUpdate,
+	WorkLocation,
 } from "../types";
-import { DAY_TYPE_LABELS, WARNING_LEVEL_COLORS } from "../types";
+import {
+	ENTRY_TYPE_LABELS,
+	WARNING_LEVEL_COLORS,
+	WORK_LOCATION_LABELS,
+} from "../types";
 
-interface TimeRecordFormProps {
-	record?: TimeRecord | null;
+interface TimeEntryFormProps {
+	entry?: TimeEntry | null;
 	companyId: string;
 	date: string;
-	onSubmit: (data: TimeRecordCreate | TimeRecordUpdate) => Promise<void>;
+	onSubmit: (data: TimeEntryCreate | TimeEntryUpdate) => Promise<void>;
 	onCancel: () => void;
 	warnings?: ComplianceWarning[];
 	isLoading?: boolean;
 	/** Optional list of companies for unified view (enables company dropdown) */
 	companies?: CompanyInfo[];
-	/** Pre-selected company ID (from record being edited) */
+	/** Pre-selected company ID (from entry being edited) */
 	preselectedCompanyId?: string;
 }
 
-const DAY_TYPES: DayType[] = [
+const ENTRY_TYPES: EntryType[] = [
 	"work",
 	"vacation",
 	"sick",
@@ -34,10 +39,15 @@ const DAY_TYPES: DayType[] = [
 	"public_holiday",
 	"comp_time",
 	"unpaid_leave",
+	"parental_leave",
+	"training",
+	"other",
 ];
 
+const WORK_LOCATIONS: WorkLocation[] = ["office", "remote", "client_site", "travel"];
+
 export function TimeRecordForm({
-	record,
+	entry,
 	companyId,
 	date,
 	onSubmit,
@@ -46,25 +56,27 @@ export function TimeRecordForm({
 	isLoading = false,
 	companies,
 	preselectedCompanyId,
-}: TimeRecordFormProps) {
-	// Determine initial company: use preselected, then record's company, then fallback to prop
+}: TimeEntryFormProps) {
+	// Determine initial company: use preselected, then entry's company, then fallback to prop
 	const initialCompanyId =
-		preselectedCompanyId || record?.company_id || companyId;
+		preselectedCompanyId || entry?.company_id || companyId;
 	const [selectedCompanyId, setSelectedCompanyId] = useState(initialCompanyId);
 	const [selectedDate, setSelectedDate] = useState(date);
-	const [dayType, setDayType] = useState<DayType>(record?.day_type || "work");
-	const [checkIn, setCheckIn] = useState(record?.check_in || "");
-	const [checkOut, setCheckOut] = useState(record?.check_out || "");
-	const [breakMinutes, setBreakMinutes] = useState<string>(
-		record?.break_minutes?.toString() || "",
+	const [entryType, setEntryType] = useState<EntryType>(
+		entry?.entry_type || "work",
 	);
-	const [notes, setNotes] = useState(record?.notes || "");
+	const [checkIn, setCheckIn] = useState(entry?.check_in || "");
+	const [checkOut, setCheckOut] = useState(entry?.check_out || "");
+	const [workLocation, setWorkLocation] = useState<WorkLocation | "">(
+		entry?.work_location || "",
+	);
+	const [notes, setNotes] = useState(entry?.notes || "");
 	const [error, setError] = useState<string | null>(null);
 	const [timeError, setTimeError] = useState<string | null>(null);
 
-	const isWorkType = dayType === "work" || dayType === "doctor_visit";
+	const isWorkType = entryType === "work" || entryType === "doctor_visit";
 	const showCompanyDropdown = companies && companies.length > 0;
-	const isNewRecord = !record;
+	const isNewEntry = !entry;
 
 	// Validate times: check-out must be after check-in
 	const validateTimes = (inTime: string, outTime: string): boolean => {
@@ -94,7 +106,7 @@ export function TimeRecordForm({
 		if (!isWorkType) {
 			setCheckIn("");
 			setCheckOut("");
-			setBreakMinutes("");
+			setWorkLocation("");
 		}
 	}, [isWorkType]);
 
@@ -108,36 +120,38 @@ export function TimeRecordForm({
 		}
 
 		try {
-			// Use selectedCompanyId for new records, or the record's existing company
-			const effectiveCompanyId = record ? record.company_id : selectedCompanyId;
-			const data: TimeRecordCreate | TimeRecordUpdate = {
-				...(record ? {} : { company_id: effectiveCompanyId, date: selectedDate }),
-				day_type: dayType,
+			// Use selectedCompanyId for new entries, or the entry's existing company
+			const effectiveCompanyId = entry ? entry.company_id : selectedCompanyId;
+			const data: TimeEntryCreate | TimeEntryUpdate = {
+				...(entry
+					? {}
+					: { company_id: effectiveCompanyId, date: selectedDate }),
+				entry_type: entryType,
 				check_in: isWorkType && checkIn ? checkIn : null,
 				check_out: isWorkType && checkOut ? checkOut : null,
-				break_minutes: breakMinutes ? parseInt(breakMinutes, 10) : null,
+				work_location: isWorkType && workLocation ? workLocation : null,
 				notes: notes || null,
 			};
 			await onSubmit(data);
 		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to save record");
+			setError(err instanceof Error ? err.message : "Failed to save entry");
 		}
 	};
 
 	return (
 		<form onSubmit={handleSubmit} className="space-y-4">
-			{/* Date selection (editable for new records) */}
-			{isNewRecord ? (
+			{/* Date selection (editable for new entries) */}
+			{isNewEntry ? (
 				<div>
 					<label
-						htmlFor="record-date"
+						htmlFor="entry-date"
 						className="block text-sm font-medium text-gray-700 mb-1"
 					>
 						Date
 					</label>
 					<input
 						type="date"
-						id="record-date"
+						id="entry-date"
 						value={selectedDate}
 						onChange={(e) => setSelectedDate(e.target.value)}
 						className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
@@ -169,7 +183,7 @@ export function TimeRecordForm({
 						value={selectedCompanyId}
 						onChange={(e) => setSelectedCompanyId(e.target.value)}
 						className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-						disabled={!!record || isLoading}
+						disabled={!!entry || isLoading}
 					>
 						{companies.map((company) => (
 							<option key={company.id} value={company.id}>
@@ -177,32 +191,32 @@ export function TimeRecordForm({
 							</option>
 						))}
 					</select>
-					{record && (
+					{entry && (
 						<p className="mt-1 text-xs text-gray-500">
-							Company cannot be changed for existing records
+							Company cannot be changed for existing entries
 						</p>
 					)}
 				</div>
 			)}
 
-			{/* Day type selection */}
+			{/* Entry type selection */}
 			<div>
 				<label
-					htmlFor="day-type"
+					htmlFor="entry-type"
 					className="block text-sm font-medium text-gray-700 mb-1"
 				>
-					Day Type
+					Entry Type
 				</label>
 				<select
-					id="day-type"
-					value={dayType}
-					onChange={(e) => setDayType(e.target.value as DayType)}
+					id="entry-type"
+					value={entryType}
+					onChange={(e) => setEntryType(e.target.value as EntryType)}
 					className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-					disabled={record?.is_locked || isLoading}
+					disabled={entry?.is_locked || isLoading}
 				>
-					{DAY_TYPES.map((type) => (
+					{ENTRY_TYPES.map((type) => (
 						<option key={type} value={type}>
-							{DAY_TYPE_LABELS[type]}
+							{ENTRY_TYPE_LABELS[type]}
 						</option>
 					))}
 				</select>
@@ -229,7 +243,7 @@ export function TimeRecordForm({
 										? "border-red-500 focus:border-red-500"
 										: "border-gray-300 focus:border-blue-500"
 								}`}
-								disabled={record?.is_locked || isLoading}
+								disabled={entry?.is_locked || isLoading}
 							/>
 						</div>
 						<div>
@@ -249,37 +263,42 @@ export function TimeRecordForm({
 										? "border-red-500 focus:border-red-500"
 										: "border-gray-300 focus:border-blue-500"
 								}`}
-								disabled={record?.is_locked || isLoading}
+								disabled={entry?.is_locked || isLoading}
 							/>
 						</div>
 					</div>
 					{/* Time validation error */}
-					{timeError && (
-						<p className="text-sm text-red-600">{timeError}</p>
-					)}
+					{timeError && <p className="text-sm text-red-600">{timeError}</p>}
 
+					{/* Work location */}
 					<div>
 						<label
-							htmlFor="break-minutes"
+							htmlFor="work-location"
 							className="block text-sm font-medium text-gray-700 mb-1"
 						>
-							Break (minutes)
+							Work Location
 						</label>
-						<input
-							type="number"
-							id="break-minutes"
-							value={breakMinutes}
-							onChange={(e) => setBreakMinutes(e.target.value)}
-							placeholder="Auto-calculated if empty"
-							min="0"
-							max="120"
+						<select
+							id="work-location"
+							value={workLocation}
+							onChange={(e) =>
+								setWorkLocation(e.target.value as WorkLocation | "")
+							}
 							className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-							disabled={record?.is_locked || isLoading}
-						/>
-						<p className="mt-1 text-xs text-gray-500">
-							Leave empty for automatic calculation (30 min if over 6 hours)
-						</p>
+							disabled={entry?.is_locked || isLoading}
+						>
+							<option value="">Not specified</option>
+							{WORK_LOCATIONS.map((loc) => (
+								<option key={loc} value={loc}>
+									{WORK_LOCATION_LABELS[loc]}
+								</option>
+							))}
+						</select>
 					</div>
+
+					<p className="text-xs text-gray-500">
+						Break time is automatically calculated (30 min if over 6 hours)
+					</p>
 				</>
 			)}
 
@@ -297,7 +316,7 @@ export function TimeRecordForm({
 					onChange={(e) => setNotes(e.target.value)}
 					rows={2}
 					className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-					disabled={record?.is_locked || isLoading}
+					disabled={entry?.is_locked || isLoading}
 					placeholder="Optional notes..."
 				/>
 			</div>
@@ -345,18 +364,21 @@ export function TimeRecordForm({
 				</button>
 				<button
 					type="submit"
-					disabled={record?.is_locked || isLoading || !!timeError}
+					disabled={entry?.is_locked || isLoading || !!timeError}
 					className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
 				>
-					{isLoading ? "Saving..." : record ? "Update" : "Create"}
+					{isLoading ? "Saving..." : entry ? "Update" : "Create"}
 				</button>
 			</div>
 
-			{record?.is_locked && (
+			{entry?.is_locked && (
 				<p className="text-center text-sm text-gray-500">
-					This record is locked and cannot be edited.
+					This entry is locked and cannot be edited.
 				</p>
 			)}
 		</form>
 	);
 }
+
+// Legacy alias for backward compatibility
+export { TimeRecordForm as TimeEntryForm };

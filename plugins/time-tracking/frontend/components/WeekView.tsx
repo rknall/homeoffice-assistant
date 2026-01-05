@@ -3,14 +3,14 @@
 
 import { useMemo } from "react";
 import { formatHours, formatTime, getWeekStart, toISODateString } from "../api";
-import type { ComplianceWarning, TimeRecord } from "../types";
-import { DAY_TYPE_COLORS, DAY_TYPE_LABELS } from "../types";
+import type { ComplianceWarning, TimeEntry } from "../types";
+import { ENTRY_TYPE_LABELS } from "../types";
 
 interface WeekViewProps {
-	records: TimeRecord[];
+	entries: TimeEntry[];
 	currentDate: Date;
 	onDateChange: (date: Date) => void;
-	onDayClick: (date: string, record?: TimeRecord) => void;
+	onDayClick: (date: string, entries?: TimeEntry[]) => void;
 	warnings?: Record<string, ComplianceWarning[]>;
 	holidays?: Record<string, string>;
 	isLoading?: boolean;
@@ -19,7 +19,7 @@ interface WeekViewProps {
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export function WeekView({
-	records,
+	entries,
 	currentDate,
 	onDateChange,
 	onDayClick,
@@ -39,17 +39,30 @@ export function WeekView({
 		return days;
 	}, [weekStart]);
 
-	const recordsByDate = useMemo(() => {
-		const map: Record<string, TimeRecord> = {};
-		for (const record of records) {
-			map[record.date] = record;
+	// Group entries by date (can have multiple entries per day)
+	const entriesByDate = useMemo(() => {
+		const map: Record<string, TimeEntry[]> = {};
+		for (const entry of entries) {
+			if (!map[entry.date]) {
+				map[entry.date] = [];
+			}
+			map[entry.date].push(entry);
 		}
 		return map;
-	}, [records]);
+	}, [entries]);
 
+	// Calculate total hours (gross - break estimate)
 	const totalHours = useMemo(() => {
-		return records.reduce((sum, r) => sum + (r.net_hours || 0), 0);
-	}, [records]);
+		let total = 0;
+		for (const entry of entries) {
+			if (entry.gross_hours !== null) {
+				// Subtract 30 min break for work sessions over 6 hours
+				const breakHours = entry.gross_hours > 6 ? 0.5 : 0;
+				total += entry.gross_hours - breakHours;
+			}
+		}
+		return total;
+	}, [entries]);
 
 	const goToPrevWeek = () => {
 		const prev = new Date(weekStart);
@@ -167,17 +180,26 @@ export function WeekView({
 				<div className="grid grid-cols-7 divide-x divide-gray-200">
 					{weekDays.map((date, index) => {
 						const dateStr = toISODateString(date);
-						const record = recordsByDate[dateStr];
+						const dayEntries = entriesByDate[dateStr] || [];
 						const dayWarnings = warnings[dateStr] || [];
 						const holidayName = holidays[dateStr];
 						const isWeekend = date.getDay() === 0 || date.getDay() === 6;
 						const today = isToday(date);
 
+						// Calculate total hours for the day
+						let dayTotalHours = 0;
+						for (const entry of dayEntries) {
+							if (entry.gross_hours !== null) {
+								const breakHours = entry.gross_hours > 6 ? 0.5 : 0;
+								dayTotalHours += entry.gross_hours - breakHours;
+							}
+						}
+
 						return (
 							<button
 								type="button"
 								key={dateStr}
-								onClick={() => onDayClick(dateStr, record)}
+								onClick={() => onDayClick(dateStr, dayEntries)}
 								className={`p-3 text-left hover:bg-gray-50 transition-colors min-h-[120px] flex flex-col ${
 									today ? "bg-blue-50" : isWeekend ? "bg-gray-50" : ""
 								}`}
@@ -207,49 +229,55 @@ export function WeekView({
 									</div>
 								)}
 
-								{/* Record content */}
-								{record ? (
-									<div className="flex-1">
-										{/* Day type badge */}
-										<span
-											className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${
-												DAY_TYPE_COLORS[record.day_type].bg
-											} ${DAY_TYPE_COLORS[record.day_type].text}`}
-										>
-											{DAY_TYPE_LABELS[record.day_type]}
-										</span>
+								{/* Entries content */}
+								{dayEntries.length > 0 ? (
+									<div className="flex-1 space-y-1">
+										{dayEntries.map((entry) => (
+											<div key={entry.id} className="text-xs">
+												{/* Entry type badge */}
+												<span
+													className="inline-block px-2 py-0.5 font-medium rounded-full bg-blue-100 text-blue-800"
+												>
+													{ENTRY_TYPE_LABELS[entry.entry_type]}
+												</span>
 
-										{/* Time info for work days */}
-										{(record.day_type === "work" ||
-											record.day_type === "doctor_visit") && (
-											<div className="mt-2 space-y-1">
-												<div className="text-xs text-gray-600">
-													{formatTime(record.check_in)} -{" "}
-													{formatTime(record.check_out)}
-												</div>
-												{record.net_hours !== null && (
-													<div className="text-sm font-medium text-gray-900">
-														{formatHours(record.net_hours)}
+												{/* Time info for work entries */}
+												{(entry.entry_type === "work" ||
+													entry.entry_type === "doctor_visit") &&
+													entry.check_in && (
+													<div className="text-gray-600 mt-0.5">
+														{formatTime(entry.check_in)} -{" "}
+														{entry.check_out
+															? formatTime(entry.check_out)
+															: "..."}
+														{entry.is_open && (
+															<span className="text-green-600 ml-1">(open)</span>
+														)}
 													</div>
 												)}
-											</div>
-										)}
 
-										{/* Lock indicator */}
-										{record.is_locked && (
-											<div className="mt-1">
-												<svg
-													className="w-4 h-4 text-gray-400"
-													fill="currentColor"
-													viewBox="0 0 20 20"
-												>
-													<title>Locked</title>
-													<path
-														fillRule="evenodd"
-														d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
-														clipRule="evenodd"
-													/>
-												</svg>
+												{/* Lock indicator */}
+												{entry.is_locked && (
+													<svg
+														className="w-3 h-3 text-gray-400 inline-block ml-1"
+														fill="currentColor"
+														viewBox="0 0 20 20"
+													>
+														<title>Locked</title>
+														<path
+															fillRule="evenodd"
+															d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+															clipRule="evenodd"
+														/>
+													</svg>
+												)}
+											</div>
+										))}
+
+										{/* Total hours for day */}
+										{dayTotalHours > 0 && (
+											<div className="text-sm font-medium text-gray-900 mt-1">
+												{formatHours(dayTotalHours)}
 											</div>
 										)}
 									</div>

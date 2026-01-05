@@ -8,7 +8,7 @@ from datetime import date, datetime
 
 import holidays
 
-from .models import DayType, TimeRecord
+from .models import EntryType, TimeEntry
 from .schemas import ComplianceWarning
 
 
@@ -25,7 +25,7 @@ class ComplianceValidator(ABC):
 
     @abstractmethod
     def validate_daily_hours(
-        self, record: TimeRecord
+        self, entry: TimeEntry
     ) -> list[ComplianceWarning]:
         """Check daily hour limits."""
         ...
@@ -33,8 +33,8 @@ class ComplianceValidator(ABC):
     @abstractmethod
     def validate_rest_period(
         self,
-        current: TimeRecord,
-        previous: TimeRecord | None,
+        current: TimeEntry,
+        previous: TimeEntry | None,
     ) -> list[ComplianceWarning]:
         """Check rest between shifts."""
         ...
@@ -42,7 +42,7 @@ class ComplianceValidator(ABC):
     @abstractmethod
     def validate_weekly_hours(
         self,
-        records: list[TimeRecord],
+        entries: list[TimeEntry],
     ) -> list[ComplianceWarning]:
         """Check weekly limits."""
         ...
@@ -77,42 +77,42 @@ class AustrianComplianceValidator(ComplianceValidator):
     BREAK_MINUTES_REQUIRED = 30
 
     def validate_daily_hours(
-        self, record: TimeRecord
+        self, entry: TimeEntry
     ) -> list[ComplianceWarning]:
         """Check daily hour limits per Austrian law.
 
         Args:
-            record: The time record to validate.
+            entry: The time entry to validate.
 
         Returns:
             List of compliance warnings.
         """
         warnings: list[ComplianceWarning] = []
 
-        if record.net_hours is None:
+        if entry.net_hours is None:
             return warnings
 
-        if record.net_hours > self.DAILY_MAX_HOURS:
+        if entry.net_hours > self.DAILY_MAX_HOURS:
             warnings.append(
                 ComplianceWarning(
                     level="error",
                     code="EXCEEDS_DAILY_MAX",
                     message=(
                         f"Exceeds {self.DAILY_MAX_HOURS}h/day legal maximum "
-                        f"({record.net_hours:.1f}h worked)"
+                        f"({entry.net_hours:.1f}h worked)"
                     ),
                     requires_explanation=True,
                     law_reference="Arbeitszeitgesetz §3",
                 )
             )
-        elif record.net_hours > self.DAILY_NORMAL_HOURS:
+        elif entry.net_hours > self.DAILY_NORMAL_HOURS:
             warnings.append(
                 ComplianceWarning(
                     level="info",
                     code="OVERTIME",
                     message=(
                         f"Overtime: exceeds {self.DAILY_NORMAL_HOURS}h/day "
-                        f"normal hours ({record.net_hours:.1f}h worked)"
+                        f"normal hours ({entry.net_hours:.1f}h worked)"
                     ),
                     requires_explanation=False,
                     law_reference="Arbeitszeitgesetz §3",
@@ -123,14 +123,14 @@ class AustrianComplianceValidator(ComplianceValidator):
 
     def validate_rest_period(
         self,
-        current: TimeRecord,
-        previous: TimeRecord | None,
+        current: TimeEntry,
+        previous: TimeEntry | None,
     ) -> list[ComplianceWarning]:
         """Check 11-hour rest requirement.
 
         Args:
-            current: The current time record.
-            previous: The previous time record (if any).
+            current: The current time entry.
+            previous: The previous time entry (if any).
 
         Returns:
             List of compliance warnings.
@@ -164,12 +164,12 @@ class AustrianComplianceValidator(ComplianceValidator):
 
     def validate_weekly_hours(
         self,
-        records: list[TimeRecord],
+        entries: list[TimeEntry],
     ) -> list[ComplianceWarning]:
         """Check weekly hour limits.
 
         Args:
-            records: List of time records for the week.
+            entries: List of time entries for the week.
 
         Returns:
             List of compliance warnings.
@@ -177,9 +177,9 @@ class AustrianComplianceValidator(ComplianceValidator):
         warnings: list[ComplianceWarning] = []
 
         total_hours = sum(
-            r.net_hours or 0.0
-            for r in records
-            if r.day_type in [DayType.WORK.value, DayType.DOCTOR_VISIT.value]
+            e.net_hours or 0.0
+            for e in entries
+            if e.entry_type in [EntryType.WORK.value, EntryType.DOCTOR_VISIT.value]
         )
 
         if total_hours > self.WEEKLY_MAX_HOURS:
@@ -264,14 +264,14 @@ class AustrianComplianceValidator(ComplianceValidator):
 
     def _calculate_rest_hours(
         self,
-        previous: TimeRecord,
-        current: TimeRecord,
+        previous: TimeEntry,
+        current: TimeEntry,
     ) -> float:
         """Calculate rest hours between two shifts.
 
         Args:
-            previous: The previous time record.
-            current: The current time record.
+            previous: The previous time entry.
+            current: The current time entry.
 
         Returns:
             Number of rest hours.

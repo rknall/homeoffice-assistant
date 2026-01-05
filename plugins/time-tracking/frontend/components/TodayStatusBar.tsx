@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { timeRecordsApi, toISODateString } from "../api";
-import type { CompanyInfo, TimeRecord } from "../types";
+import { timeEntriesApi, toISODateString } from "../api";
+import type { CompanyInfo, TimeEntry } from "../types";
 
 interface TodayStatusBarProps {
 	companies: CompanyInfo[]; // All companies (for check-in)
 	companiesWithRecords: CompanyInfo[]; // Only companies with entries this month
-	records: TimeRecord[]; // All records for the current month
+	entries: TimeEntry[]; // All entries for the current month
 	holidays: Set<string>; // Set of holiday date strings (YYYY-MM-DD)
 	currentDate: Date;
 	onStatusChange?: () => void;
@@ -39,17 +39,25 @@ function getWorkingDaysInMonth(
 }
 
 /**
+ * Calculate break minutes based on gross hours (Austrian labor law)
+ */
+function calculateBreakMinutes(grossHours: number): number {
+	if (grossHours > 6) return 30;
+	return 0;
+}
+
+/**
  * TodayStatusBar - Shows today's check-in status and monthly stats
  */
 export function TodayStatusBar({
 	companies,
 	companiesWithRecords,
-	records,
+	entries,
 	holidays,
 	currentDate,
 	onStatusChange,
 }: TodayStatusBarProps) {
-	const [todayRecords, setTodayRecords] = useState<TimeRecord[]>([]);
+	const [todayEntries, setTodayEntries] = useState<TimeEntry[]>([]);
 	const [elapsedTime, setElapsedTime] = useState<string>("");
 	const [isLoading, setIsLoading] = useState(false);
 	const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
@@ -61,12 +69,12 @@ export function TodayStatusBar({
 		}
 	}, [companies, selectedCompanyId]);
 
-	// Find the active record (has an open entry - checked in but not checked out)
-	const activeRecord = todayRecords.find(
-		(r) => r.has_open_entry && r.day_type === "work",
+	// Find the active entry (is_open = checked in but not checked out)
+	const activeEntry = todayEntries.find(
+		(e) => e.is_open && e.entry_type === "work",
 	);
 
-	// Calculate OVERALL monthly stats from records
+	// Calculate OVERALL monthly stats from entries
 	const monthlyStats = useMemo(() => {
 		const year = currentDate.getFullYear();
 		const month = currentDate.getMonth();
@@ -77,43 +85,51 @@ export function TodayStatusBar({
 
 		// Count unique work days (days with work entries)
 		const workDays = new Set<string>();
-		let totalMinutes = 0;
+		let totalGrossMinutes = 0;
+		let totalBreakMinutes = 0;
 
-		for (const record of records) {
-			if (record.day_type === "work" && record.net_hours !== null) {
-				workDays.add(record.date);
-				totalMinutes += record.net_hours * 60;
+		for (const entry of entries) {
+			if (entry.entry_type === "work" && entry.gross_hours !== null) {
+				workDays.add(entry.date);
+				totalGrossMinutes += entry.gross_hours * 60;
 			}
 		}
 
+		// Calculate breaks per day (aggregate gross hours per day first)
+		const dailyGrossHours = new Map<string, number>();
+		for (const entry of entries) {
+			if (entry.entry_type === "work" && entry.gross_hours !== null) {
+				const current = dailyGrossHours.get(entry.date) || 0;
+				dailyGrossHours.set(entry.date, current + entry.gross_hours);
+			}
+		}
+		for (const [, grossHours] of dailyGrossHours) {
+			totalBreakMinutes += calculateBreakMinutes(grossHours);
+		}
+
 		const actualWorkDays = workDays.size;
-		const actualHours = totalMinutes / 60;
+		const actualNetHours = (totalGrossMinutes - totalBreakMinutes) / 60;
 
 		// Overtime: actual hours - expected hours for days worked (not month total)
-		// Only count overtime if you worked more than 8h on your actual work days
 		const expectedForWorkedDays = actualWorkDays * 8;
-		const overtime = Math.max(0, actualHours - expectedForWorkedDays);
+		const overtime = Math.max(0, actualNetHours - expectedForWorkedDays);
 
 		return {
 			actualWorkDays,
 			expectedWorkDays,
-			actualHours,
+			actualHours: actualNetHours,
 			expectedHours,
 			overtime,
 		};
-	}, [records, currentDate, holidays]);
+	}, [entries, currentDate, holidays]);
 
-	// Load today's records for all companies
+	// Load today's entries
 	const loadTodayStatus = useCallback(async () => {
 		if (companies.length === 0) return;
 
-		const today = toISODateString(new Date());
 		try {
-			const todayData = await timeRecordsApi.list({
-				start_date: today,
-				end_date: today,
-			});
-			setTodayRecords(todayData);
+			const todayData = await timeEntriesApi.getToday();
+			setTodayEntries(todayData);
 		} catch (err) {
 			console.error("Failed to load today status:", err);
 		}
@@ -125,13 +141,13 @@ export function TodayStatusBar({
 
 	// Update elapsed time every minute
 	useEffect(() => {
-		if (!activeRecord?.check_in) {
+		if (!activeEntry?.check_in) {
 			setElapsedTime("");
 			return;
 		}
 
 		const updateElapsed = () => {
-			const [hours, minutes] = activeRecord.check_in!.split(":").map(Number);
+			const [hours, minutes] = activeEntry.check_in!.split(":").map(Number);
 			const checkInTime = new Date();
 			checkInTime.setHours(hours, minutes, 0, 0);
 
@@ -152,7 +168,7 @@ export function TodayStatusBar({
 		updateElapsed();
 		const interval = setInterval(updateElapsed, 60000);
 		return () => clearInterval(interval);
-	}, [activeRecord]);
+	}, [activeEntry]);
 
 	// Handle check-in
 	const handleCheckIn = async () => {
@@ -161,7 +177,7 @@ export function TodayStatusBar({
 
 		setIsLoading(true);
 		try {
-			await timeRecordsApi.checkIn(companyToUse);
+			await timeEntriesApi.checkIn({ company_id: companyToUse });
 			await loadTodayStatus();
 			onStatusChange?.();
 		} catch (err) {
@@ -173,11 +189,11 @@ export function TodayStatusBar({
 
 	// Handle check-out
 	const handleCheckOut = async () => {
-		if (!activeRecord) return;
+		if (!activeEntry) return;
 
 		setIsLoading(true);
 		try {
-			await timeRecordsApi.checkOut();
+			await timeEntriesApi.checkOut();
 			await loadTodayStatus();
 			onStatusChange?.();
 		} catch (err) {
@@ -188,13 +204,15 @@ export function TodayStatusBar({
 	};
 
 	// Get company name for display
-	const getCompanyName = (companyId: string): string => {
+	const getCompanyName = (companyId: string | null): string => {
+		if (!companyId) return "Unknown";
 		const company = companies.find((c) => c.id === companyId);
 		return company?.name || "Unknown";
 	};
 
 	// Get company color
-	const getCompanyColor = (companyId: string): string => {
+	const getCompanyColor = (companyId: string | null): string => {
+		if (!companyId) return "#3B82F6";
 		const company = companies.find((c) => c.id === companyId);
 		return company?.color || "#3B82F6";
 	};
@@ -207,12 +225,17 @@ export function TodayStatusBar({
 		return `${h}h ${m}m`;
 	};
 
+	// Count completed entries for today
+	const completedTodayCount = todayEntries.filter(
+		(e) => !e.is_open && e.entry_type === "work",
+	).length;
+
 	return (
 		<div className="bg-white rounded-lg shadow p-4">
 			<div className="flex items-center justify-between gap-6 flex-wrap">
 				{/* Today's status */}
 				<div className="flex items-center gap-4">
-					{activeRecord ? (
+					{activeEntry ? (
 						<>
 							{/* Pulsing green indicator */}
 							<div className="relative">
@@ -223,7 +246,7 @@ export function TodayStatusBar({
 								<div className="text-sm font-medium text-gray-900">
 									Checked in at{" "}
 									<span className="font-semibold">
-										{activeRecord.check_in?.substring(0, 5) || "--:--"}
+										{activeEntry.check_in?.substring(0, 5) || "--:--"}
 									</span>
 									{elapsedTime && (
 										<span className="text-gray-500 ml-2">({elapsedTime})</span>
@@ -233,10 +256,10 @@ export function TodayStatusBar({
 									<span
 										className="inline-block px-2 py-0.5 rounded text-white text-xs"
 										style={{
-											backgroundColor: getCompanyColor(activeRecord.company_id),
+											backgroundColor: getCompanyColor(activeEntry.company_id),
 										}}
 									>
-										{getCompanyName(activeRecord.company_id)}
+										{getCompanyName(activeEntry.company_id)}
 									</span>
 								</div>
 							</div>
@@ -247,9 +270,9 @@ export function TodayStatusBar({
 							<div className="w-3 h-3 bg-gray-300 rounded-full" />
 							<div>
 								<div className="text-sm text-gray-500">Not checked in today</div>
-								{todayRecords.length > 0 && (
+								{completedTodayCount > 0 && (
 									<div className="text-xs text-gray-400">
-										{todayRecords.length} completed record(s)
+										{completedTodayCount} completed session(s)
 									</div>
 								)}
 							</div>
@@ -292,7 +315,7 @@ export function TodayStatusBar({
 
 				{/* Check In/Out buttons - ALWAYS visible */}
 				<div className="flex items-center gap-2">
-					{activeRecord ? (
+					{activeEntry ? (
 						<button
 							type="button"
 							onClick={handleCheckOut}
@@ -323,8 +346,12 @@ export function TodayStatusBar({
 								disabled={isLoading}
 								className="px-4 py-2 text-sm font-medium text-white rounded-md disabled:opacity-50"
 								style={{ backgroundColor: isLoading ? "#9CA3AF" : "#16A34A" }}
-								onMouseEnter={(e) => !isLoading && (e.currentTarget.style.backgroundColor = "#15803D")}
-								onMouseLeave={(e) => !isLoading && (e.currentTarget.style.backgroundColor = "#16A34A")}
+								onMouseEnter={(e) =>
+									!isLoading && (e.currentTarget.style.backgroundColor = "#15803D")
+								}
+								onMouseLeave={(e) =>
+									!isLoading && (e.currentTarget.style.backgroundColor = "#16A34A")
+								}
 							>
 								{isLoading ? "..." : "Check In"}
 							</button>

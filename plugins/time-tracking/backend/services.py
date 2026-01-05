@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Time Tracking plugin business logic services."""
 
-import json
 from calendar import monthrange
 from datetime import date, time, timedelta
 from typing import Any
@@ -14,11 +13,9 @@ from sqlalchemy.orm import Session
 from .models import (
     CompanyTimeSettings,
     CustomHoliday,
-    DayType,
+    EntryType,
     LeaveBalance,
     TimeEntry,
-    TimeRecord,
-    TimeRecordAudit,
     UserTimePreferences,
 )
 from .schemas import ComplianceWarning
@@ -66,17 +63,16 @@ def calculate_break_minutes(gross_hours: float) -> int:
     return 0
 
 
-def calculate_gross_hours(check_in: time, check_out: time) -> float:
-    """Calculate gross hours between check-in and check-out.
+def calculate_gross_minutes(check_in: time, check_out: time) -> int:
+    """Calculate gross minutes between check-in and check-out.
 
     Args:
         check_in: Check-in time.
         check_out: Check-out time.
 
     Returns:
-        Gross hours as a float.
+        Gross minutes as an integer.
     """
-    # Convert to minutes for calculation
     in_minutes = check_in.hour * 60 + check_in.minute
     out_minutes = check_out.hour * 60 + check_out.minute
 
@@ -84,85 +80,13 @@ def calculate_gross_hours(check_in: time, check_out: time) -> float:
     if out_minutes < in_minutes:
         out_minutes += 24 * 60
 
-    return (out_minutes - in_minutes) / 60
-
-
-def calculate_net_hours(
-    check_in: time,
-    check_out: time,
-    break_override: int | None = None,
-) -> tuple[float, int, float]:
-    """Calculate net hours, break time, and gross hours.
-
-    Args:
-        check_in: Check-in time.
-        check_out: Check-out time.
-        break_override: Optional manual break override in minutes.
-
-    Returns:
-        Tuple of (net_hours, break_minutes, gross_hours).
-    """
-    gross_hours = calculate_gross_hours(check_in, check_out)
-    break_minutes = (
-        break_override
-        if break_override is not None
-        else calculate_break_minutes(gross_hours)
-    )
-    net_hours = gross_hours - (break_minutes / 60)
-
-    return net_hours, break_minutes, gross_hours
-
-
-def calculate_comp_time_earned(
-    record: TimeRecord,
-    settings: CompanyTimeSettings | None,
-    is_public_holiday: bool = False,
-) -> float:
-    """Calculate comp time earned for a day.
-
-    Args:
-        record: The time record.
-        settings: Company time settings.
-        is_public_holiday: Whether the day is a public holiday.
-
-    Returns:
-        Comp time hours earned.
-    """
-    if record.day_type not in [DayType.WORK.value, DayType.DOCTOR_VISIT.value]:
-        return 0.0
-
-    if record.net_hours is None:
-        return 0.0
-
-    daily_threshold = settings.daily_overtime_threshold if settings else 8.0
-    overtime_threshold = settings.overtime_threshold_hours if settings else 0.0
-
-    # Calculate overtime (hours beyond daily threshold)
-    overtime = max(0.0, record.net_hours - daily_threshold)
-
-    # Apply threshold (first X hours don't count)
-    if overtime <= overtime_threshold:
-        return 0.0
-
-    overtime -= overtime_threshold
-
-    # Apply multipliers for Sunday/holiday work
-    multiplier = 1.0
-    if record.date:
-        weekday = record.date.weekday()
-        if weekday == 6 or is_public_holiday:  # Sunday
-            multiplier = 2.0
-
-    return overtime * multiplier
+    return out_minutes - in_minutes
 
 
 def times_overlap(
     start1: time, end1: time, start2: time, end2: time
 ) -> bool:
     """Check if two time ranges overlap.
-
-    Handles overnight shifts correctly by checking both the evening and
-    morning portions of overnight ranges.
 
     Args:
         start1: Start time of first range.
@@ -173,128 +97,33 @@ def times_overlap(
     Returns:
         True if the time ranges overlap.
     """
-    # Convert to minutes for comparison
     start1_mins = start1.hour * 60 + start1.minute
     end1_mins = end1.hour * 60 + end1.minute
     start2_mins = start2.hour * 60 + start2.minute
     end2_mins = end2.hour * 60 + end2.minute
 
-    # Check if either range is an overnight shift
-    range1_overnight = end1_mins < start1_mins
-    range2_overnight = end2_mins < start2_mins
-
-    # Handle overnight shifts by normalizing to 24+ hour scale
-    if range1_overnight:
+    # Handle overnight shifts
+    if end1_mins < start1_mins:
         end1_mins += 24 * 60
-    if range2_overnight:
+    if end2_mins < start2_mins:
         end2_mins += 24 * 60
 
-    # For overnight range1, if range2 starts early morning (within range1's
-    # next-day portion) we need to shift range2 forward for proper comparison
-    if range1_overnight and not range2_overnight:
-        original_end1 = end1.hour * 60 + end1.minute
-        if start2_mins < original_end1:
-            start2_mins += 24 * 60
-            end2_mins += 24 * 60
+    # Adjust for overnight comparisons
+    if end1_mins > 24 * 60 and start2_mins < end1_mins - 24 * 60:
+        start2_mins += 24 * 60
+        end2_mins += 24 * 60
+    if end2_mins > 24 * 60 and start1_mins < end2_mins - 24 * 60:
+        start1_mins += 24 * 60
+        end1_mins += 24 * 60
 
-    # For overnight range2, apply symmetric logic
-    if range2_overnight and not range1_overnight:
-        original_end2 = end2.hour * 60 + end2.minute
-        if start1_mins < original_end2:
-            start1_mins += 24 * 60
-            end1_mins += 24 * 60
-
-    # Check for overlap: ranges overlap if start of one is before end of other
     return start1_mins < end2_mins and start2_mins < end1_mins
 
 
-def validate_time_overlap(
-    db: Session,
-    user_id: UUID,
-    record_date: date,
-    check_in: time,
-    check_out: time,
-    company_id: UUID,
-    exclude_entry_id: UUID | None = None,
-) -> tuple[bool, list[dict[str, Any]]]:
-    """Validate that a time entry doesn't overlap with existing entries.
-
-    Checks ALL companies for the given user and date to prevent
-    double-booking across different companies.
-
-    Args:
-        db: Database session.
-        user_id: User ID.
-        record_date: Date of the record.
-        check_in: Check-in time.
-        check_out: Check-out time.
-        company_id: Company ID for the new/updated entry.
-        exclude_entry_id: Entry ID to exclude from check (for updates).
-
-    Returns:
-        Tuple of (is_valid, conflicting_entries).
-        is_valid is True if no overlaps found.
-        conflicting_entries is a list of dicts with conflict details.
-    """
-    # Query ALL entries for this user on this date across ALL companies
-    query = (
-        db.query(TimeEntry)
-        .join(TimeRecord)
-        .filter(
-            TimeRecord.user_id == user_id,
-            TimeRecord.date == record_date,
-            TimeEntry.check_in.isnot(None),
-            TimeEntry.check_out.isnot(None),
-        )
-    )
-
-    # Exclude the entry being updated
-    if exclude_entry_id:
-        query = query.filter(TimeEntry.id != exclude_entry_id)
-
-    existing_entries = query.all()
-
-    conflicts = []
-    for entry in existing_entries:
-        if times_overlap(check_in, check_out, entry.check_in, entry.check_out):
-            # Get company name for better error messages
-            company_name = (
-                db.query(TimeRecord)
-                .filter(TimeRecord.id == entry.record_id)
-                .first()
-                .company.name
-                if hasattr(
-                    db.query(TimeRecord)
-                    .filter(TimeRecord.id == entry.record_id)
-                    .first(),
-                    "company",
-                )
-                else "Unknown"
-            )
-
-            conflicts.append(
-                {
-                    "entry_id": str(entry.id),
-                    "company_id": str(
-                        db.query(TimeRecord)
-                        .filter(TimeRecord.id == entry.record_id)
-                        .first()
-                        .company_id
-                    ),
-                    "company_name": company_name,
-                    "check_in": entry.check_in.strftime("%H:%M"),
-                    "check_out": entry.check_out.strftime("%H:%M"),
-                }
-            )
-
-    return len(conflicts) == 0, conflicts
+# --- Time Entry Service ---
 
 
-# --- Time Record Service ---
-
-
-class TimeRecordService:
-    """Service for managing time records."""
+class TimeEntryService:
+    """Service for managing time entries."""
 
     def __init__(self, db: Session) -> None:
         """Initialize the service.
@@ -305,39 +134,33 @@ class TimeRecordService:
         self.db = db
         self.validator = AustrianComplianceValidator()
 
-    def create_record(
+    def create_entry(
         self,
         user_id: UUID,
-        record_date: date,
-        day_type: str,
+        entry_date: date,
+        entry_type: str,
         company_id: UUID | None = None,
         check_in: time | None = None,
         check_out: time | None = None,
-        check_in_timezone: str | None = None,
-        check_out_timezone: str | None = None,
-        partial_absence_type: str | None = None,
-        partial_absence_hours: float | None = None,
+        timezone: str | None = None,
         work_location: str | None = None,
         notes: str | None = None,
-    ) -> TimeRecord:
-        """Create a new time record.
+    ) -> TimeEntry:
+        """Create a new time entry.
 
         Args:
             user_id: The user ID.
-            record_date: The date of the record.
-            day_type: Type of day (work, vacation, etc.).
+            entry_date: The date of the entry.
+            entry_type: Type of entry (work, vacation, etc.).
             company_id: Optional company ID.
             check_in: Check-in time.
             check_out: Check-out time.
-            check_in_timezone: Timezone for check-in.
-            check_out_timezone: Timezone for check-out.
-            partial_absence_type: Type of partial absence.
-            partial_absence_hours: Hours of partial absence.
+            timezone: Timezone.
             work_location: Work location.
             notes: Notes.
 
         Returns:
-            The created time record.
+            The created time entry.
         """
         # Round times if provided
         if check_in:
@@ -345,611 +168,471 @@ class TimeRecordService:
         if check_out:
             check_out = round_time_employer_favor(check_out, is_check_in=False)
 
-        # Validate for time overlaps (only for work days with times)
+        # Validate for time overlaps (only for work entries with times)
         if (
-            day_type in [DayType.WORK.value, DayType.DOCTOR_VISIT.value]
+            entry_type in [EntryType.WORK.value, EntryType.DOCTOR_VISIT.value]
             and check_in
             and check_out
-            and company_id
         ):
-            is_valid, conflicts = validate_time_overlap(
-                self.db,
-                user_id,
-                record_date,
-                check_in,
-                check_out,
-                company_id,
-            )
-            if not is_valid:
-                conflict_details = "; ".join(
-                    [
-                        (
-                            f"{c['company_name']} "
-                            f"({c['check_in']}-{c['check_out']})"
-                        )
-                        for c in conflicts
-                    ]
-                )
-                raise ValueError(
-                    f"Time overlap detected with existing entries: "
-                    f"{conflict_details}"
-                )
-
-        # Calculate hours if check-in and check-out provided
-        gross_hours = None
-        break_minutes = None
-        net_hours = None
-
-        if check_in and check_out:
-            net_hours, break_minutes, gross_hours = calculate_net_hours(
-                check_in, check_out
+            self._validate_no_overlap(
+                user_id, entry_date, check_in, check_out, exclude_entry_id=None
             )
 
-        # Create the record
-        record = TimeRecord(
+        entry = TimeEntry(
             user_id=user_id,
-            date=record_date,
-            day_type=day_type,
+            date=entry_date,
             company_id=company_id,
+            entry_type=entry_type,
             check_in=check_in,
             check_out=check_out,
-            check_in_timezone=check_in_timezone,
-            check_out_timezone=check_out_timezone,
-            partial_absence_type=partial_absence_type,
-            partial_absence_hours=partial_absence_hours,
-            gross_hours=gross_hours,
-            break_minutes=break_minutes,
-            net_hours=net_hours,
+            timezone=timezone,
             work_location=work_location,
             notes=notes,
         )
 
-        # Validate compliance
-        warnings = self._validate_record(record, user_id)
-        if warnings:
-            record.compliance_warnings = json.dumps(
-                [w.model_dump() for w in warnings]
-            )
-
-        self.db.add(record)
+        self.db.add(entry)
         self.db.commit()
-        self.db.refresh(record)
-
-        # Create audit entry
-        self._create_audit(record, user_id, "created")
+        self.db.refresh(entry)
 
         # Update user preferences
-        self._update_preferences(user_id, record)
+        self._update_preferences(user_id, entry)
 
         # Update leave balance if needed
-        self._update_leave_balance(user_id, company_id, record_date.year, day_type)
+        self._update_leave_balance(user_id, company_id, entry_date.year, entry_type)
 
-        return record
+        return entry
 
-    def update_record(
+    def update_entry(
         self,
-        record_id: UUID,
+        entry_id: UUID,
         user_id: UUID,
         **kwargs: Any,
-    ) -> TimeRecord | None:
-        """Update an existing time record.
+    ) -> TimeEntry | None:
+        """Update an existing time entry.
 
         Args:
-            record_id: The record ID.
-            user_id: The user ID (for audit).
+            entry_id: The entry ID.
+            user_id: The user ID.
             **kwargs: Fields to update.
 
         Returns:
-            The updated record, or None if not found.
+            The updated entry, or None if not found.
         """
-        record = self.db.query(TimeRecord).filter(
-            TimeRecord.id == record_id,
-            TimeRecord.user_id == user_id,
+        entry = self.db.query(TimeEntry).filter(
+            TimeEntry.id == entry_id,
+            TimeEntry.user_id == user_id,
         ).first()
 
-        if not record:
+        if not entry:
             return None
 
-        # Check if record is locked
-        if self.is_record_locked(record):
-            raise ValueError("Cannot edit locked record")
-
-        # Store old values for audit
-        old_values = self._record_to_dict(record)
+        # Check if entry is locked
+        if self.is_entry_locked(entry):
+            raise ValueError("Cannot edit locked entry")
 
         # Update fields
         for key, value in kwargs.items():
-            if value is not None and hasattr(record, key):
+            if value is not None and hasattr(entry, key):
                 if key == "check_in" and value:
                     value = round_time_employer_favor(value, is_check_in=True)
                 elif key == "check_out" and value:
                     value = round_time_employer_favor(value, is_check_in=False)
-                setattr(record, key, value)
+                setattr(entry, key, value)
 
-        # Validate for time overlaps after updates (only for work days with times)
+        # Validate for time overlaps after updates
         if (
-            record.day_type in [DayType.WORK.value, DayType.DOCTOR_VISIT.value]
-            and record.check_in
-            and record.check_out
-            and record.company_id
+            entry.entry_type in [EntryType.WORK.value, EntryType.DOCTOR_VISIT.value]
+            and entry.check_in
+            and entry.check_out
         ):
-            # Get the first entry for this record to pass to overlap check
-            first_entry = (
-                self.db.query(TimeEntry)
-                .filter(TimeEntry.record_id == record.id)
-                .first()
+            self._validate_no_overlap(
+                user_id, entry.date, entry.check_in, entry.check_out,
+                exclude_entry_id=entry_id
             )
-            exclude_entry_id = first_entry.id if first_entry else None
-
-            is_valid, conflicts = validate_time_overlap(
-                self.db,
-                user_id,
-                record.date,
-                record.check_in,
-                record.check_out,
-                record.company_id,
-                exclude_entry_id=exclude_entry_id,
-            )
-            if not is_valid:
-                conflict_details = "; ".join(
-                    [
-                        (
-                            f"{c['company_name']} "
-                            f"({c['check_in']}-{c['check_out']})"
-                        )
-                        for c in conflicts
-                    ]
-                )
-                raise ValueError(
-                    f"Time overlap detected with existing entries: "
-                    f"{conflict_details}"
-                )
-
-        # Recalculate hours if times changed
-        if record.check_in and record.check_out:
-            net_hours, break_minutes, gross_hours = calculate_net_hours(
-                record.check_in, record.check_out
-            )
-            record.gross_hours = gross_hours
-            record.break_minutes = break_minutes
-            record.net_hours = net_hours
-
-        # Re-validate compliance
-        warnings = self._validate_record(record, user_id)
-        record.compliance_warnings = (
-            json.dumps([w.model_dump() for w in warnings]) if warnings else None
-        )
 
         self.db.commit()
-        self.db.refresh(record)
+        self.db.refresh(entry)
 
-        # Create audit entry
-        self._create_audit(record, user_id, "updated", old_values)
+        return entry
 
-        return record
-
-    def delete_record(
+    def delete_entry(
         self,
-        record_id: UUID,
+        entry_id: UUID,
         user_id: UUID,
-        reason: str | None = None,
     ) -> bool:
-        """Delete a time record.
+        """Delete a time entry.
 
         Args:
-            record_id: The record ID.
+            entry_id: The entry ID.
             user_id: The user ID.
-            reason: Optional reason for deletion.
 
         Returns:
             True if deleted, False if not found.
         """
-        record = self.db.query(TimeRecord).filter(
-            TimeRecord.id == record_id,
-            TimeRecord.user_id == user_id,
+        entry = self.db.query(TimeEntry).filter(
+            TimeEntry.id == entry_id,
+            TimeEntry.user_id == user_id,
         ).first()
 
-        if not record:
+        if not entry:
             return False
 
-        # Check if record is locked
-        if self.is_record_locked(record):
-            raise ValueError("Cannot delete locked record")
+        if self.is_entry_locked(entry):
+            raise ValueError("Cannot delete locked entry")
 
-        # Store values for audit
-        old_values = self._record_to_dict(record)
-
-        # Create audit entry before deletion
-        audit = TimeRecordAudit(
-            time_record_id=record.id,
-            changed_by=user_id,
-            change_type="deleted",
-            old_values=json.dumps(old_values),
-            new_values="{}",
-            reason=reason,
-        )
-        self.db.add(audit)
-
-        self.db.delete(record)
+        self.db.delete(entry)
         self.db.commit()
 
         return True
 
-    def get_record(
+    def get_entry(
         self,
-        record_id: UUID,
+        entry_id: UUID,
         user_id: UUID,
-    ) -> TimeRecord | None:
-        """Get a time record by ID.
+    ) -> TimeEntry | None:
+        """Get a time entry by ID.
 
         Args:
-            record_id: The record ID.
+            entry_id: The entry ID.
             user_id: The user ID.
 
         Returns:
-            The time record, or None if not found.
+            The time entry, or None if not found.
         """
-        return self.db.query(TimeRecord).filter(
-            TimeRecord.id == record_id,
-            TimeRecord.user_id == user_id,
+        return self.db.query(TimeEntry).filter(
+            TimeEntry.id == entry_id,
+            TimeEntry.user_id == user_id,
         ).first()
 
-    def get_record_by_date(
-        self,
-        user_id: UUID,
-        record_date: date,
-        company_id: UUID | None = None,
-    ) -> TimeRecord | None:
-        """Get a time record for a specific date and company.
-
-        Args:
-            user_id: The user ID.
-            record_date: The date.
-            company_id: Optional company ID to filter by.
-
-        Returns:
-            The time record, or None if not found.
-        """
-        query = self.db.query(TimeRecord).filter(
-            TimeRecord.user_id == user_id,
-            TimeRecord.date == record_date,
-        )
-        if company_id is not None:
-            query = query.filter(TimeRecord.company_id == company_id)
-        return query.first()
-
-    def list_records(
+    def list_entries(
         self,
         user_id: UUID,
         from_date: date | None = None,
         to_date: date | None = None,
         company_id: UUID | None = None,
-        day_type: str | None = None,
-    ) -> list[TimeRecord]:
-        """List time records with optional filters.
+        entry_type: str | None = None,
+    ) -> list[TimeEntry]:
+        """List time entries with optional filters.
 
         Args:
             user_id: The user ID.
             from_date: Optional start date filter.
             to_date: Optional end date filter.
             company_id: Optional company filter.
-            day_type: Optional day type filter.
+            entry_type: Optional entry type filter.
 
         Returns:
-            List of matching time records.
+            List of matching time entries.
         """
-        query = self.db.query(TimeRecord).filter(TimeRecord.user_id == user_id)
+        query = self.db.query(TimeEntry).filter(TimeEntry.user_id == user_id)
 
         if from_date:
-            query = query.filter(TimeRecord.date >= from_date)
+            query = query.filter(TimeEntry.date >= from_date)
         if to_date:
-            query = query.filter(TimeRecord.date <= to_date)
+            query = query.filter(TimeEntry.date <= to_date)
         if company_id:
-            query = query.filter(TimeRecord.company_id == company_id)
-        if day_type:
-            query = query.filter(TimeRecord.day_type == day_type)
+            query = query.filter(TimeEntry.company_id == company_id)
+        if entry_type:
+            query = query.filter(TimeEntry.entry_type == entry_type)
 
-        return query.order_by(TimeRecord.date.desc()).all()
+        return query.order_by(TimeEntry.date.desc(), TimeEntry.check_in.asc()).all()
 
-    def get_records_for_month(
+    def get_entries_for_date(
         self,
         user_id: UUID,
-        year: int,
-        month: int,
+        entry_date: date,
         company_id: UUID | None = None,
-    ) -> list[TimeRecord]:
-        """Get all records for a specific month.
+    ) -> list[TimeEntry]:
+        """Get all entries for a specific date.
 
         Args:
             user_id: The user ID.
-            year: The year.
-            month: The month (1-12).
+            entry_date: The date.
             company_id: Optional company filter.
 
         Returns:
-            List of time records for the month.
+            List of entries for that date.
         """
-        _, last_day = monthrange(year, month)
-        from_date = date(year, month, 1)
-        to_date = date(year, month, last_day)
+        query = self.db.query(TimeEntry).filter(
+            TimeEntry.user_id == user_id,
+            TimeEntry.date == entry_date,
+        )
+        if company_id:
+            query = query.filter(TimeEntry.company_id == company_id)
 
-        return self.list_records(user_id, from_date, to_date, company_id)
+        return query.order_by(TimeEntry.check_in.asc()).all()
 
-    def is_record_locked(self, record: TimeRecord) -> bool:
-        """Check if a record is locked for editing.
+    def get_open_entry(
+        self,
+        user_id: UUID,
+        company_id: UUID | None = None,
+    ) -> TimeEntry | None:
+        """Get the currently open entry (checked in but not out).
 
         Args:
-            record: The time record.
+            user_id: The user ID.
+            company_id: Optional company filter.
 
         Returns:
-            True if the record is locked.
+            The open entry, or None.
         """
-        if record.submission_id:
+        today = date.today()
+        query = self.db.query(TimeEntry).filter(
+            TimeEntry.user_id == user_id,
+            TimeEntry.date == today,
+            TimeEntry.entry_type == EntryType.WORK.value,
+            TimeEntry.check_in.isnot(None),
+            TimeEntry.check_out.is_(None),
+        )
+        if company_id:
+            query = query.filter(TimeEntry.company_id == company_id)
+
+        return query.first()
+
+    def has_open_entry(
+        self,
+        user_id: UUID,
+    ) -> bool:
+        """Check if user has any open entry today.
+
+        Args:
+            user_id: The user ID.
+
+        Returns:
+            True if there's an open entry.
+        """
+        return self.get_open_entry(user_id) is not None
+
+    def check_in(
+        self,
+        user_id: UUID,
+        company_id: UUID | None = None,
+        check_in_time: time | None = None,
+        timezone: str | None = None,
+        work_location: str | None = None,
+        notes: str | None = None,
+    ) -> TimeEntry:
+        """Quick check-in for today.
+
+        Args:
+            user_id: The user ID.
+            company_id: Optional company ID.
+            check_in_time: Optional specific time (defaults to now).
+            timezone: Timezone.
+            work_location: Work location.
+            notes: Notes.
+
+        Returns:
+            The created entry.
+
+        Raises:
+            ValueError: If already checked in.
+        """
+        # Check for existing open entry
+        open_entry = self.get_open_entry(user_id)
+        if open_entry:
+            raise ValueError("Already checked in - please check out first")
+
+        # Use current time if not specified
+        if check_in_time is None:
+            from datetime import datetime
+            from zoneinfo import ZoneInfo
+            tz = ZoneInfo(timezone) if timezone else ZoneInfo("UTC")
+            check_in_time = datetime.now(tz).time()
+
+        return self.create_entry(
+            user_id=user_id,
+            entry_date=date.today(),
+            entry_type=EntryType.WORK.value,
+            company_id=company_id,
+            check_in=check_in_time,
+            check_out=None,
+            timezone=timezone,
+            work_location=work_location,
+            notes=notes,
+        )
+
+    def check_out(
+        self,
+        user_id: UUID,
+        check_out_time: time | None = None,
+        timezone: str | None = None,
+        notes: str | None = None,
+    ) -> TimeEntry:
+        """Quick check-out for today.
+
+        Args:
+            user_id: The user ID.
+            check_out_time: Optional specific time (defaults to now).
+            timezone: Timezone.
+            notes: Optional notes to add.
+
+        Returns:
+            The updated entry.
+
+        Raises:
+            ValueError: If not checked in.
+        """
+        open_entry = self.get_open_entry(user_id)
+        if not open_entry:
+            raise ValueError("Not checked in - nothing to check out")
+
+        # Use current time if not specified
+        if check_out_time is None:
+            from datetime import datetime
+            from zoneinfo import ZoneInfo
+            tz = ZoneInfo(timezone) if timezone else ZoneInfo("UTC")
+            check_out_time = datetime.now(tz).time()
+
+        # Round in employer's favor
+        rounded_time = round_time_employer_favor(check_out_time, is_check_in=False)
+
+        # Ensure check_out >= check_in
+        in_minutes = open_entry.check_in.hour * 60 + open_entry.check_in.minute
+        out_minutes = rounded_time.hour * 60 + rounded_time.minute
+
+        if out_minutes < in_minutes and (in_minutes - out_minutes) < 10:
+            # Same 5-min window rounding issue - use check_in time
+            rounded_time = open_entry.check_in
+
+        open_entry.check_out = rounded_time
+        if notes:
+            open_entry.notes = (
+                f"{open_entry.notes}\n{notes}" if open_entry.notes else notes
+            )
+
+        self.db.commit()
+        self.db.refresh(open_entry)
+
+        # Update preferences
+        self._update_preferences(user_id, open_entry)
+
+        return open_entry
+
+    def is_entry_locked(self, entry: TimeEntry) -> bool:
+        """Check if an entry is locked for editing.
+
+        Args:
+            entry: The time entry.
+
+        Returns:
+            True if the entry is locked.
+        """
+        if entry.submission_id:
             return True
 
         # Get company settings for lock period
         settings = None
-        if record.company_id:
+        if entry.company_id:
             settings = self.db.query(CompanyTimeSettings).filter(
-                CompanyTimeSettings.company_id == record.company_id
+                CompanyTimeSettings.company_id == entry.company_id
             ).first()
 
         lock_days = settings.lock_period_days if settings else 7
 
         # Calculate lock date (X days after month end)
-        _, last_day = monthrange(record.date.year, record.date.month)
-        month_end = date(record.date.year, record.date.month, last_day)
+        _, last_day = monthrange(entry.date.year, entry.date.month)
+        month_end = date(entry.date.year, entry.date.month, last_day)
         lock_date = month_end + timedelta(days=lock_days)
 
         return date.today() > lock_date
 
-    # --- Multi-Entry Support Methods ---
-
-    def get_or_create_record(
+    def get_daily_summary(
         self,
         user_id: UUID,
-        record_date: date,
+        summary_date: date,
         company_id: UUID | None = None,
-        day_type: str = DayType.WORK.value,
-    ) -> TimeRecord:
-        """Get or create a time record for a date (without requiring times).
-
-        Used by check-in to create a record shell that entries will be added to.
+    ) -> dict:
+        """Get aggregated summary for a day.
 
         Args:
             user_id: The user ID.
-            record_date: The date.
-            company_id: Optional company ID.
-            day_type: Type of day (defaults to work).
+            summary_date: The date.
+            company_id: Optional company filter.
 
         Returns:
-            The existing or new time record.
+            Dictionary with daily totals and entries.
         """
-        record = self.get_record_by_date(user_id, record_date, company_id)
-        if record:
-            return record
+        entries = self.get_entries_for_date(user_id, summary_date, company_id)
 
-        # Create new record without check times
-        record = TimeRecord(
-            user_id=user_id,
-            date=record_date,
-            day_type=day_type,
-            company_id=company_id,
-        )
-        self.db.add(record)
-        self.db.commit()
-        self.db.refresh(record)
+        total_minutes = 0
+        has_open = False
 
-        # Create audit entry
-        self._create_audit(record, user_id, "created")
+        for entry in entries:
+            if entry.is_open:
+                has_open = True
+            elif entry.gross_minutes:
+                total_minutes += entry.gross_minutes
 
-        return record
+        gross_hours = total_minutes / 60
+        break_minutes = calculate_break_minutes(gross_hours)
+        net_hours = gross_hours - (break_minutes / 60)
 
-    def create_entry(
+        # Calculate compliance warnings
+        warnings = self._validate_daily_compliance(entries, summary_date, user_id)
+
+        return {
+            "date": summary_date,
+            "entries": entries,
+            "total_gross_hours": gross_hours,
+            "total_net_hours": net_hours,
+            "break_minutes": break_minutes,
+            "entry_count": len(entries),
+            "has_open_entry": has_open,
+            "warnings": warnings,
+        }
+
+    def _validate_no_overlap(
         self,
-        record_id: UUID,
+        user_id: UUID,
+        entry_date: date,
         check_in: time,
-        timezone: str | None = None,
-    ) -> TimeEntry:
-        """Create a new time entry (check-in) for a record.
-
-        Args:
-            record_id: The parent time record ID.
-            check_in: Check-in time.
-            timezone: Timezone for check-in.
-
-        Returns:
-            The created time entry.
-        """
-        # Round time in employer's favor
-        rounded_time = round_time_employer_favor(check_in, is_check_in=True)
-
-        # Get next sequence number
-        max_seq = (
-            self.db.query(func.max(TimeEntry.sequence))
-            .filter(TimeEntry.time_record_id == record_id)
-            .scalar()
-        ) or 0
-        next_seq = max_seq + 1
-
-        entry = TimeEntry(
-            time_record_id=record_id,
-            sequence=next_seq,
-            check_in=rounded_time,
-            check_in_timezone=timezone,
-        )
-        self.db.add(entry)
-        self.db.commit()
-        self.db.refresh(entry)
-
-        # Update parent record's check_in if this is the first entry
-        record = self.db.query(TimeRecord).filter(TimeRecord.id == record_id).first()
-        if record and next_seq == 1:
-            record.check_in = rounded_time
-            record.check_in_timezone = timezone
-            self.db.commit()
-
-        return entry
-
-    def close_entry(
-        self,
-        entry_id: UUID,
         check_out: time,
-        timezone: str | None = None,
-    ) -> TimeEntry:
-        """Close an open time entry (check-out).
+        exclude_entry_id: UUID | None = None,
+    ) -> None:
+        """Validate that times don't overlap with existing entries.
 
         Args:
-            entry_id: The entry ID.
+            user_id: The user ID.
+            entry_date: The date.
+            check_in: Check-in time.
             check_out: Check-out time.
-            timezone: Timezone for check-out.
+            exclude_entry_id: Entry ID to exclude (for updates).
 
-        Returns:
-            The updated time entry.
+        Raises:
+            ValueError: If overlap detected.
         """
-        entry = self.db.query(TimeEntry).filter(TimeEntry.id == entry_id).first()
-        if not entry:
-            raise ValueError("Entry not found")
-
-        if entry.check_out is not None:
-            raise ValueError("Entry is already closed")
-
-        # Round time in employer's favor
-        rounded_time = round_time_employer_favor(check_out, is_check_in=False)
-
-        # Ensure check_out >= check_in (rounding can cause issues in same window)
-        in_minutes = entry.check_in.hour * 60 + entry.check_in.minute
-        out_minutes = rounded_time.hour * 60 + rounded_time.minute
-
-        # If rounded check_out < check_in (same 5-min window), use check_in time
-        if out_minutes < in_minutes and (in_minutes - out_minutes) < 10:
-            # Not overnight, just a rounding issue - set to check_in time
-            rounded_time = entry.check_in
-            out_minutes = in_minutes
-
-        entry.check_out = rounded_time
-        entry.check_out_timezone = timezone
-
-        # Calculate gross minutes for this entry
-        if out_minutes < in_minutes:
-            out_minutes += 24 * 60  # Handle genuine overnight
-        entry.gross_minutes = out_minutes - in_minutes
-
-        self.db.commit()
-        self.db.refresh(entry)
-
-        # Recalculate parent record totals
-        self.recalculate_record_totals(entry.time_record_id)
-
-        return entry
-
-    def get_open_entry(self, record_id: UUID) -> TimeEntry | None:
-        """Get the open entry for a record (if any).
-
-        Args:
-            record_id: The time record ID.
-
-        Returns:
-            The open entry, or None if no open entry exists.
-        """
-        return (
-            self.db.query(TimeEntry)
-            .filter(
-                TimeEntry.time_record_id == record_id,
-                TimeEntry.check_out.is_(None),
-            )
-            .first()
+        query = self.db.query(TimeEntry).filter(
+            TimeEntry.user_id == user_id,
+            TimeEntry.date == entry_date,
+            TimeEntry.check_in.isnot(None),
+            TimeEntry.check_out.isnot(None),
         )
 
-    def recalculate_record_totals(self, record_id: UUID) -> None:
-        """Recalculate TimeRecord totals from all its entries.
+        if exclude_entry_id:
+            query = query.filter(TimeEntry.id != exclude_entry_id)
 
-        Break time = gaps between entries (per user specification).
-        Example: Entry1 08:00-12:00, Entry2 13:00-17:00
-                 Gap = 13:00 - 12:00 = 60 minutes (break)
+        existing = query.all()
 
-        Args:
-            record_id: The time record ID.
-        """
-        record = self.db.query(TimeRecord).filter(TimeRecord.id == record_id).first()
-        if not record:
-            return
+        for entry in existing:
+            if times_overlap(check_in, check_out, entry.check_in, entry.check_out):
+                raise ValueError(
+                    f"Time overlap with existing entry: "
+                    f"{entry.check_in.strftime('%H:%M')}-"
+                    f"{entry.check_out.strftime('%H:%M')}"
+                )
 
-        entries = (
-            self.db.query(TimeEntry)
-            .filter(TimeEntry.time_record_id == record_id)
-            .order_by(TimeEntry.sequence)
-            .all()
-        )
-
-        if not entries:
-            record.check_in = None
-            record.check_out = None
-            record.gross_hours = None
-            record.break_minutes = None
-            record.net_hours = None
-            self.db.commit()
-            return
-
-        # Calculate totals
-        total_gross_minutes = 0
-        total_break_minutes = 0
-
-        for i, entry in enumerate(entries):
-            if entry.gross_minutes:
-                total_gross_minutes += entry.gross_minutes
-
-            # Gap to previous entry is break time
-            if i > 0 and entries[i - 1].check_out and entry.check_in:
-                prev_out = entries[i - 1].check_out
-                curr_in = entry.check_in
-
-                prev_out_minutes = prev_out.hour * 60 + prev_out.minute
-                curr_in_minutes = curr_in.hour * 60 + curr_in.minute
-
-                gap = curr_in_minutes - prev_out_minutes
-                if gap > 0:
-                    total_break_minutes += gap
-
-        # Update record with first check-in and last check-out
-        record.check_in = entries[0].check_in
-        record.check_in_timezone = entries[0].check_in_timezone
-
-        last_entry = entries[-1]
-        if last_entry.check_out:
-            record.check_out = last_entry.check_out
-            record.check_out_timezone = last_entry.check_out_timezone
-        else:
-            # Still have open entry
-            record.check_out = None
-            record.check_out_timezone = None
-
-        # Store calculated values
-        record.gross_hours = total_gross_minutes / 60 if total_gross_minutes else None
-        record.break_minutes = total_break_minutes if total_break_minutes else None
-
-        # Net hours = gross hours (entries already represent actual work time)
-        # Breaks are tracked separately for compliance reporting but don't reduce net
-        # This matches multi-entry semantics where each entry is a work session
-        record.net_hours = record.gross_hours
-
-        # Re-validate compliance
-        warnings = self._validate_record(record, record.user_id)
-        record.compliance_warnings = (
-            json.dumps([w.model_dump() for w in warnings]) if warnings else None
-        )
-
-        self.db.commit()
-
-    def _validate_record(
+    def _validate_daily_compliance(
         self,
-        record: TimeRecord,
+        entries: list[TimeEntry],
+        entry_date: date,
         user_id: UUID,
     ) -> list[ComplianceWarning]:
-        """Validate a record against compliance rules.
+        """Validate daily compliance rules.
 
         Args:
-            record: The time record.
+            entries: List of entries for the day.
+            entry_date: The date.
             user_id: The user ID.
 
         Returns:
@@ -957,75 +640,74 @@ class TimeRecordService:
         """
         warnings: list[ComplianceWarning] = []
 
-        # Validate daily hours
-        warnings.extend(self.validator.validate_daily_hours(record))
+        # Calculate total hours
+        total_minutes = sum(e.gross_minutes or 0 for e in entries if not e.is_open)
+        total_hours = total_minutes / 60
 
-        # Validate rest period against previous record
-        previous = self.db.query(TimeRecord).filter(
-            TimeRecord.user_id == user_id,
-            TimeRecord.date < record.date,
-        ).order_by(TimeRecord.date.desc()).first()
+        # Check daily limits
+        if total_hours > 12:
+            warnings.append(ComplianceWarning(
+                level="error",
+                code="DAILY_MAX_EXCEEDED",
+                message=f"Daily maximum of 12 hours exceeded ({total_hours:.1f}h)",
+                law_reference="AZG §9",
+            ))
+        elif total_hours > 10:
+            warnings.append(ComplianceWarning(
+                level="warning",
+                code="DAILY_OVERTIME",
+                message=f"Working more than 10 hours ({total_hours:.1f}h)",
+                law_reference="AZG §9",
+            ))
 
-        warnings.extend(self.validator.validate_rest_period(record, previous))
+        # Check rest period from previous day
+        prev_entries = self.list_entries(
+            user_id,
+            from_date=entry_date - timedelta(days=1),
+            to_date=entry_date - timedelta(days=1),
+        )
+        if prev_entries and entries:
+            # Find latest checkout yesterday and earliest checkin today
+            prev_checkouts = [
+                e.check_out for e in prev_entries
+                if e.check_out and e.entry_type == EntryType.WORK.value
+            ]
+            today_checkins = [
+                e.check_in for e in entries
+                if e.check_in and e.entry_type == EntryType.WORK.value
+            ]
+
+            if prev_checkouts and today_checkins:
+                last_out = max(prev_checkouts)
+                first_in = min(today_checkins)
+
+                out_mins = last_out.hour * 60 + last_out.minute
+                in_mins = first_in.hour * 60 + first_in.minute + (24 * 60)
+                rest_hours = (in_mins - out_mins) / 60
+
+                if rest_hours < 11:
+                    warnings.append(ComplianceWarning(
+                        level="warning",
+                        code="REST_PERIOD_SHORT",
+                        message=(
+                            f"Rest period of {rest_hours:.1f}h is less than "
+                            f"required 11 hours"
+                        ),
+                        law_reference="AZG §12",
+                    ))
 
         return warnings
-
-    def _create_audit(
-        self,
-        record: TimeRecord,
-        user_id: UUID,
-        change_type: str,
-        old_values: dict | None = None,
-    ) -> None:
-        """Create an audit entry for a record change.
-
-        Args:
-            record: The time record.
-            user_id: The user who made the change.
-            change_type: Type of change (created, updated, deleted).
-            old_values: Previous values (for updates).
-        """
-        audit = TimeRecordAudit(
-            time_record_id=record.id,
-            changed_by=user_id,
-            change_type=change_type,
-            old_values=json.dumps(old_values) if old_values else None,
-            new_values=json.dumps(self._record_to_dict(record)),
-        )
-        self.db.add(audit)
-        self.db.commit()
-
-    def _record_to_dict(self, record: TimeRecord) -> dict:
-        """Convert a record to a dictionary for audit purposes.
-
-        Args:
-            record: The time record.
-
-        Returns:
-            Dictionary representation.
-        """
-        return {
-            "date": str(record.date),
-            "day_type": record.day_type,
-            "check_in": str(record.check_in) if record.check_in else None,
-            "check_out": str(record.check_out) if record.check_out else None,
-            "gross_hours": record.gross_hours,
-            "break_minutes": record.break_minutes,
-            "net_hours": record.net_hours,
-            "work_location": record.work_location,
-            "notes": record.notes,
-        }
 
     def _update_preferences(
         self,
         user_id: UUID,
-        record: TimeRecord,
+        entry: TimeEntry,
     ) -> None:
-        """Update user preferences from a record.
+        """Update user preferences from an entry.
 
         Args:
             user_id: The user ID.
-            record: The time record.
+            entry: The time entry.
         """
         prefs = self.db.query(UserTimePreferences).filter(
             UserTimePreferences.user_id == user_id
@@ -1035,10 +717,10 @@ class TimeRecordService:
             prefs = UserTimePreferences(user_id=user_id)
             self.db.add(prefs)
 
-        prefs.last_company_id = record.company_id
-        prefs.last_work_location = record.work_location
-        prefs.last_check_in = record.check_in
-        prefs.last_check_out = record.check_out
+        prefs.last_company_id = entry.company_id
+        prefs.last_work_location = entry.work_location
+        prefs.last_check_in = entry.check_in
+        prefs.last_check_out = entry.check_out
         self.db.commit()
 
     def _update_leave_balance(
@@ -1046,17 +728,23 @@ class TimeRecordService:
         user_id: UUID,
         company_id: UUID | None,
         year: int,
-        day_type: str,
+        entry_type: str,
     ) -> None:
-        """Update leave balance based on day type.
+        """Update leave balance based on entry type.
 
         Args:
             user_id: The user ID.
             company_id: The company ID.
             year: The year.
-            day_type: The day type.
+            entry_type: The entry type.
         """
-        # Get or create balance
+        if entry_type not in [
+            EntryType.VACATION.value,
+            EntryType.SICK.value,
+            EntryType.COMP_TIME.value,
+        ]:
+            return
+
         balance = self.db.query(LeaveBalance).filter(
             LeaveBalance.user_id == user_id,
             LeaveBalance.company_id == company_id,
@@ -1064,7 +752,6 @@ class TimeRecordService:
         ).first()
 
         if not balance:
-            # Get entitled days from company settings
             entitled = 25.0
             if company_id:
                 settings = self.db.query(CompanyTimeSettings).filter(
@@ -1081,11 +768,11 @@ class TimeRecordService:
             )
             self.db.add(balance)
 
-        # Recalculate from records
+        # Recalculate from entries
         self._recalculate_balance(balance)
 
     def _recalculate_balance(self, balance: LeaveBalance) -> None:
-        """Recalculate a leave balance from records.
+        """Recalculate a leave balance from entries.
 
         Args:
             balance: The leave balance to update.
@@ -1094,19 +781,19 @@ class TimeRecordService:
         year_end = date(balance.year, 12, 31)
 
         # Count vacation days
-        vacation_count = self.db.query(func.count(TimeRecord.id)).filter(
-            TimeRecord.user_id == balance.user_id,
-            TimeRecord.date >= year_start,
-            TimeRecord.date <= year_end,
-            TimeRecord.day_type == DayType.VACATION.value,
+        vacation_count = self.db.query(func.count(TimeEntry.id)).filter(
+            TimeEntry.user_id == balance.user_id,
+            TimeEntry.date >= year_start,
+            TimeEntry.date <= year_end,
+            TimeEntry.entry_type == EntryType.VACATION.value,
         ).scalar() or 0
 
         # Count sick days
-        sick_count = self.db.query(func.count(TimeRecord.id)).filter(
-            TimeRecord.user_id == balance.user_id,
-            TimeRecord.date >= year_start,
-            TimeRecord.date <= year_end,
-            TimeRecord.day_type == DayType.SICK.value,
+        sick_count = self.db.query(func.count(TimeEntry.id)).filter(
+            TimeEntry.user_id == balance.user_id,
+            TimeEntry.date >= year_start,
+            TimeEntry.date <= year_end,
+            TimeEntry.entry_type == EntryType.SICK.value,
         ).scalar() or 0
 
         balance.vacation_taken = float(vacation_count)
@@ -1152,7 +839,6 @@ class LeaveBalanceService:
         ).first()
 
         if not balance:
-            # Get entitled days from company settings
             entitled = 25.0
             carryover = 0.0
 
@@ -1231,19 +917,6 @@ class LeaveBalanceService:
         Returns:
             Current comp time balance in hours.
         """
-        # Get all work records
-        query = self.db.query(TimeRecord).filter(
-            TimeRecord.user_id == user_id,
-            TimeRecord.day_type.in_([
-                DayType.WORK.value,
-                DayType.DOCTOR_VISIT.value,
-            ]),
-        )
-        if company_id:
-            query = query.filter(TimeRecord.company_id == company_id)
-
-        records = query.all()
-
         # Get company settings
         settings = None
         if company_id:
@@ -1251,24 +924,53 @@ class LeaveBalanceService:
                 CompanyTimeSettings.company_id == company_id
             ).first()
 
-        # Calculate earned comp time
-        total_earned = 0.0
-        for record in records:
-            is_holiday = self.validator.is_public_holiday(record.date)
-            earned = calculate_comp_time_earned(record, settings, is_holiday)
-            total_earned += earned
+        daily_threshold = settings.daily_overtime_threshold if settings else 8.0
+
+        # Get all work entries
+        query = self.db.query(TimeEntry).filter(
+            TimeEntry.user_id == user_id,
+            TimeEntry.entry_type.in_([
+                EntryType.WORK.value,
+                EntryType.DOCTOR_VISIT.value,
+            ]),
+            TimeEntry.check_in.isnot(None),
+            TimeEntry.check_out.isnot(None),
+        )
+        if company_id:
+            query = query.filter(TimeEntry.company_id == company_id)
+
+        entries = query.all()
+
+        # Group by date and calculate daily overtime
+        daily_hours: dict[date, float] = {}
+        for entry in entries:
+            hours = (entry.gross_minutes or 0) / 60
+            if entry.date in daily_hours:
+                daily_hours[entry.date] += hours
+            else:
+                daily_hours[entry.date] = hours
+
+        # Calculate total overtime
+        total_overtime = 0.0
+        for entry_date, hours in daily_hours.items():
+            if hours > daily_threshold:
+                overtime = hours - daily_threshold
+                # Check for Sunday/holiday multiplier
+                is_holiday = self.validator.is_public_holiday(entry_date)
+                weekday = entry_date.weekday()
+                if weekday == 6 or is_holiday:  # Sunday
+                    overtime *= 2.0
+                total_overtime += overtime
 
         # Subtract comp time taken
-        comp_days = self.db.query(func.count(TimeRecord.id)).filter(
-            TimeRecord.user_id == user_id,
-            TimeRecord.day_type == DayType.COMP_TIME.value,
+        comp_days = self.db.query(func.count(TimeEntry.id)).filter(
+            TimeEntry.user_id == user_id,
+            TimeEntry.entry_type == EntryType.COMP_TIME.value,
         ).scalar() or 0
 
-        # Assume 8 hours per comp time day
-        daily_hours = settings.daily_overtime_threshold if settings else 8.0
-        total_taken = float(comp_days) * daily_hours
+        total_taken = float(comp_days) * daily_threshold
 
-        return total_earned - total_taken
+        return total_overtime - total_taken
 
 
 # --- Company Settings Service ---

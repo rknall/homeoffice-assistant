@@ -7,16 +7,15 @@ import {
 	getWeekEnd,
 	getWeekStart,
 	leaveBalanceApi,
-	timeRecordsApi,
+	timeEntriesApi,
 	toISODateString,
 } from "../api";
 import type {
 	ComplianceWarning,
 	LeaveBalance,
-	TimeRecord,
-	TimeRecordCreate,
-	TimeRecordUpdate,
-	TimeRecordWithWarnings,
+	TimeEntry,
+	TimeEntryCreate,
+	TimeEntryUpdate,
 } from "../types";
 import { TimeRecordForm } from "./TimeRecordForm";
 import { WeekView } from "./WeekView";
@@ -31,7 +30,7 @@ export function TimeTrackingPage({
 	companyName,
 }: TimeTrackingPageProps) {
 	const [currentDate, setCurrentDate] = useState(new Date());
-	const [records, setRecords] = useState<TimeRecord[]>([]);
+	const [entries, setEntries] = useState<TimeEntry[]>([]);
 	const [vacationBalance, setVacationBalance] = useState<LeaveBalance | null>(
 		null,
 	);
@@ -39,26 +38,26 @@ export function TimeTrackingPage({
 		null,
 	);
 	const [selectedDate, setSelectedDate] = useState<string | null>(null);
-	const [selectedRecord, setSelectedRecord] = useState<TimeRecord | null>(null);
+	const [selectedEntry, setSelectedEntry] = useState<TimeEntry | null>(null);
 	const [formWarnings, setFormWarnings] = useState<ComplianceWarning[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [isSaving, setIsSaving] = useState(false);
-	const [todayRecord, setTodayRecord] = useState<TimeRecord | null>(null);
+	const [todayEntries, setTodayEntries] = useState<TimeEntry[]>([]);
 
-	const loadRecords = useCallback(async () => {
+	const loadEntries = useCallback(async () => {
 		setIsLoading(true);
 		try {
 			const weekStart = getWeekStart(currentDate);
 			const weekEnd = getWeekEnd(currentDate);
 
-			const response = await timeRecordsApi.list({
+			const response = await timeEntriesApi.list({
 				company_id: companyId,
 				start_date: toISODateString(weekStart),
 				end_date: toISODateString(weekEnd),
 			});
-			setRecords(response.records);
+			setEntries(response);
 		} catch (err) {
-			console.error("Failed to load records:", err);
+			console.error("Failed to load entries:", err);
 		} finally {
 			setIsLoading(false);
 		}
@@ -74,44 +73,51 @@ export function TimeTrackingPage({
 		}
 	}, [companyId]);
 
-	const loadTodayRecord = useCallback(async () => {
+	const loadTodayEntries = useCallback(async () => {
 		try {
-			const record = await timeRecordsApi.getToday(companyId);
-			setTodayRecord(record);
+			const allToday = await timeEntriesApi.getToday();
+			// Filter to just this company's entries
+			const companyToday = allToday.filter((e) => e.company_id === companyId);
+			setTodayEntries(companyToday);
 		} catch (err) {
-			console.error("Failed to load today record:", err);
+			console.error("Failed to load today entries:", err);
 		}
 	}, [companyId]);
 
 	useEffect(() => {
-		loadRecords();
-	}, [loadRecords]);
+		loadEntries();
+	}, [loadEntries]);
 
 	useEffect(() => {
 		loadBalances();
-		loadTodayRecord();
-	}, [loadBalances, loadTodayRecord]);
+		loadTodayEntries();
+	}, [loadBalances, loadTodayEntries]);
+
+	// Find active (open) entry for today
+	const activeEntry = todayEntries.find(
+		(e) => e.is_open && e.entry_type === "work",
+	);
 
 	const handleCheckIn = useCallback(async () => {
 		try {
-			const result = await timeRecordsApi.checkIn(companyId);
-			setTodayRecord(result.record);
-			await loadRecords();
+			await timeEntriesApi.checkIn({ company_id: companyId });
+			await loadTodayEntries();
+			await loadEntries();
 		} catch (err) {
 			console.error("Check-in failed:", err);
 		}
-	}, [companyId, loadRecords]);
+	}, [companyId, loadEntries, loadTodayEntries]);
 
 	const handleCheckOut = useCallback(async () => {
-		if (!todayRecord) return;
+		if (!activeEntry) return;
 		try {
-			const result = await timeRecordsApi.checkOut(todayRecord.id);
-			setTodayRecord(result.record);
-			await loadRecords();
+			await timeEntriesApi.checkOut();
+			await loadTodayEntries();
+			await loadEntries();
 		} catch (err) {
 			console.error("Check-out failed:", err);
 		}
-	}, [todayRecord, loadRecords]);
+	}, [activeEntry, loadEntries, loadTodayEntries]);
 
 	// Keyboard shortcuts
 	useEffect(() => {
@@ -129,7 +135,7 @@ export function TimeTrackingPage({
 			// Escape to close form
 			if (e.key === "Escape" && selectedDate) {
 				setSelectedDate(null);
-				setSelectedRecord(null);
+				setSelectedEntry(null);
 				setFormWarnings([]);
 			}
 		};
@@ -138,39 +144,31 @@ export function TimeTrackingPage({
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [selectedDate, handleCheckIn, handleCheckOut]);
 
-	const handleDayClick = (date: string, record?: TimeRecord) => {
+	const handleDayClick = (date: string, dayEntries?: TimeEntry[]) => {
 		setSelectedDate(date);
-		setSelectedRecord(record || null);
+		// If there's exactly one entry, select it for editing; otherwise create new
+		setSelectedEntry(dayEntries?.length === 1 ? dayEntries[0] : null);
 		setFormWarnings([]);
 	};
 
-	const handleFormSubmit = async (
-		data: TimeRecordCreate | TimeRecordUpdate,
-	) => {
+	const handleFormSubmit = async (data: TimeEntryCreate | TimeEntryUpdate) => {
 		setIsSaving(true);
 		try {
-			let result: TimeRecordWithWarnings;
-			if (selectedRecord) {
-				result = await timeRecordsApi.update(
-					selectedRecord.id,
-					data as TimeRecordUpdate,
-				);
+			if (selectedEntry) {
+				await timeEntriesApi.update(selectedEntry.id, data as TimeEntryUpdate);
 			} else {
-				result = await timeRecordsApi.create(data as TimeRecordCreate);
+				await timeEntriesApi.create(data as TimeEntryCreate);
 			}
 
-			const warnings = result.warnings || [];
-			setFormWarnings(warnings);
-
-			// If no errors, close the form
-			if (!warnings.some((w) => w.level === "error")) {
-				setSelectedDate(null);
-				setSelectedRecord(null);
-				setFormWarnings([]);
-				await loadRecords();
-				await loadBalances();
-				await loadTodayRecord();
-			}
+			// Close the form and reload data
+			setSelectedDate(null);
+			setSelectedEntry(null);
+			setFormWarnings([]);
+			await loadEntries();
+			await loadBalances();
+			await loadTodayEntries();
+		} catch (err) {
+			console.error("Failed to save entry:", err);
 		} finally {
 			setIsSaving(false);
 		}
@@ -178,12 +176,13 @@ export function TimeTrackingPage({
 
 	const handleFormCancel = () => {
 		setSelectedDate(null);
-		setSelectedRecord(null);
+		setSelectedEntry(null);
 		setFormWarnings([]);
 	};
 
-	const canCheckIn = !todayRecord || !todayRecord.check_in;
-	const canCheckOut = todayRecord?.check_in && !todayRecord.check_out;
+	// Check-in/out state based on whether there's an active (open) entry
+	const canCheckIn = !activeEntry;
+	const canCheckOut = !!activeEntry;
 
 	return (
 		<div className="space-y-6">
@@ -261,14 +260,14 @@ export function TimeTrackingPage({
 
 			{/* Week view */}
 			<WeekView
-				records={records}
+				entries={entries}
 				currentDate={currentDate}
 				onDateChange={setCurrentDate}
 				onDayClick={handleDayClick}
 				isLoading={isLoading}
 			/>
 
-			{/* Time record form modal */}
+			{/* Time entry form modal */}
 			{selectedDate && (
 				<div className="fixed inset-0 z-50 overflow-y-auto">
 					<div className="flex min-h-screen items-center justify-center p-4">
@@ -284,10 +283,10 @@ export function TimeTrackingPage({
 						{/* Modal */}
 						<div className="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
 							<h2 className="text-lg font-medium text-gray-900 mb-4">
-								{selectedRecord ? "Edit Time Record" : "New Time Record"}
+								{selectedEntry ? "Edit Time Entry" : "New Time Entry"}
 							</h2>
 							<TimeRecordForm
-								record={selectedRecord}
+								entry={selectedEntry}
 								companyId={companyId}
 								date={selectedDate}
 								onSubmit={handleFormSubmit}

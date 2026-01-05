@@ -2,15 +2,19 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { companiesApi, holidaysApi, timeRecordsApi, toISODateString } from "../api";
+import {
+	companiesApi,
+	holidaysApi,
+	timeEntriesApi,
+	toISODateString,
+} from "../api";
 import type {
 	CompanyInfo,
 	ComplianceWarning,
 	Holiday,
-	TimeRecord,
-	TimeRecordCreate,
-	TimeRecordUpdate,
-	TimeRecordWithWarnings,
+	TimeEntry,
+	TimeEntryCreate,
+	TimeEntryUpdate,
 } from "../types";
 import { COMPANY_COLORS } from "../types";
 import { LeaveBalanceCard } from "./LeaveBalanceCard";
@@ -41,12 +45,12 @@ function getMonthEnd(date: Date): Date {
 export function UnifiedTimeTrackingPage() {
 	const [viewMode, setViewMode] = useState<ViewMode>("calendar");
 	const [currentDate, setCurrentDate] = useState(new Date());
-	const [records, setRecords] = useState<TimeRecord[]>([]);
+	const [entries, setEntries] = useState<TimeEntry[]>([]);
 	const [companies, setCompanies] = useState<CompanyInfo[]>([]);
 	const [visibleCompanyIds, setVisibleCompanyIds] = useState<Set<string>>(
 		new Set(),
 	);
-	const [selectedRecord, setSelectedRecord] = useState<TimeRecord | null>(null);
+	const [selectedEntry, setSelectedEntry] = useState<TimeEntry | null>(null);
 	const [selectedDate, setSelectedDate] = useState<string | null>(null);
 	const [formWarnings, setFormWarnings] = useState<ComplianceWarning[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
@@ -72,21 +76,21 @@ export function UnifiedTimeTrackingPage() {
 		}
 	}, []);
 
-	// Fetch records for the current month (no company_id filter)
-	const loadRecords = useCallback(async () => {
+	// Fetch entries for the current month (no company_id filter)
+	const loadEntries = useCallback(async () => {
 		setIsLoading(true);
 		try {
 			const monthStart = getMonthStart(currentDate);
 			const monthEnd = getMonthEnd(currentDate);
 
 			// API returns array directly
-			const records = await timeRecordsApi.list({
+			const entriesData = await timeEntriesApi.list({
 				start_date: toISODateString(monthStart),
 				end_date: toISODateString(monthEnd),
 			});
-			setRecords(records);
+			setEntries(entriesData);
 		} catch (err) {
-			console.error("Failed to load records:", err);
+			console.error("Failed to load entries:", err);
 		} finally {
 			setIsLoading(false);
 		}
@@ -97,8 +101,8 @@ export function UnifiedTimeTrackingPage() {
 	}, [loadCompanies]);
 
 	useEffect(() => {
-		loadRecords();
-	}, [loadRecords]);
+		loadEntries();
+	}, [loadEntries]);
 
 	// Fetch holidays for the current year
 	const loadHolidays = useCallback(async () => {
@@ -124,54 +128,59 @@ export function UnifiedTimeTrackingPage() {
 		return map;
 	}, [holidays]);
 
-	// Filter records by visible companies
-	const visibleRecords = useMemo(() => {
-		return records.filter((record) => visibleCompanyIds.has(record.company_id));
-	}, [records, visibleCompanyIds]);
+	// Filter entries by visible companies
+	const visibleEntries = useMemo(() => {
+		return entries.filter(
+			(entry) =>
+				entry.company_id === null || visibleCompanyIds.has(entry.company_id),
+		);
+	}, [entries, visibleCompanyIds]);
 
-	// Get companies that have records in the current month
-	const companiesWithRecords = useMemo(() => {
-		const companyIdsWithRecords = new Set(records.map((r) => r.company_id));
-		return companies.filter((c) => companyIdsWithRecords.has(c.id));
-	}, [records, companies]);
+	// Get companies that have entries in the current month
+	const companiesWithEntries = useMemo(() => {
+		const companyIdsWithEntries = new Set(
+			entries.filter((e) => e.company_id).map((e) => e.company_id as string),
+		);
+		return companies.filter((c) => companyIdsWithEntries.has(c.id));
+	}, [entries, companies]);
 
-	// Group records by date for calendar display
-	const recordsByDate = useMemo(() => {
-		const map = new Map<string, TimeRecord[]>();
-		for (const record of visibleRecords) {
-			const existing = map.get(record.date) || [];
-			map.set(record.date, [...existing, record]);
+	// Group entries by date for calendar display
+	const entriesByDate = useMemo(() => {
+		const map = new Map<string, TimeEntry[]>();
+		for (const entry of visibleEntries) {
+			const existing = map.get(entry.date) || [];
+			map.set(entry.date, [...existing, entry]);
 		}
 		return map;
-	}, [visibleRecords]);
+	}, [visibleEntries]);
 
-	// Detect overlaps: multiple records on the same date with overlapping times
-	const overlappingRecordIds = useMemo(() => {
+	// Detect overlaps: multiple entries on the same date with overlapping times
+	const overlappingEntryIds = useMemo(() => {
 		const overlaps = new Set<string>();
 
-		for (const [, dateRecords] of recordsByDate) {
-			if (dateRecords.length < 2) continue;
+		for (const [, dateEntries] of entriesByDate) {
+			if (dateEntries.length < 2) continue;
 
 			// Check each pair for time overlap
-			for (let i = 0; i < dateRecords.length; i++) {
-				for (let j = i + 1; j < dateRecords.length; j++) {
-					const r1 = dateRecords[i];
-					const r2 = dateRecords[j];
+			for (let i = 0; i < dateEntries.length; i++) {
+				for (let j = i + 1; j < dateEntries.length; j++) {
+					const e1 = dateEntries[i];
+					const e2 = dateEntries[j];
 
-					// Only check work days with actual times
+					// Only check work entries with actual times
 					if (
-						r1.day_type === "work" &&
-						r2.day_type === "work" &&
-						r1.check_in &&
-						r1.check_out &&
-						r2.check_in &&
-						r2.check_out
+						e1.entry_type === "work" &&
+						e2.entry_type === "work" &&
+						e1.check_in &&
+						e1.check_out &&
+						e2.check_in &&
+						e2.check_out
 					) {
 						if (
-							timesOverlap(r1.check_in, r1.check_out, r2.check_in, r2.check_out)
+							timesOverlap(e1.check_in, e1.check_out, e2.check_in, e2.check_out)
 						) {
-							overlaps.add(r1.id);
-							overlaps.add(r2.id);
+							overlaps.add(e1.id);
+							overlaps.add(e2.id);
 						}
 					}
 				}
@@ -179,7 +188,7 @@ export function UnifiedTimeTrackingPage() {
 		}
 
 		return overlaps;
-	}, [recordsByDate]);
+	}, [entriesByDate]);
 
 	// Toggle company visibility
 	const toggleCompany = (companyId: string) => {
@@ -194,48 +203,40 @@ export function UnifiedTimeTrackingPage() {
 		});
 	};
 
-	// Handle clicking on a specific record to edit
-	const handleRecordClick = (record: TimeRecord) => {
+	// Handle clicking on a specific entry to edit
+	const handleEntryClick = (entry: TimeEntry) => {
 		// Don't allow editing public holidays
-		if (record.day_type === "public_holiday") return;
-		setSelectedRecord(record);
-		setSelectedDate(record.date);
+		if (entry.entry_type === "public_holiday") return;
+		setSelectedEntry(entry);
+		setSelectedDate(entry.date);
 		setFormWarnings([]);
 	};
 
-	// Handle clicking on a date to add new record
+	// Handle clicking on a date to add new entry
 	const handleDateClick = (date: string) => {
 		setSelectedDate(date);
-		setSelectedRecord(null);
+		setSelectedEntry(null);
 		setFormWarnings([]);
 	};
 
 	// Handle form submission
-	const handleFormSubmit = async (
-		data: TimeRecordCreate | TimeRecordUpdate,
-	) => {
+	const handleFormSubmit = async (data: TimeEntryCreate | TimeEntryUpdate) => {
 		setIsSaving(true);
 		try {
-			let result: TimeRecordWithWarnings;
-			if (selectedRecord) {
-				result = await timeRecordsApi.update(
-					selectedRecord.id,
-					data as TimeRecordUpdate,
-				);
+			if (selectedEntry) {
+				await timeEntriesApi.update(selectedEntry.id, data as TimeEntryUpdate);
 			} else {
-				result = await timeRecordsApi.create(data as TimeRecordCreate);
+				await timeEntriesApi.create(data as TimeEntryCreate);
 			}
 
-			const warnings = result.warnings || [];
-			setFormWarnings(warnings);
-
-			// If no errors, close the form and reload
-			if (!warnings.some((w) => w.level === "error")) {
-				setSelectedDate(null);
-				setSelectedRecord(null);
-				setFormWarnings([]);
-				await loadRecords();
-			}
+			// Close the form and reload
+			setSelectedDate(null);
+			setSelectedEntry(null);
+			setFormWarnings([]);
+			await loadEntries();
+		} catch (err) {
+			console.error("Failed to save entry:", err);
+			// Could extract validation errors from API response here
 		} finally {
 			setIsSaving(false);
 		}
@@ -243,20 +244,20 @@ export function UnifiedTimeTrackingPage() {
 
 	const handleFormCancel = () => {
 		setSelectedDate(null);
-		setSelectedRecord(null);
+		setSelectedEntry(null);
 		setFormWarnings([]);
 	};
 
-	// Handle record deletion
-	const handleDeleteRecord = async (record: TimeRecord) => {
-		if (!window.confirm("Are you sure you want to delete this time record?")) {
+	// Handle entry deletion
+	const handleDeleteEntry = async (entry: TimeEntry) => {
+		if (!window.confirm("Are you sure you want to delete this time entry?")) {
 			return;
 		}
 		try {
-			await timeRecordsApi.delete(record.id);
-			await loadRecords();
+			await timeEntriesApi.delete(entry.id);
+			await loadEntries();
 		} catch (err) {
-			console.error("Failed to delete record:", err);
+			console.error("Failed to delete entry:", err);
 		}
 	};
 
@@ -278,7 +279,8 @@ export function UnifiedTimeTrackingPage() {
 	};
 
 	// Get company color by ID
-	const getCompanyColor = (companyId: string): string => {
+	const getCompanyColor = (companyId: string | null): string => {
+		if (!companyId) return "#6B7280"; // gray-500 for no company
 		const company = companies.find((c) => c.id === companyId);
 		return company?.color || COMPANY_COLORS[0];
 	};
@@ -300,22 +302,22 @@ export function UnifiedTimeTrackingPage() {
 			{/* Today's status bar with check-in/out */}
 			<TodayStatusBar
 				companies={companies}
-				companiesWithRecords={companiesWithRecords}
-				records={records}
+				companiesWithRecords={companiesWithEntries}
+				entries={entries}
 				holidays={new Set(holidaysByDate.keys())}
 				currentDate={currentDate}
-				onStatusChange={loadRecords}
+				onStatusChange={loadEntries}
 			/>
 
 			{/* Two-column layout: Main content + Sidebar */}
 			<div className="flex gap-6">
 				{/* Main content area */}
 				<div className="flex-1 min-w-0 space-y-4">
-						{/* Controls row: company filters on left, month nav + view toggle on right */}
+					{/* Controls row: company filters on left, month nav + view toggle on right */}
 					<div className="flex items-center justify-between flex-wrap gap-4">
-						{/* Company filter toggles - only show companies with records this month */}
+						{/* Company filter toggles - only show companies with entries this month */}
 						<div className="flex flex-wrap gap-2">
-							{companiesWithRecords.map((company) => {
+							{companiesWithEntries.map((company) => {
 								const isVisible = visibleCompanyIds.has(company.id);
 								return (
 									<button
@@ -444,29 +446,30 @@ export function UnifiedTimeTrackingPage() {
 					{viewMode === "calendar" ? (
 						<MonthCalendarView
 							currentDate={currentDate}
-							recordsByDate={recordsByDate}
-							overlappingRecordIds={overlappingRecordIds}
+							entriesByDate={entriesByDate}
+							overlappingEntryIds={overlappingEntryIds}
 							holidaysByDate={holidaysByDate}
 							getCompanyColor={getCompanyColor}
-							onRecordClick={handleRecordClick}
+							onEntryClick={handleEntryClick}
 							onDateClick={handleDateClick}
 							isLoading={isLoading}
 						/>
 					) : (
 						<TableView
-							records={visibleRecords}
-							overlappingRecordIds={overlappingRecordIds}
+							entries={visibleEntries}
+							overlappingEntryIds={overlappingEntryIds}
 							companies={companies}
 							getCompanyColor={getCompanyColor}
-							onRecordClick={handleRecordClick}
-							onDeleteRecord={handleDeleteRecord}
+							onEntryClick={handleEntryClick}
+							onDeleteEntry={handleDeleteEntry}
 							isLoading={isLoading}
 						/>
 					)}
 
 					{/* Keyboard shortcut help */}
 					<div className="text-xs text-gray-400 text-center">
-						Click on an entry to edit, or click on an empty day to add a new record.
+						Click on an entry to edit, or click on an empty day to add a new
+						entry.
 					</div>
 				</div>
 
@@ -481,7 +484,7 @@ export function UnifiedTimeTrackingPage() {
 				</div>
 			</div>
 
-			{/* Time record form modal */}
+			{/* Time entry form modal */}
 			{selectedDate && (
 				<div className="fixed inset-0 z-50 overflow-y-auto">
 					<div className="flex min-h-screen items-center justify-center p-4">
@@ -497,18 +500,18 @@ export function UnifiedTimeTrackingPage() {
 						{/* Modal */}
 						<div className="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
 							<h2 className="text-lg font-medium text-gray-900 mb-4">
-								{selectedRecord ? "Edit Time Record" : "New Time Record"}
+								{selectedEntry ? "Edit Time Entry" : "New Time Entry"}
 							</h2>
 							<TimeRecordForm
-								record={selectedRecord}
-								companyId={selectedRecord?.company_id || companies[0]?.id || ""}
+								entry={selectedEntry}
+								companyId={selectedEntry?.company_id || companies[0]?.id || ""}
 								date={selectedDate}
 								onSubmit={handleFormSubmit}
 								onCancel={handleFormCancel}
 								warnings={formWarnings}
 								isLoading={isSaving}
 								companies={companies}
-								preselectedCompanyId={selectedRecord?.company_id}
+								preselectedCompanyId={selectedEntry?.company_id || undefined}
 							/>
 						</div>
 					</div>

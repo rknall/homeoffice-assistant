@@ -3,16 +3,16 @@
 
 import { useMemo, useState } from "react";
 import { toISODateString } from "../api";
-import type { TimeRecord } from "../types";
-import { DAY_TYPE_LABELS } from "../types";
+import type { TimeEntry } from "../types";
+import { ENTRY_TYPE_LABELS } from "../types";
 
 interface MonthCalendarViewProps {
 	currentDate: Date;
-	recordsByDate: Map<string, TimeRecord[]>;
-	overlappingRecordIds: Set<string>;
+	entriesByDate: Map<string, TimeEntry[]>;
+	overlappingEntryIds: Set<string>;
 	holidaysByDate: Map<string, string>;
-	getCompanyColor: (companyId: string) => string;
-	onRecordClick: (record: TimeRecord) => void;
+	getCompanyColor: (companyId: string | null) => string;
+	onEntryClick: (entry: TimeEntry) => void;
 	onDateClick: (date: string) => void;
 	isLoading: boolean;
 }
@@ -29,19 +29,19 @@ interface CalendarDay {
  * MonthCalendarView - Monthly calendar grid with time entries
  *
  * Displays days in a grid with entries shown as colored badges
- * indicating the day type in the company's color.
+ * indicating the entry type in the company's color.
  */
 export function MonthCalendarView({
 	currentDate,
-	recordsByDate,
-	overlappingRecordIds,
+	entriesByDate,
+	overlappingEntryIds,
 	holidaysByDate,
 	getCompanyColor,
-	onRecordClick,
+	onEntryClick,
 	onDateClick,
 	isLoading,
 }: MonthCalendarViewProps) {
-	const [hoveredRecordId, setHoveredRecordId] = useState<string | null>(null);
+	const [hoveredEntryId, setHoveredEntryId] = useState<string | null>(null);
 
 	// Generate calendar days for the month grid
 	const calendarDays = useMemo((): CalendarDay[] => {
@@ -95,9 +95,17 @@ export function MonthCalendarView({
 	// Day of week headers (Monday first)
 	const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-	// Check if a record is editable (not a public holiday)
-	const isEditable = (record: TimeRecord): boolean => {
-		return record.day_type !== "public_holiday";
+	// Check if an entry is editable (not a public holiday)
+	const isEditable = (entry: TimeEntry): boolean => {
+		return entry.entry_type !== "public_holiday" && !entry.is_locked;
+	};
+
+	// Format time for tooltip
+	const formatTimeRange = (entry: TimeEntry): string => {
+		if (!entry.check_in) return ENTRY_TYPE_LABELS[entry.entry_type];
+		const checkIn = entry.check_in.substring(0, 5);
+		const checkOut = entry.check_out ? entry.check_out.substring(0, 5) : "...";
+		return `${checkIn} - ${checkOut}`;
 	};
 
 	return (
@@ -120,7 +128,7 @@ export function MonthCalendarView({
 			{/* Calendar grid */}
 			<div className="grid grid-cols-7">
 				{calendarDays.map((day) => {
-					const dayRecords = recordsByDate.get(day.dateString) || [];
+					const dayEntries = entriesByDate.get(day.dateString) || [];
 					const holidayName = holidaysByDate.get(day.dateString);
 
 					return (
@@ -157,18 +165,18 @@ export function MonthCalendarView({
 
 							{/* Time entries for this day */}
 							<div className="mt-1 space-y-1">
-								{dayRecords.map((record) => {
-									const hasOverlap = overlappingRecordIds.has(record.id);
-									const isHovered = hoveredRecordId === record.id;
-									const editable = isEditable(record);
-									const companyColor = getCompanyColor(record.company_id);
+								{dayEntries.map((entry) => {
+									const hasOverlap = overlappingEntryIds.has(entry.id);
+									const isHovered = hoveredEntryId === entry.id;
+									const editable = isEditable(entry);
+									const companyColor = getCompanyColor(entry.company_id);
 
-									// Use button for editable entries, span for non-editable
+									// Use button for editable entries, div for non-editable
 									if (editable) {
 										return (
 											<button
 												type="button"
-												key={record.id}
+												key={entry.id}
 												className={`
                           relative w-full text-left px-2.5 py-0.5 rounded text-xs font-medium
                           truncate transition-all hover:opacity-80
@@ -183,13 +191,15 @@ export function MonthCalendarView({
 												}}
 												onClick={(e) => {
 													e.stopPropagation();
-													onRecordClick(record);
+													onEntryClick(entry);
 												}}
-												onMouseEnter={() => setHoveredRecordId(record.id)}
-												onMouseLeave={() => setHoveredRecordId(null)}
+												onMouseEnter={() => setHoveredEntryId(entry.id)}
+												onMouseLeave={() => setHoveredEntryId(null)}
+												title={formatTimeRange(entry)}
 											>
 												<span className="truncate">
-													{DAY_TYPE_LABELS[record.day_type] || record.day_type}
+													{formatTimeRange(entry)}
+													{entry.is_open && " ..."}
 												</span>
 
 												{/* Edit icon on hover */}
@@ -202,6 +212,7 @@ export function MonthCalendarView({
 															viewBox="0 0 24 24"
 															aria-hidden="true"
 														>
+															<title>Edit</title>
 															<path
 																strokeLinecap="round"
 																strokeLinejoin="round"
@@ -218,7 +229,7 @@ export function MonthCalendarView({
 									// Non-editable entry (e.g., public holiday)
 									return (
 										<div
-											key={record.id}
+											key={entry.id}
 											className={`
                         relative px-2.5 py-0.5 rounded text-xs font-medium
                         truncate cursor-default
@@ -231,9 +242,10 @@ export function MonthCalendarView({
 												color: hasOverlap ? "#991B1B" : companyColor,
 												borderLeft: `3px solid ${companyColor}`,
 											}}
+											title={ENTRY_TYPE_LABELS[entry.entry_type]}
 										>
 											<span className="truncate">
-												{DAY_TYPE_LABELS[record.day_type] || record.day_type}
+												{ENTRY_TYPE_LABELS[entry.entry_type] || entry.entry_type}
 											</span>
 										</div>
 									);

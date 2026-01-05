@@ -16,10 +16,7 @@ from .models import (
     CompanyTimeSettings,
     CustomHoliday,
     LeaveBalance,
-    TimeAllocation,
     TimeEntry,
-    TimeRecord,
-    TimeRecordAudit,
     TimesheetSubmission,
     UserTimePreferences,
 )
@@ -108,13 +105,10 @@ class TimeTrackingPlugin(BasePlugin):
             List of model classes.
         """
         return [
-            TimeRecord,
             TimeEntry,
-            TimeAllocation,
             LeaveBalance,
             TimesheetSubmission,
             CompanyTimeSettings,
-            TimeRecordAudit,
             CustomHoliday,
             UserTimePreferences,
         ]

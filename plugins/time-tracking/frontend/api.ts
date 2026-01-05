@@ -5,25 +5,25 @@
  * Time Tracking Plugin API Client
  *
  * API functions for communicating with the time-tracking backend endpoints.
+ * Updated for simplified TimeEntry-only architecture.
  */
 
 import type {
-	CheckInOutResponse,
+	CheckInRequest,
+	CheckInStatusResponse,
+	CheckOutRequest,
 	CompanyTimeSettings,
-	CompanyTimeSettingsCreate,
 	CompanyTimeSettingsUpdate,
+	DailySummary,
+	EntryType,
 	Holiday,
 	LeaveBalanceResponse,
-	MonthlyReportSummary,
-	TimeAllocation,
-	TimeAllocationCreate,
-	TimeRecord,
-	TimeRecordCreate,
-	TimeRecordListResponse,
-	TimeRecordUpdate,
-	TimeRecordWithWarnings,
+	MonthlyReportResponse,
+	TimeEntry,
+	TimeEntryCreate,
+	TimeEntryUpdate,
 	Uuid,
-	WeekData,
+	WorkLocation,
 } from "./types";
 
 const PLUGIN_API_BASE = "/api/v1/plugin/time-tracking";
@@ -61,153 +61,161 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	return response.json();
 }
 
-// Time Records API
-export const timeRecordsApi = {
+// Time Entries API
+export const timeEntriesApi = {
+	/**
+	 * List time entries with optional filters.
+	 */
 	list: (params?: {
 		company_id?: Uuid;
 		start_date?: string;
 		end_date?: string;
-		day_type?: string;
-	}): Promise<TimeRecord[]> => {
+		entry_type?: EntryType;
+	}): Promise<TimeEntry[]> => {
 		const searchParams = new URLSearchParams();
 		if (params?.company_id) searchParams.set("company_id", params.company_id);
-		// Backend uses 'from' and 'to' query params
 		if (params?.start_date) searchParams.set("from", params.start_date);
 		if (params?.end_date) searchParams.set("to", params.end_date);
-		if (params?.day_type) searchParams.set("day_type", params.day_type);
+		if (params?.entry_type) searchParams.set("entry_type", params.entry_type);
 
 		const query = searchParams.toString();
-		return request<TimeRecord[]>(`/records${query ? `?${query}` : ""}`);
+		return request<TimeEntry[]>(`/entries${query ? `?${query}` : ""}`);
 	},
 
-	get: (recordId: Uuid): Promise<TimeRecord> => {
-		return request<TimeRecord>(`/records/${recordId}`);
+	/**
+	 * Get a single time entry by ID.
+	 */
+	get: (entryId: Uuid): Promise<TimeEntry> => {
+		return request<TimeEntry>(`/entries/${entryId}`);
 	},
 
-	create: (data: TimeRecordCreate): Promise<TimeRecordWithWarnings> => {
-		return request<TimeRecordWithWarnings>("/records", {
+	/**
+	 * Create a new time entry.
+	 */
+	create: (data: TimeEntryCreate): Promise<TimeEntry> => {
+		return request<TimeEntry>("/entries", {
 			method: "POST",
 			body: JSON.stringify(data),
 		});
 	},
 
-	update: (
-		recordId: Uuid,
-		data: TimeRecordUpdate,
-	): Promise<TimeRecordWithWarnings> => {
-		return request<TimeRecordWithWarnings>(`/records/${recordId}`, {
+	/**
+	 * Update an existing time entry.
+	 */
+	update: (entryId: Uuid, data: TimeEntryUpdate): Promise<TimeEntry> => {
+		return request<TimeEntry>(`/entries/${entryId}`, {
 			method: "PUT",
 			body: JSON.stringify(data),
 		});
 	},
 
-	delete: (recordId: Uuid): Promise<void> => {
-		return request<void>(`/records/${recordId}`, {
+	/**
+	 * Delete a time entry.
+	 */
+	delete: (entryId: Uuid): Promise<void> => {
+		return request<void>(`/entries/${entryId}`, {
 			method: "DELETE",
 		});
 	},
 
-	getToday: (companyId: Uuid): Promise<TimeRecord | null> => {
-		return request<TimeRecord | null>(`/today?company_id=${companyId}`);
+	/**
+	 * Get all entries for today.
+	 */
+	getToday: (): Promise<TimeEntry[]> => {
+		return request<TimeEntry[]>("/today");
 	},
 
-	checkIn: (companyId: Uuid): Promise<CheckInOutResponse> => {
-		return request<CheckInOutResponse>("/check-in", {
+	/**
+	 * Get daily summary with aggregated data.
+	 */
+	getDailySummary: (date: string, companyId?: Uuid): Promise<DailySummary> => {
+		const params = new URLSearchParams();
+		params.set("date", date);
+		if (companyId) params.set("company_id", companyId);
+		return request<DailySummary>(`/daily-summary?${params.toString()}`);
+	},
+
+	/**
+	 * Get current check-in status.
+	 */
+	getStatus: (): Promise<CheckInStatusResponse> => {
+		return request<CheckInStatusResponse>("/status");
+	},
+
+	/**
+	 * Check in - creates a new work entry with check_in time.
+	 */
+	checkIn: (data?: CheckInRequest): Promise<TimeEntry> => {
+		const payload: CheckInRequest = {
+			...data,
+			timezone:
+				data?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+		};
+		return request<TimeEntry>("/check-in", {
 			method: "POST",
-			body: JSON.stringify({
-				company_id: companyId,
-				timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-			}),
+			body: JSON.stringify(payload),
 		});
 	},
 
-	checkOut: (): Promise<CheckInOutResponse> => {
-		return request<CheckInOutResponse>("/check-out", {
+	/**
+	 * Check out - closes the open entry with check_out time.
+	 */
+	checkOut: (data?: CheckOutRequest): Promise<TimeEntry> => {
+		const payload: CheckOutRequest = {
+			...data,
+			timezone:
+				data?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+		};
+		return request<TimeEntry>("/check-out", {
 			method: "POST",
-			body: JSON.stringify({
-				timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-			}),
-		});
-	},
-
-	lock: (recordId: Uuid): Promise<TimeRecord> => {
-		return request<TimeRecord>(`/records/${recordId}/lock`, {
-			method: "POST",
-		});
-	},
-
-	unlock: (recordId: Uuid): Promise<TimeRecord> => {
-		return request<TimeRecord>(`/records/${recordId}/unlock`, {
-			method: "POST",
+			body: JSON.stringify(payload),
 		});
 	},
 };
 
-// Time Allocations API
-export const allocationsApi = {
-	list: (recordId: Uuid): Promise<TimeAllocation[]> => {
-		return request<TimeAllocation[]>(`/records/${recordId}/allocations`);
-	},
-
-	create: (
-		recordId: Uuid,
-		data: TimeAllocationCreate,
-	): Promise<TimeAllocation> => {
-		return request<TimeAllocation>(`/records/${recordId}/allocations`, {
-			method: "POST",
-			body: JSON.stringify(data),
-		});
-	},
-
-	update: (
-		recordId: Uuid,
-		allocationId: Uuid,
-		data: Partial<TimeAllocationCreate>,
-	): Promise<TimeAllocation> => {
-		return request<TimeAllocation>(
-			`/records/${recordId}/allocations/${allocationId}`,
-			{
-				method: "PUT",
-				body: JSON.stringify(data),
-			},
-		);
-	},
-
-	delete: (recordId: Uuid, allocationId: Uuid): Promise<void> => {
-		return request<void>(`/records/${recordId}/allocations/${allocationId}`, {
-			method: "DELETE",
-		});
-	},
+// Legacy alias for backward compatibility
+export const timeRecordsApi = {
+	list: timeEntriesApi.list,
+	get: timeEntriesApi.get,
+	create: timeEntriesApi.create,
+	update: timeEntriesApi.update,
+	delete: timeEntriesApi.delete,
+	getToday: () => timeEntriesApi.getToday(),
+	checkIn: (companyId: Uuid, workLocation?: WorkLocation) =>
+		timeEntriesApi.checkIn({ company_id: companyId, work_location: workLocation }),
+	checkOut: () => timeEntriesApi.checkOut(),
 };
 
 // Leave Balance API
 export const leaveBalanceApi = {
-	get: (year?: number): Promise<LeaveBalanceResponse> => {
+	/**
+	 * Get leave balance for the current user.
+	 */
+	get: (year?: number, companyId?: Uuid): Promise<LeaveBalanceResponse> => {
 		const params = new URLSearchParams();
 		if (year) params.set("year", String(year));
+		if (companyId) params.set("company_id", companyId);
 		const query = params.toString();
-		return request<LeaveBalanceResponse>(`/leave-balance${query ? `?${query}` : ""}`);
+		return request<LeaveBalanceResponse>(
+			`/leave-balance${query ? `?${query}` : ""}`,
+		);
 	},
 };
 
 // Company Settings API
 export const companySettingsApi = {
+	/**
+	 * Get time settings for a company.
+	 */
 	get: (companyId: Uuid): Promise<CompanyTimeSettings | null> => {
 		return request<CompanyTimeSettings | null>(
 			`/settings/company/${companyId}`,
 		);
 	},
 
-	create: (
-		companyId: Uuid,
-		data: CompanyTimeSettingsCreate,
-	): Promise<CompanyTimeSettings> => {
-		return request<CompanyTimeSettings>(`/settings/company/${companyId}`, {
-			method: "POST",
-			body: JSON.stringify(data),
-		});
-	},
-
+	/**
+	 * Update time settings for a company.
+	 */
 	update: (
 		companyId: Uuid,
 		data: CompanyTimeSettingsUpdate,
@@ -221,29 +229,33 @@ export const companySettingsApi = {
 
 // Holidays API
 export const holidaysApi = {
-	list: (year: number, region?: string): Promise<Holiday[]> => {
+	/**
+	 * List public holidays for a year and region.
+	 */
+	list: (year: number, countryCode?: string): Promise<Holiday[]> => {
 		const params = new URLSearchParams();
 		params.set("year", String(year));
-		if (region) params.set("region", region);
+		if (countryCode) params.set("country_code", countryCode);
 		return request<Holiday[]>(`/holidays?${params.toString()}`);
 	},
 };
 
 // Reports API
 export const reportsApi = {
+	/**
+	 * Get monthly report.
+	 */
 	getMonthly: (
-		companyId: Uuid,
 		year: number,
 		month: number,
-	): Promise<MonthlyReportSummary> => {
-		return request<MonthlyReportSummary>(
-			`/reports/monthly?company_id=${companyId}&year=${year}&month=${month}`,
-		);
-	},
-
-	getWeek: (companyId: Uuid, startDate: string): Promise<WeekData> => {
-		return request<WeekData>(
-			`/reports/week?company_id=${companyId}&start_date=${startDate}`,
+		companyId?: Uuid,
+	): Promise<MonthlyReportResponse> => {
+		const params = new URLSearchParams();
+		params.set("year", String(year));
+		params.set("month", String(month));
+		if (companyId) params.set("company_id", companyId);
+		return request<MonthlyReportResponse>(
+			`/reports/monthly?${params.toString()}`,
 		);
 	},
 };
@@ -283,7 +295,7 @@ export interface SubmissionResponse {
 	status: "pending" | "sent" | "failed";
 	sent_to: string;
 	period: string;
-	record_count: number;
+	entry_count: number;
 }
 
 export interface SubmissionListItem {

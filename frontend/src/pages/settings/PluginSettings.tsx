@@ -55,6 +55,7 @@ export function PluginSettings() {
   const [dropTables, setDropTables] = useState(false)
   const [removePermissions, setRemovePermissions] = useState(false)
   const [deleteFiles, setDeleteFiles] = useState(false)
+  const [upgradeMode, setUpgradeMode] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState<string | null>(null)
@@ -100,9 +101,10 @@ export function PluginSettings() {
     setIsProcessing('install')
     setError(null)
     try {
-      const result = await installPlugin(file)
-      setSuccessMessage(`Plugin "${result.plugin_name}" installed successfully`)
+      const result = await installPlugin(file, upgradeMode)
+      setSuccessMessage(result.message)
       setIsInstallModalOpen(false)
+      setUpgradeMode(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to install plugin')
     } finally {
@@ -327,12 +329,15 @@ export function PluginSettings() {
       {/* Install Modal */}
       <Modal
         isOpen={isInstallModalOpen}
-        onClose={() => setIsInstallModalOpen(false)}
+        onClose={() => {
+          setIsInstallModalOpen(false)
+          setUpgradeMode(false)
+        }}
         title="Install Plugin"
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            Upload a plugin package (ZIP file) to install a new plugin.
+            Upload a plugin package (ZIP file) to install a new plugin or upgrade an existing one.
           </p>
           <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
             <Upload className="h-10 w-10 text-gray-400 mx-auto mb-4" />
@@ -352,16 +357,33 @@ export function PluginSettings() {
             </label>
             <p className="text-sm text-gray-500 mt-2">or drag and drop</p>
           </div>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={upgradeMode}
+              onChange={(e) => setUpgradeMode(e.target.checked)}
+              className="rounded border-gray-300"
+              disabled={isProcessing === 'install'}
+            />
+            <span className="text-sm text-gray-700">
+              Upgrade existing plugin (replace with new version)
+            </span>
+          </label>
           {isProcessing === 'install' && (
             <div className="flex items-center justify-center gap-2">
               <Spinner className="h-5 w-5" />
-              <span className="text-sm text-gray-600">Installing plugin...</span>
+              <span className="text-sm text-gray-600">
+                {upgradeMode ? 'Upgrading plugin...' : 'Installing plugin...'}
+              </span>
             </div>
           )}
           <div className="flex justify-end">
             <Button
               variant="secondary"
-              onClick={() => setIsInstallModalOpen(false)}
+              onClick={() => {
+                setIsInstallModalOpen(false)
+                setUpgradeMode(false)
+              }}
               disabled={isProcessing === 'install'}
             >
               Cancel

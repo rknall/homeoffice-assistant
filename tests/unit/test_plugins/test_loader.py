@@ -437,9 +437,10 @@ class TestPlugin(BasePlugin):
             "description": "Installed from ZIP",
         })
 
-        manifest = loader.install_from_zip(zip_path)
+        manifest, old_version = loader.install_from_zip(zip_path)
 
         assert manifest.id == "zip-plugin"
+        assert old_version is None  # New install, no old version
         assert (plugins_dir / "zip-plugin").exists()
         assert (plugins_dir / "zip-plugin" / PLUGIN_MANIFEST_FILE).exists()
 
@@ -457,9 +458,10 @@ class TestPlugin(BasePlugin):
             }))
             zf.writestr("subdir-plugin/backend/plugin.py", "# Plugin code")
 
-        manifest = loader.install_from_zip(zip_path)
+        manifest, old_version = loader.install_from_zip(zip_path)
 
         assert manifest.id == "subdir-plugin"
+        assert old_version is None  # New install
         assert (plugins_dir / "subdir-plugin").exists()
 
     def test_install_from_zip_not_found(self, loader, tmp_path):
@@ -488,7 +490,7 @@ class TestPlugin(BasePlugin):
             loader.install_from_zip(zip_path)
 
     def test_install_from_zip_already_installed(self, loader, plugins_dir, tmp_path):
-        """Test installing plugin that already exists."""
+        """Test installing plugin that already exists without upgrade flag."""
         # First install
         zip_path = self.create_plugin_zip(tmp_path, "dup-plugin", {
             "id": "dup-plugin",
@@ -498,9 +500,43 @@ class TestPlugin(BasePlugin):
         })
         loader.install_from_zip(zip_path)
 
-        # Try to install again
+        # Try to install again without upgrade flag
         with pytest.raises(PluginValidationError, match="already installed"):
             loader.install_from_zip(zip_path)
+
+    def test_install_from_zip_upgrade(self, loader, plugins_dir, tmp_path):
+        """Test upgrading an existing plugin with upgrade flag."""
+        # First install v1.0.0
+        zip_path_v1 = self.create_plugin_zip(tmp_path, "upgrade-plugin-v1", {
+            "id": "upgrade-plugin",
+            "name": "Upgrade Plugin",
+            "version": "1.0.0",
+            "description": "Version 1",
+        })
+        manifest, old_version = loader.install_from_zip(zip_path_v1)
+        assert manifest.version == "1.0.0"
+        assert old_version is None
+
+        # Now upgrade to v2.0.0
+        zip_path_v2 = self.create_plugin_zip(tmp_path, "upgrade-plugin-v2", {
+            "id": "upgrade-plugin",
+            "name": "Upgrade Plugin",
+            "version": "2.0.0",
+            "description": "Version 2",
+        })
+        manifest, old_version = loader.install_from_zip(zip_path_v2, upgrade=True)
+
+        assert manifest.version == "2.0.0"
+        assert old_version == "1.0.0"
+        assert (plugins_dir / "upgrade-plugin").exists()
+
+        # Verify manifest on disk reflects new version
+        manifest_path = plugins_dir / "upgrade-plugin" / PLUGIN_MANIFEST_FILE
+        import json
+
+        with open(manifest_path) as f:
+            disk_manifest = json.load(f)
+        assert disk_manifest["version"] == "2.0.0"
 
     def test_install_from_zip_with_dangerous_permissions(
         self, loader, plugins_dir, tmp_path
@@ -514,10 +550,11 @@ class TestPlugin(BasePlugin):
             "permissions": ["user.write.all", "system.settings.write"],
         })
 
-        manifest = loader.install_from_zip(zip_path)
+        manifest, old_version = loader.install_from_zip(zip_path)
 
         # Plugin should still be installed
         assert manifest.id == "dangerous-plugin"
+        assert old_version is None  # New install
         assert (plugins_dir / "dangerous-plugin").exists()
         # Dangerous permissions should be in manifest
         assert Permission.USER_WRITE_ALL in manifest.permissions

@@ -174,22 +174,38 @@ class PluginRegistry:
         self,
         zip_path: Path,
         db: Session,
-    ) -> BasePlugin:
-        """Install and enable a new plugin from ZIP.
+        upgrade: bool = False,
+    ) -> tuple[BasePlugin, str | None]:
+        """Install and enable a new plugin from ZIP, or upgrade an existing one.
 
         Args:
             zip_path: Path to the plugin ZIP file
             db: Database session
+            upgrade: If True, allow replacing an existing plugin
 
         Returns:
-            Installed and loaded plugin instance
+            Tuple of (installed plugin instance, old version if upgraded else None)
         """
         from src.models.plugin_config import PluginConfigModel
         from src.plugins.migrations import PluginMigrationRunner
         from src.services.rbac_service import register_plugin_permissions
 
-        # Extract and validate
-        manifest = self._loader.install_from_zip(zip_path, db)
+        # Extract and validate (may replace existing if upgrade=True)
+        manifest, old_version = self._loader.install_from_zip(zip_path, db, upgrade)
+
+        # If upgrading, we need to unload the old plugin first
+        if old_version and manifest.id in self._plugins:
+            old_plugin = self._plugins[manifest.id]
+            # Call lifecycle hook
+            await old_plugin.on_uninstall()
+            # Remove event handlers
+            event_bus.unsubscribe_plugin(manifest.id)
+            # Remove router
+            router_manager = get_plugin_router_manager()
+            router_manager.remove_plugin_router(manifest.id)
+            # Remove from registry
+            del self._plugins[manifest.id]
+            logger.info(f"Unloaded old plugin {manifest.id} v{old_version}")
 
         # Run migrations if plugin has them
         plugin_path = self._loader.plugins_dir / manifest.id
@@ -205,29 +221,51 @@ class PluginRegistry:
                 f"for plugin {manifest.id}"
             )
 
-        # Create database config record
-        db_config = PluginConfigModel(
-            plugin_id=manifest.id,
-            plugin_version=manifest.version,
-            settings_encrypted=None,
+        # Get or create database config record
+        db_config = (
+            db.query(PluginConfigModel)
+            .filter(PluginConfigModel.plugin_id == manifest.id)
+            .first()
         )
-        db.add(db_config)
+
+        if db_config:
+            # Update existing config with new version
+            db_config.plugin_version = manifest.version
+        else:
+            # Create new config record
+            db_config = PluginConfigModel(
+                plugin_id=manifest.id,
+                plugin_version=manifest.version,
+                settings_encrypted=None,
+            )
+            db.add(db_config)
+
         db.commit()
 
         # Load the plugin
-        config = PluginConfig(settings={})
+        config = PluginConfig(settings=db_config.get_decrypted_settings())
         plugin = await self._load_single_plugin(plugin_path, manifest, config)
 
         # Call on_install lifecycle hook
         await plugin.on_install()
 
         # Publish event
-        await event_bus.publish(
-            AppEvent.PLUGIN_INSTALLED,
-            {"plugin_id": manifest.id, "version": manifest.version},
-        )
+        if old_version:
+            await event_bus.publish(
+                AppEvent.PLUGIN_INSTALLED,
+                {
+                    "plugin_id": manifest.id,
+                    "version": manifest.version,
+                    "upgraded_from": old_version,
+                },
+            )
+        else:
+            await event_bus.publish(
+                AppEvent.PLUGIN_INSTALLED,
+                {"plugin_id": manifest.id, "version": manifest.version},
+            )
 
-        return plugin
+        return plugin, old_version
 
     async def uninstall_plugin(
         self,

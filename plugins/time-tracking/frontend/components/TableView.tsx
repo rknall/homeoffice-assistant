@@ -2,39 +2,38 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 import { useMemo, useState } from "react";
-import type { CompanyInfo, TimeRecord } from "../types";
-import { DAY_TYPE_LABELS } from "../types";
+import type { CompanyInfo, TimeEntry } from "../types";
+import { ENTRY_TYPE_LABELS, WORK_LOCATION_LABELS } from "../types";
 
 interface TableViewProps {
-	records: TimeRecord[];
-	overlappingRecordIds: Set<string>;
+	entries: TimeEntry[];
+	overlappingEntryIds: Set<string>;
 	companies: CompanyInfo[];
-	getCompanyColor: (companyId: string) => string;
-	onRecordClick: (record: TimeRecord) => void;
-	onDeleteRecord?: (record: TimeRecord) => void;
+	getCompanyColor: (companyId: string | null) => string;
+	onEntryClick: (entry: TimeEntry) => void;
+	onDeleteEntry?: (entry: TimeEntry) => void;
 	isLoading: boolean;
 }
 
 interface TableRow {
 	id: string;
-	record: TimeRecord;
+	entry: TimeEntry;
 	isFirstOfDay: boolean;
-	entryCount: number;
 }
 
 /**
- * TableView - Tabular list of time records
+ * TableView - Tabular list of time entries
  *
- * Displays records in a sortable table format with company colors
+ * Displays entries in a sortable table format with company colors
  * and overlap highlighting.
  */
 export function TableView({
-	records,
-	overlappingRecordIds,
+	entries,
+	overlappingEntryIds,
 	companies,
 	getCompanyColor,
-	onRecordClick,
-	onDeleteRecord,
+	onEntryClick,
+	onDeleteEntry,
 	isLoading,
 }: TableViewProps) {
 	const [sortField, setSortField] = useState<"date" | "company">("date");
@@ -50,17 +49,22 @@ export function TableView({
 	}, [companies]);
 
 	// Get company name by ID
-	const getCompanyName = (companyId: string): string => {
+	const getCompanyName = (companyId: string | null): string => {
+		if (!companyId) return "No Company";
 		return companyNameMap.get(companyId) || "Unknown";
 	};
 
-	// Sort and flatten records into table rows
+	// Sort and flatten entries into table rows
 	const tableRows = useMemo((): TableRow[] => {
-		// Sort records
-		const sorted = [...records].sort((a, b) => {
+		// Sort entries
+		const sorted = [...entries].sort((a, b) => {
 			let comparison = 0;
 			if (sortField === "date") {
+				// Sort by date first, then by check_in time
 				comparison = a.date.localeCompare(b.date);
+				if (comparison === 0 && a.check_in && b.check_in) {
+					comparison = a.check_in.localeCompare(b.check_in);
+				}
 			} else if (sortField === "company") {
 				comparison = getCompanyName(a.company_id).localeCompare(
 					getCompanyName(b.company_id),
@@ -73,20 +77,19 @@ export function TableView({
 		const rows: TableRow[] = [];
 		let lastDate = "";
 
-		for (const record of sorted) {
-			const isFirstOfDay = record.date !== lastDate;
-			lastDate = record.date;
+		for (const entry of sorted) {
+			const isFirstOfDay = entry.date !== lastDate;
+			lastDate = entry.date;
 
 			rows.push({
-				id: record.id,
-				record,
+				id: entry.id,
+				entry,
 				isFirstOfDay,
-				entryCount: 1, // Simplified - could expand for multiple entries per record
 			});
 		}
 
 		return rows;
-	}, [records, sortField, sortDirection, companyNameMap]);
+	}, [entries, sortField, sortDirection, companyNameMap]);
 
 	// Toggle sort
 	const handleSort = (field: "date" | "company") => {
@@ -135,9 +138,9 @@ export function TableView({
 		return `${hours}:${mins.toString().padStart(2, "0")}`;
 	};
 
-	// Check if record is editable
-	const isEditable = (record: TimeRecord): boolean => {
-		return record.day_type !== "public_holiday" && !record.is_locked;
+	// Check if entry is editable
+	const isEditable = (entry: TimeEntry): boolean => {
+		return entry.entry_type !== "public_holiday" && !entry.is_locked;
 	};
 
 	// Sort indicator
@@ -179,6 +182,9 @@ export function TableView({
 								Duration
 							</th>
 							<th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
+								Location
+							</th>
+							<th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
 								Actions
 							</th>
 						</tr>
@@ -186,22 +192,22 @@ export function TableView({
 					<tbody>
 						{tableRows.length === 0 ? (
 							<tr>
-								<td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-									{isLoading ? "Loading..." : "No records this month"}
+								<td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+									{isLoading ? "Loading..." : "No entries this month"}
 								</td>
 							</tr>
 						) : (
 							tableRows.map((row, index) => {
-								const hasOverlap = overlappingRecordIds.has(row.record.id);
-								const editable = isEditable(row.record);
-								const companyColor = getCompanyColor(row.record.company_id);
+								const hasOverlap = overlappingEntryIds.has(row.entry.id);
+								const editable = isEditable(row.entry);
+								const companyColor = getCompanyColor(row.entry.company_id);
 
 								return (
 									<tr
 										key={row.id}
 										className={`
                       ${row.isFirstOfDay ? "border-t border-gray-200" : ""}
-                      ${row.record.is_locked ? "opacity-60" : ""}
+                      ${row.entry.is_locked ? "opacity-60" : ""}
                       ${hasOverlap ? "bg-red-50" : index % 2 === 0 ? "bg-white" : "bg-gray-50"}
                       ${editable ? "cursor-pointer hover:bg-blue-50" : ""}
                       transition-colors
@@ -209,7 +215,7 @@ export function TableView({
 									>
 										{/* Date */}
 										<td className="px-4 py-2 text-sm text-gray-900">
-											{row.isFirstOfDay ? formatDate(row.record.date) : ""}
+											{row.isFirstOfDay ? formatDate(row.entry.date) : ""}
 										</td>
 
 										{/* Company */}
@@ -218,11 +224,11 @@ export function TableView({
 												className="inline-block px-2 py-0.5 rounded text-xs font-medium text-white"
 												style={{ backgroundColor: companyColor }}
 											>
-												{getCompanyName(row.record.company_id)}
+												{getCompanyName(row.entry.company_id)}
 											</span>
 										</td>
 
-										{/* Day type */}
+										{/* Entry type */}
 										<td className="px-4 py-2">
 											<span
 												className="inline-block px-2 py-0.5 rounded text-xs font-medium"
@@ -231,27 +237,37 @@ export function TableView({
 													color: companyColor,
 												}}
 											>
-												{DAY_TYPE_LABELS[row.record.day_type] ||
-													row.record.day_type}
+												{ENTRY_TYPE_LABELS[row.entry.entry_type] ||
+													row.entry.entry_type}
 											</span>
+											{row.entry.is_open && (
+												<span className="ml-1 text-xs text-green-600">(open)</span>
+											)}
 										</td>
 
 										{/* Check In */}
 										<td className="px-4 py-2 text-sm text-gray-900 font-mono">
-											{formatTime(row.record.check_in)}
+											{formatTime(row.entry.check_in)}
 										</td>
 
 										{/* Check Out */}
 										<td className="px-4 py-2 text-sm text-gray-900 font-mono">
-											{formatTime(row.record.check_out)}
+											{formatTime(row.entry.check_out)}
 										</td>
 
 										{/* Duration */}
 										<td className="px-4 py-2 text-sm text-gray-900 font-mono">
 											{calculateDuration(
-												row.record.check_in,
-												row.record.check_out,
+												row.entry.check_in,
+												row.entry.check_out,
 											)}
+										</td>
+
+										{/* Location */}
+										<td className="px-4 py-2 text-sm text-gray-500">
+											{row.entry.work_location
+												? WORK_LOCATION_LABELS[row.entry.work_location]
+												: "-"}
 										</td>
 
 										{/* Actions */}
@@ -263,7 +279,7 @@ export function TableView({
 															type="button"
 															onClick={(e) => {
 																e.stopPropagation();
-																onRecordClick(row.record);
+																onEntryClick(row.entry);
 															}}
 															className={`
                               px-2 py-1 text-xs font-medium rounded
@@ -272,12 +288,12 @@ export function TableView({
 														>
 															{hasOverlap ? "Fix" : "Edit"}
 														</button>
-														{onDeleteRecord && (
+														{onDeleteEntry && (
 															<button
 																type="button"
 																onClick={(e) => {
 																	e.stopPropagation();
-																	onDeleteRecord(row.record);
+																	onDeleteEntry(row.entry);
 																}}
 																className="px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-700 hover:bg-red-200"
 															>
@@ -286,7 +302,7 @@ export function TableView({
 														)}
 													</>
 												)}
-												{row.record.is_locked && (
+												{row.entry.is_locked && (
 													<span className="text-xs text-gray-400">Locked</span>
 												)}
 											</div>

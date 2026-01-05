@@ -114,6 +114,15 @@ class PluginRegistry:
                 logger.info(f"Skipping unregistered plugin: {manifest.id}")
                 continue
 
+            # Sync version from manifest to database if changed
+            if db_config.plugin_version != manifest.version:
+                logger.info(
+                    f"Plugin {manifest.id} version changed: "
+                    f"{db_config.plugin_version} -> {manifest.version}"
+                )
+                db_config.plugin_version = manifest.version
+                db.commit()
+
             config = PluginConfig(
                 settings=db_config.get_decrypted_settings(),
             )

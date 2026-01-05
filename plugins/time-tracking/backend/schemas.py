@@ -8,8 +8,8 @@ from enum import Enum
 from pydantic import BaseModel, ConfigDict
 
 
-class DayType(str, Enum):
-    """Types of days for time tracking."""
+class EntryType(str, Enum):
+    """Types of time entries."""
 
     WORK = "work"
     VACATION = "vacation"
@@ -32,95 +32,68 @@ class WorkLocation(str, Enum):
     TRAVEL = "travel"
 
 
-# --- Time Record Schemas ---
+# --- Time Entry Schemas ---
 
 
-class TimeRecordBase(BaseModel):
-    """Base schema for time records."""
+class TimeEntryBase(BaseModel):
+    """Base schema for time entries."""
 
     date: date
     company_id: str | None = None
-    day_type: DayType = DayType.WORK
+    entry_type: EntryType = EntryType.WORK
     check_in: time | None = None
-    check_in_timezone: str | None = None
     check_out: time | None = None
-    check_out_timezone: str | None = None
-    partial_absence_type: DayType | None = None
-    partial_absence_hours: float | None = None
+    timezone: str | None = None
     work_location: WorkLocation | None = None
     notes: str | None = None
 
 
-class TimeRecordCreate(TimeRecordBase):
-    """Schema for creating a time record."""
+class TimeEntryCreate(TimeEntryBase):
+    """Schema for creating a time entry."""
 
     pass
 
 
-class TimeRecordUpdate(BaseModel):
-    """Schema for updating a time record."""
+class TimeEntryUpdate(BaseModel):
+    """Schema for updating a time entry."""
 
     company_id: str | None = None
-    day_type: DayType | None = None
+    entry_type: EntryType | None = None
     check_in: time | None = None
-    check_in_timezone: str | None = None
     check_out: time | None = None
-    check_out_timezone: str | None = None
-    partial_absence_type: DayType | None = None
-    partial_absence_hours: float | None = None
+    timezone: str | None = None
     work_location: WorkLocation | None = None
     notes: str | None = None
 
 
 class TimeEntryResponse(BaseModel):
-    """Schema for individual time entry responses (check-in/check-out pair)."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    time_record_id: str
-    sequence: int
-    check_in: time
-    check_in_timezone: str | None = None
-    check_out: time | None = None
-    check_out_timezone: str | None = None
-    gross_minutes: int | None = None
-    created_at: datetime
-    updated_at: datetime
-
-
-class TimeEntryUpdate(BaseModel):
-    """Schema for updating an individual time entry."""
-
-    check_in: time | None = None
-    check_in_timezone: str | None = None
-    check_out: time | None = None
-    check_out_timezone: str | None = None
-
-
-class TimeRecordResponse(TimeRecordBase):
-    """Schema for time record responses."""
+    """Schema for time entry responses."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: str
     user_id: str
-    company_name: str | None = None  # Company name for display
-    gross_hours: float | None = None
-    break_minutes: int | None = None
-    net_hours: float | None = None
-    compliance_warnings: list[dict] | None = None
+    date: date
+    company_id: str | None = None
+    company_name: str | None = None  # For display
+    entry_type: EntryType
+    check_in: time | None = None
+    check_out: time | None = None
+    timezone: str | None = None
+    work_location: WorkLocation | None = None
+    notes: str | None = None
     submission_id: str | None = None
     is_locked: bool = False
-    # Multi-entry support
-    entries: list[TimeEntryResponse] = []
-    has_open_entry: bool = False
+    # Calculated fields
+    is_open: bool = False
+    gross_minutes: int | None = None
+    gross_hours: float | None = None
     created_at: datetime
     updated_at: datetime
 
 
 class ComplianceWarning(BaseModel):
-    """Schema for compliance warnings."""
+    """Schema for compliance warnings (calculated on-the-fly)."""
 
     level: str  # "info", "warning", "error"
     code: str
@@ -129,42 +102,20 @@ class ComplianceWarning(BaseModel):
     law_reference: str | None = None
 
 
-# --- Time Allocation Schemas ---
+# --- Daily Summary Schema ---
 
 
-class TimeAllocationBase(BaseModel):
-    """Base schema for time allocations."""
+class DailySummary(BaseModel):
+    """Aggregated data for a single day."""
 
-    hours: float
-    description: str | None = None
-    event_id: str | None = None
-    company_id: str | None = None
-
-
-class TimeAllocationCreate(TimeAllocationBase):
-    """Schema for creating a time allocation."""
-
-    pass
-
-
-class TimeAllocationUpdate(BaseModel):
-    """Schema for updating a time allocation."""
-
-    hours: float | None = None
-    description: str | None = None
-    event_id: str | None = None
-    company_id: str | None = None
-
-
-class TimeAllocationResponse(TimeAllocationBase):
-    """Schema for time allocation responses."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    time_record_id: str
-    created_at: datetime
-    updated_at: datetime
+    date: date
+    entries: list[TimeEntryResponse]
+    total_gross_hours: float
+    total_net_hours: float
+    break_minutes: int
+    entry_count: int
+    has_open_entry: bool
+    warnings: list[ComplianceWarning] = []
 
 
 # --- Leave Balance Schemas ---
@@ -343,7 +294,8 @@ class MonthlyReportResponse(BaseModel):
     sick_days: int
     comp_time_days: int
     public_holiday_days: int
-    records: list[TimeRecordResponse]
+    entries: list[TimeEntryResponse]
+    daily_summaries: list[DailySummary] = []
 
 
 class OvertimeReportResponse(BaseModel):
@@ -378,23 +330,13 @@ class CheckOutRequest(BaseModel):
     timezone: str | None = None
 
 
-class CurrentEntryInfo(BaseModel):
-    """Info about the currently open entry."""
-
-    id: str
-    sequence: int
-    check_in: time
-    check_in_timezone: str | None = None
-
-
 class CheckInStatusResponse(BaseModel):
     """Response schema for current check-in status."""
 
-    has_record: bool = False
-    has_open_entry: bool = False
-    entry_count: int = 0
-    current_entry: CurrentEntryInfo | None = None
-    record_id: str | None = None
+    is_checked_in: bool = False
+    open_entry: TimeEntryResponse | None = None
+    today_entries: list[TimeEntryResponse] = []
+    today_total_hours: float = 0.0
 
 
 # --- User Preferences Schemas ---
@@ -422,5 +364,5 @@ class PluginInfoResponse(BaseModel):
     plugin_id: str
     plugin_name: str
     version: str
-    record_count: int
+    entry_count: int
     current_balance: LeaveBalanceResponse | None = None

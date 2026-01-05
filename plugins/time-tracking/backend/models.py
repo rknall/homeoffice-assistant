@@ -20,13 +20,12 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
 
 from src.models.base import Base
 
 
-class DayType(str, Enum):
-    """Types of days for time tracking."""
+class EntryType(str, Enum):
+    """Types of time entries."""
 
     WORK = "work"
     VACATION = "vacation"
@@ -49,46 +48,43 @@ class WorkLocation(str, Enum):
     TRAVEL = "travel"
 
 
-class TimeRecord(Base):
-    """Daily time record - legal requirement."""
+class TimeEntry(Base):
+    """Individual time entry - the core time tracking record.
 
-    __tablename__ = "tt_time_records"
+    Each entry represents one of:
+    - A work session (check_in/check_out pair)
+    - A full-day absence (vacation, sick, etc. - no times needed)
+    - A partial day (doctor visit with times)
+
+    Multiple entries per day per company are allowed, enabling:
+    - Morning session: 09:00-12:30
+    - Afternoon session: 13:30-17:00
+    """
+
+    __tablename__ = "tt_time_entries"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    date = Column(Date, nullable=False, index=True)
+    date = Column(Date, nullable=False)
     company_id = Column(
         UUID(as_uuid=True),
         ForeignKey("companies.id", ondelete="SET NULL"),
         nullable=True,
     )
 
-    # Day classification
-    day_type = Column(String(30), nullable=False, default=DayType.WORK.value)
+    # Entry type classification
+    entry_type = Column(String(30), nullable=False, default=EntryType.WORK.value)
 
-    # Working times (nullable for non-work days)
+    # Working times (nullable for non-work entries like vacation)
     check_in = Column(Time, nullable=True)
-    check_in_timezone = Column(String(50), nullable=True)
     check_out = Column(Time, nullable=True)
-    check_out_timezone = Column(String(50), nullable=True)
+    timezone = Column(String(50), nullable=True)
 
-    # Partial absences (for work days)
-    partial_absence_type = Column(String(30), nullable=True)
-    partial_absence_hours = Column(Float, nullable=True)
-
-    # Calculated values
-    gross_hours = Column(Float, nullable=True)
-    break_minutes = Column(Integer, nullable=True)
-    net_hours = Column(Float, nullable=True)
-
-    # Location
+    # Location and notes
     work_location = Column(String(30), nullable=True)
-
-    # Notes and compliance
     notes = Column(Text, nullable=True)
-    compliance_warnings = Column(Text, nullable=True)  # JSON array
 
-    # Submission tracking
+    # Submission tracking (for locking submitted timesheets)
     submission_id = Column(
         UUID(as_uuid=True),
         ForeignKey("tt_timesheet_submissions.id", ondelete="SET NULL"),
@@ -101,125 +97,48 @@ class TimeRecord(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
-    # Relationship to time entries (individual check-in/check-out pairs)
-    entries = relationship(
-        "TimeEntry",
-        back_populates="time_record",
-        cascade="all, delete-orphan",
-        order_by="TimeEntry.sequence",
-    )
-
     __table_args__ = (
-        # Allow one record per user per date per company
-        UniqueConstraint(
-            "user_id", "date", "company_id", name="uq_tt_user_date_company"
-        ),
-        Index("idx_tt_user_date_range", "user_id", "date"),
-        Index("idx_tt_company_date", "company_id", "date"),
-        Index("idx_tt_submission", "submission_id"),
-    )
-
-    @property
-    def has_open_entry(self) -> bool:
-        """Check if any entry is missing check_out (still checked in)."""
-        return any(e.check_out is None for e in self.entries)
-
-    def __repr__(self) -> str:
-        """Return string representation."""
-        return f"<TimeRecord(id={self.id}, date={self.date}, type={self.day_type})>"
-
-
-class TimeEntry(Base):
-    """Individual check-in/check-out pair within a day.
-
-    A TimeRecord can have multiple TimeEntry rows, enabling:
-    - Multiple check-in/out pairs per day (e.g., morning session, afternoon session)
-    - Open check-ins (check_out is NULL until user clocks out)
-    - Break calculation from gaps between entries
-    """
-
-    __tablename__ = "tt_time_entries"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    time_record_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("tt_time_records.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    sequence = Column(Integer, nullable=False)  # 1, 2, 3... for ordering within day
-
-    # Check-in/out times
-    check_in = Column(Time, nullable=False)
-    check_in_timezone = Column(String(50), nullable=True)
-    check_out = Column(Time, nullable=True)  # Nullable for open/active entries
-    check_out_timezone = Column(String(50), nullable=True)
-
-    # Calculated for this entry only (in minutes for precision)
-    gross_minutes = Column(Integer, nullable=True)
-
-    # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
-
-    # Relationship back to parent record
-    time_record = relationship("TimeRecord", back_populates="entries")
-
-    __table_args__ = (
-        UniqueConstraint("time_record_id", "sequence", name="uq_tt_entry_seq"),
-        Index("idx_tt_entry_record", "time_record_id"),
+        Index("idx_tt_entry_user_date", "user_id", "date"),
+        Index("idx_tt_entry_company_date", "company_id", "date"),
+        Index("idx_tt_entry_submission", "submission_id"),
     )
 
     @property
     def is_open(self) -> bool:
-        """Check if this entry is still open (no check_out)."""
-        return self.check_out is None
+        """Check if this is an open work entry (checked in but not out)."""
+        return (
+            self.entry_type == EntryType.WORK.value
+            and self.check_in is not None
+            and self.check_out is None
+        )
+
+    @property
+    def gross_minutes(self) -> int | None:
+        """Calculate gross minutes for this entry."""
+        if not self.check_in or not self.check_out:
+            return None
+
+        in_minutes = self.check_in.hour * 60 + self.check_in.minute
+        out_minutes = self.check_out.hour * 60 + self.check_out.minute
+
+        # Handle overnight shifts
+        if out_minutes < in_minutes:
+            out_minutes += 24 * 60
+
+        return out_minutes - in_minutes
+
+    @property
+    def gross_hours(self) -> float | None:
+        """Calculate gross hours for this entry."""
+        minutes = self.gross_minutes
+        return minutes / 60 if minutes is not None else None
 
     def __repr__(self) -> str:
         """Return string representation."""
         return (
-            f"<TimeEntry(id={self.id}, seq={self.sequence}, "
-            f"in={self.check_in}, out={self.check_out})>"
+            f"<TimeEntry(id={self.id}, date={self.date}, "
+            f"type={self.entry_type}, in={self.check_in}, out={self.check_out})>"
         )
-
-
-class TimeAllocation(Base):
-    """Optional: How daily hours are split across projects."""
-
-    __tablename__ = "tt_time_allocations"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    time_record_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("tt_time_records.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-
-    hours = Column(Float, nullable=False)
-    description = Column(String(500), nullable=True)
-
-    # Associations (all optional)
-    event_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("events.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-    company_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("companies.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-
-    # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
-
-    def __repr__(self) -> str:
-        """Return string representation."""
-        return f"<TimeAllocation(id={self.id}, hours={self.hours})>"
 
 
 class LeaveBalance(Base):
@@ -292,7 +211,7 @@ class TimesheetSubmission(Base):
 
     # Attachments
     pdf_path = Column(String(500), nullable=True)
-    record_ids = Column(Text, nullable=False)  # JSON array of UUIDs
+    entry_ids = Column(Text, nullable=False)  # JSON array of UUIDs
 
     # Status
     status = Column(String(20), default="sent", nullable=False)
@@ -355,33 +274,6 @@ class CompanyTimeSettings(Base):
     def __repr__(self) -> str:
         """Return string representation."""
         return f"<CompanyTimeSettings(id={self.id}, company_id={self.company_id})>"
-
-
-class TimeRecordAudit(Base):
-    """Immutable audit log for time record changes."""
-
-    __tablename__ = "tt_time_record_audit"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    # Not FK - record may be deleted but we keep audit
-    time_record_id = Column(UUID(as_uuid=True), nullable=False)
-    changed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    changed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-    change_type = Column(String(20), nullable=False)  # created, updated, deleted
-    old_values = Column(Text, nullable=True)  # JSON
-    new_values = Column(Text, nullable=False)  # JSON
-    reason = Column(Text, nullable=True)
-
-    # Timestamp (immutable, so only created_at)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-    def __repr__(self) -> str:
-        """Return string representation."""
-        return (
-            f"<TimeRecordAudit(id={self.id}, "
-            f"record_id={self.time_record_id}, type={self.change_type})>"
-        )
 
 
 class CustomHoliday(Base):

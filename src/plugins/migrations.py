@@ -6,6 +6,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+import sqlalchemy as sa
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
@@ -117,30 +118,121 @@ class PluginMigrationRunner:
         return applied
 
     def downgrade_all(self) -> None:
-        """Downgrade all migrations for this plugin (for uninstall)."""
+        """Downgrade all migrations for this plugin (for uninstall).
+
+        First attempts clean Alembic downgrade. If that fails (e.g., migration
+        doesn't support downgrade), falls back to directly dropping all tables
+        that match the plugin's table prefix pattern.
+        """
         if not self.has_migrations():
             return
 
         alembic_cfg = self.get_alembic_config()
+        engine = create_engine(settings.database_url)
 
         try:
             logger.info(f"Downgrading all migrations for plugin {self.plugin_id}")
             command.downgrade(alembic_cfg, "base")
-
-            # Clean up version table
-            engine = create_engine(settings.database_url)
-            with engine.connect() as conn:
-                conn.execute(text(f"DROP TABLE IF EXISTS {self._version_table}"))
-                conn.commit()
-
-            # Remove from tracking
-            self._remove_migration_history()
-
             logger.info(f"Downgraded all migrations for plugin {self.plugin_id}")
 
+        except NotImplementedError as e:
+            # Migration doesn't support downgrade - use force drop instead
+            logger.warning(
+                f"Plugin {self.plugin_id} migration doesn't support downgrade: {e}. "
+                "Falling back to force drop of plugin tables."
+            )
+            self._force_drop_plugin_tables(engine)
+
         except Exception as e:
-            logger.error(f"Downgrade failed for plugin {self.plugin_id}: {e}")
-            raise
+            # Other error - also try force drop as last resort
+            logger.warning(
+                f"Downgrade failed for plugin {self.plugin_id}: {e}. "
+                "Attempting force drop of plugin tables."
+            )
+            self._force_drop_plugin_tables(engine)
+
+        # Clean up version table (quote the name to handle hyphens)
+        with engine.connect() as conn:
+            conn.execute(text(f'DROP TABLE IF EXISTS "{self._version_table}"'))
+            conn.commit()
+
+        # Remove from tracking
+        self._remove_migration_history()
+
+    def _force_drop_plugin_tables(self, engine: sa.Engine) -> None:
+        """Force drop all tables belonging to this plugin.
+
+        This is used as a fallback when Alembic downgrade fails (e.g., when
+        a migration's downgrade() raises NotImplementedError).
+
+        Tables are identified by common plugin prefixes or by inspecting
+        the plugin's models module.
+        """
+        from sqlalchemy import inspect
+
+        # Common table prefix patterns for plugins
+        # Most plugins use a prefix like "tt_" (time-tracking), "ex_" (example), etc.
+        # We derive the prefix from the plugin_id: "time-tracking" -> "tt_"
+        prefix = self._get_table_prefix()
+
+        inspector = inspect(engine)
+        all_tables = inspector.get_table_names()
+
+        # Find tables that match the plugin's prefix
+        plugin_tables = [t for t in all_tables if t.startswith(prefix)]
+
+        if not plugin_tables:
+            logger.warning(
+                f"No tables found with prefix '{prefix}' for plugin {self.plugin_id}"
+            )
+            return
+
+        logger.info(
+            f"Force dropping {len(plugin_tables)} tables for plugin {self.plugin_id}: "
+            f"{plugin_tables}"
+        )
+
+        # Drop tables in reverse dependency order (handle foreign keys)
+        # We disable FK checks temporarily for SQLite, or use CASCADE for PostgreSQL
+        with engine.connect() as conn:
+            # For SQLite
+            if engine.dialect.name == "sqlite":
+                conn.execute(text("PRAGMA foreign_keys = OFF"))
+
+            for table_name in plugin_tables:
+                try:
+                    # Use CASCADE to handle foreign key dependencies
+                    if engine.dialect.name == "postgresql":
+                        drop_sql = f'DROP TABLE IF EXISTS "{table_name}" CASCADE'
+                    else:
+                        drop_sql = f'DROP TABLE IF EXISTS "{table_name}"'
+                    conn.execute(text(drop_sql))
+                    logger.debug(f"Dropped table: {table_name}")
+                except Exception as e:
+                    logger.error(f"Failed to drop table {table_name}: {e}")
+
+            if engine.dialect.name == "sqlite":
+                conn.execute(text("PRAGMA foreign_keys = ON"))
+
+            conn.commit()
+
+        logger.info(f"Force dropped tables for plugin {self.plugin_id}")
+
+    def _get_table_prefix(self) -> str:
+        """Get the table prefix for this plugin.
+
+        Derives a prefix from the plugin_id. For example:
+        - "time-tracking" -> "tt_"
+        - "example" -> "example_" (single word uses full name)
+        - "my-cool-plugin" -> "mcp_"
+        """
+        parts = self.plugin_id.replace("_", "-").split("-")
+        if len(parts) == 1:
+            # Single word plugin: use full name as prefix
+            return f"{parts[0]}_"
+        else:
+            # Multi-word plugin: use initials
+            return "".join(p[0] for p in parts if p) + "_"
 
     def get_current_revision(self) -> str | None:
         """Get the current migration revision for this plugin.

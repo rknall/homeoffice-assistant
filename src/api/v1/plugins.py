@@ -332,12 +332,18 @@ async def get_plugin(
 @router.post("/install", response_model=PluginInstallResponse)
 async def install_plugin(
     file: UploadFile = File(...),
+    upgrade: bool = False,
     db: Session = Depends(get_db),
     _admin: User = Depends(get_current_admin),
 ) -> PluginInstallResponse:
-    """Install a plugin from a ZIP file.
+    """Install a plugin from a ZIP file, or upgrade an existing one.
 
     Requires admin privileges.
+
+    Args:
+        file: Plugin ZIP archive
+        upgrade: If True, allows replacing an existing plugin with a new version
+        db: Database session
     """
     if not file.filename or not file.filename.endswith(".zip"):
         raise HTTPException(
@@ -352,14 +358,22 @@ async def install_plugin(
 
     try:
         registry = PluginRegistry.get_instance()
-        plugin = await registry.install_plugin(tmp_path, db)
+        plugin, old_version = await registry.install_plugin(tmp_path, db, upgrade)
+
+        if old_version:
+            message = (
+                f"Plugin {plugin.name} upgraded successfully "
+                f"({old_version} -> {plugin.manifest.version})"
+            )
+        else:
+            message = f"Plugin {plugin.name} installed successfully"
 
         return PluginInstallResponse(
             success=True,
             plugin_id=plugin.id,
             plugin_name=plugin.name,
             version=plugin.manifest.version,
-            message=f"Plugin {plugin.name} installed successfully",
+            message=message,
         )
 
     except PluginValidationError as e:

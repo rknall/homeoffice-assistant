@@ -34,7 +34,7 @@ interface PluginsState {
   fetchDiscoveredPlugins: () => Promise<void>
   loadAllFrontends: () => Promise<void>
   getPluginInfo: (pluginId: string) => Promise<PluginInfo>
-  installPlugin: (file: File) => Promise<PluginInstallResponse>
+  installPlugin: (file: File, upgrade?: boolean) => Promise<PluginInstallResponse>
   installDiscoveredPlugin: (pluginId: string) => Promise<PluginInstallResponse>
   uninstallPlugin: (
     pluginId: string,
@@ -106,13 +106,15 @@ export const usePlugins = create<PluginsState>((set, get) => ({
     return response
   },
 
-  installPlugin: async (file: File) => {
+  installPlugin: async (file: File, upgrade = false) => {
     set({ isLoading: true, error: null })
     try {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch('/api/v1/plugins/install', {
+      const url = upgrade ? '/api/v1/plugins/install?upgrade=true' : '/api/v1/plugins/install'
+
+      const response = await fetch(url, {
         method: 'POST',
         body: formData,
         credentials: 'include',

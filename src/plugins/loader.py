@@ -365,15 +365,17 @@ class PluginLoader:
         self,
         zip_path: Path,
         db: Session | None = None,
-    ) -> PluginManifest:
+        upgrade: bool = False,
+    ) -> tuple[PluginManifest, str | None]:
         """Install a plugin from a ZIP file.
 
         Args:
             zip_path: Path to the ZIP file
             db: Optional database session (not used here, but available)
+            upgrade: If True, allow replacing an existing plugin
 
         Returns:
-            Parsed plugin manifest
+            Tuple of (parsed plugin manifest, old version if upgraded else None)
 
         Raises:
             PluginValidationError: If ZIP contents are invalid
@@ -418,11 +420,40 @@ class PluginLoader:
 
             # Check if plugin already exists
             target_dir = self.plugins_dir / manifest.id
+            old_version: str | None = None
+
             if target_dir.exists():
-                raise PluginValidationError(
-                    f"Plugin {manifest.id} is already installed. "
-                    "Uninstall it first or use upgrade."
+                if not upgrade:
+                    raise PluginValidationError(
+                        f"Plugin {manifest.id} is already installed. "
+                        "Use the upgrade option to replace it with a new version."
+                    )
+
+                # Get old version before replacing
+                old_manifest_path = target_dir / PLUGIN_MANIFEST_FILE
+                if old_manifest_path.exists():
+                    try:
+                        old_manifest = parse_manifest(old_manifest_path)
+                        old_version = old_manifest.version
+                    except (
+                        PluginValidationError,
+                        OSError,
+                        json.JSONDecodeError,
+                    ) as exc:
+                        logger.warning(
+                            "Failed to parse existing manifest for plugin %s at %s: %s",
+                            manifest.id,
+                            old_manifest_path,
+                            exc,
+                        )
+                        old_version = "unknown"
+
+                # Remove old plugin directory
+                logger.info(
+                    f"Upgrading plugin {manifest.id}: "
+                    f"{old_version} -> {manifest.version}"
                 )
+                shutil.rmtree(target_dir)
 
             # Validate required permissions
             checker = PermissionChecker()
@@ -435,9 +466,16 @@ class PluginLoader:
 
             # Copy to plugins directory
             shutil.copytree(source_path, target_dir)
-            logger.info(f"Installed plugin {manifest.id} v{manifest.version}")
 
-        return manifest
+            if old_version:
+                logger.info(
+                    f"Upgraded plugin {manifest.id}: "
+                    f"{old_version} -> {manifest.version}"
+                )
+            else:
+                logger.info(f"Installed plugin {manifest.id} v{manifest.version}")
+
+        return manifest, old_version
 
     def uninstall(self, plugin_id: str) -> None:
         """Uninstall a plugin by removing its directory.

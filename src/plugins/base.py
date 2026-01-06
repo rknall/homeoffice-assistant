@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Base classes and interfaces for the plugin system."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -96,6 +98,9 @@ class PluginManifest:
     dependencies: list[str] = field(default_factory=list)
     # Python package dependencies (e.g., ["holidays>=0.62"])
     python_dependencies: list[str] = field(default_factory=list)
+    # Table prefix used for plugin's database tables (e.g., "tt_" for time-tracking)
+    # If not specified, will be derived from plugin_id
+    table_prefix: str | None = None
 
     # Backward compatibility: alias 'permissions' to 'required_permissions'
     @property

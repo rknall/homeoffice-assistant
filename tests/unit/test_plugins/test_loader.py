@@ -742,3 +742,51 @@ class TestPythonDependenciesParsing:
         manifest = parse_manifest(manifest_path)
 
         assert manifest.python_dependencies == []
+
+
+class TestTablePrefixParsing:
+    """Tests for table_prefix field in manifest."""
+
+    @pytest.fixture
+    def manifest_dir(self, tmp_path):
+        """Create a temporary directory for manifest files."""
+        return tmp_path
+
+    def write_manifest(self, path: Path, data: dict):
+        """Helper to write manifest JSON."""
+        manifest_path = path / PLUGIN_MANIFEST_FILE
+        manifest_path.write_text(json.dumps(data))
+        return manifest_path
+
+    def test_parse_table_prefix(self, manifest_dir):
+        """Test parsing table_prefix from manifest."""
+        manifest_path = self.write_manifest(
+            manifest_dir,
+            {
+                "id": "test-plugin",
+                "name": "Test Plugin",
+                "version": "1.0.0",
+                "description": "Test",
+                "table_prefix": "test_",
+            },
+        )
+
+        manifest = parse_manifest(manifest_path)
+
+        assert manifest.table_prefix == "test_"
+
+    def test_parse_missing_table_prefix(self, manifest_dir):
+        """Test parsing manifest without table_prefix defaults to None."""
+        manifest_path = self.write_manifest(
+            manifest_dir,
+            {
+                "id": "test-plugin",
+                "name": "Test Plugin",
+                "version": "1.0.0",
+                "description": "Test",
+            },
+        )
+
+        manifest = parse_manifest(manifest_path)
+
+        assert manifest.table_prefix is None

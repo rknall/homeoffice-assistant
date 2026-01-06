@@ -5,6 +5,7 @@
   "description": "A demonstration plugin showing all plugin system capabilities",
   "author": "HomeOffice Assistant Team",
   "homepage": "https://github.com/rknall/homeoffice-assistant",
+  "table_prefix": "plugin_example_",
   "capabilities": {
     "backend": true,
     "frontend": true,

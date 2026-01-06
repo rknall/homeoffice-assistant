@@ -1,7 +1,9 @@
 # Calendar Integration
 
 ## Status
-Idea - Not Started
+Specification Complete - See `/docs/specs/calendar-integration.md`
+
+**Note:** This document contains the original brainstorming. The full specification with implementation details is in `/docs/specs/calendar-integration.md`.
 
 ## Problem
 Events have dates that could sync with calendar applications. Users may want to see their business trips in their regular calendar, or import calendar events as trips.

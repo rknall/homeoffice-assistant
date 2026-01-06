@@ -35,7 +35,7 @@ class AustrianComplianceValidator:
     WEEKLY_MAX_HOURS = 50.0
     MIN_REST_HOURS = 11.0
 
-    def validate_daily_hours(self, record) -> list[ComplianceWarning]:
+    def validate_daily_hours(self, record: MagicMock) -> list[ComplianceWarning]:
         """Check daily hour limits per Austrian law."""
         warnings: list[ComplianceWarning] = []
 
@@ -73,8 +73,8 @@ class AustrianComplianceValidator:
 
     def validate_rest_period(
         self,
-        current,
-        previous,
+        current: MagicMock,
+        previous: MagicMock | None,
     ) -> list[ComplianceWarning]:
         """Check 11-hour rest requirement."""
         warnings: list[ComplianceWarning] = []
@@ -172,7 +172,7 @@ class AustrianComplianceValidator:
         at_holidays = holidays.Austria(years=check_date.year, subdiv=region)
         return at_holidays.get(check_date)
 
-    def _calculate_rest_hours(self, previous, current) -> float:
+    def _calculate_rest_hours(self, previous: MagicMock, current: MagicMock) -> float:
         """Calculate rest hours between two shifts."""
         if previous.check_out is None or current.check_in is None:
             return float("inf")
@@ -184,7 +184,7 @@ class AustrianComplianceValidator:
         return rest_delta.total_seconds() / 3600
 
 
-def get_validator(country_code: str = "AT"):
+def get_validator(country_code: str = "AT") -> AustrianComplianceValidator:
     """Get the appropriate compliance validator for a country."""
     validators = {
         "AT": AustrianComplianceValidator,
@@ -204,11 +204,13 @@ class TestAustrianComplianceValidator:
     """Tests for AustrianComplianceValidator."""
 
     @pytest.fixture
-    def validator(self):
+    def validator(self) -> AustrianComplianceValidator:
         """Create a validator instance."""
         return AustrianComplianceValidator()
 
-    def test_validate_daily_hours_within_limit(self, validator):
+    def test_validate_daily_hours_within_limit(
+        self, validator: AustrianComplianceValidator
+    ) -> None:
         """No warnings for hours within 8h limit."""
         record = MagicMock()
         record.net_hours = 8.0
@@ -216,7 +218,9 @@ class TestAustrianComplianceValidator:
         warnings = validator.validate_daily_hours(record)
         assert len(warnings) == 0
 
-    def test_validate_daily_hours_overtime(self, validator):
+    def test_validate_daily_hours_overtime(
+        self, validator: AustrianComplianceValidator
+    ) -> None:
         """Info warning for hours between 8h and 10h."""
         record = MagicMock()
         record.net_hours = 9.5
@@ -226,7 +230,9 @@ class TestAustrianComplianceValidator:
         assert warnings[0].level == "info"
         assert warnings[0].code == "OVERTIME"
 
-    def test_validate_daily_hours_exceeds_max(self, validator):
+    def test_validate_daily_hours_exceeds_max(
+        self, validator: AustrianComplianceValidator
+    ) -> None:
         """Error warning for hours over 10h."""
         record = MagicMock()
         record.net_hours = 11.0
@@ -237,7 +243,9 @@ class TestAustrianComplianceValidator:
         assert warnings[0].code == "EXCEEDS_DAILY_MAX"
         assert warnings[0].requires_explanation is True
 
-    def test_validate_daily_hours_none(self, validator):
+    def test_validate_daily_hours_none(
+        self, validator: AustrianComplianceValidator
+    ) -> None:
         """No warnings when net_hours is None."""
         record = MagicMock()
         record.net_hours = None
@@ -245,7 +253,9 @@ class TestAustrianComplianceValidator:
         warnings = validator.validate_daily_hours(record)
         assert len(warnings) == 0
 
-    def test_validate_rest_period_sufficient(self, validator):
+    def test_validate_rest_period_sufficient(
+        self, validator: AustrianComplianceValidator
+    ) -> None:
         """No warning when rest period is >= 11 hours."""
         previous = MagicMock()
         previous.date = date(2025, 1, 1)
@@ -258,7 +268,9 @@ class TestAustrianComplianceValidator:
         warnings = validator.validate_rest_period(current, previous)
         assert len(warnings) == 0
 
-    def test_validate_rest_period_insufficient(self, validator):
+    def test_validate_rest_period_insufficient(
+        self, validator: AustrianComplianceValidator
+    ) -> None:
         """Warning when rest period is < 11 hours."""
         previous = MagicMock()
         previous.date = date(2025, 1, 1)
@@ -274,7 +286,9 @@ class TestAustrianComplianceValidator:
         assert warnings[0].code == "INSUFFICIENT_REST"
         assert warnings[0].requires_explanation is True
 
-    def test_validate_rest_period_no_previous(self, validator):
+    def test_validate_rest_period_no_previous(
+        self, validator: AustrianComplianceValidator
+    ) -> None:
         """No warning when there's no previous record."""
         current = MagicMock()
         current.check_in = time(8, 0)
@@ -282,7 +296,9 @@ class TestAustrianComplianceValidator:
         warnings = validator.validate_rest_period(current, None)
         assert len(warnings) == 0
 
-    def test_validate_rest_period_missing_times(self, validator):
+    def test_validate_rest_period_missing_times(
+        self, validator: AustrianComplianceValidator
+    ) -> None:
         """No warning when times are missing."""
         previous = MagicMock()
         previous.date = date(2025, 1, 1)
@@ -295,7 +311,9 @@ class TestAustrianComplianceValidator:
         warnings = validator.validate_rest_period(current, previous)
         assert len(warnings) == 0
 
-    def test_validate_weekly_hours_within_limit(self, validator):
+    def test_validate_weekly_hours_within_limit(
+        self, validator: AustrianComplianceValidator
+    ) -> None:
         """No warnings for weekly hours within 40h limit."""
         records = []
         for _i in range(5):
@@ -307,7 +325,9 @@ class TestAustrianComplianceValidator:
         warnings = validator.validate_weekly_hours(records)
         assert len(warnings) == 0
 
-    def test_validate_weekly_hours_overtime(self, validator):
+    def test_validate_weekly_hours_overtime(
+        self, validator: AustrianComplianceValidator
+    ) -> None:
         """Info warning for weekly hours between 40h and 50h."""
         records = []
         for _i in range(5):
@@ -321,7 +341,9 @@ class TestAustrianComplianceValidator:
         assert warnings[0].level == "info"
         assert warnings[0].code == "WEEKLY_OVERTIME"
 
-    def test_validate_weekly_hours_exceeds_max(self, validator):
+    def test_validate_weekly_hours_exceeds_max(
+        self, validator: AustrianComplianceValidator
+    ) -> None:
         """Error warning for weekly hours over 50h."""
         records = []
         for _i in range(5):
@@ -335,7 +357,9 @@ class TestAustrianComplianceValidator:
         assert warnings[0].level == "error"
         assert warnings[0].code == "EXCEEDS_WEEKLY_MAX"
 
-    def test_get_public_holidays_austria_2025(self, validator):
+    def test_get_public_holidays_austria_2025(
+        self, validator: AustrianComplianceValidator
+    ) -> None:
         """Get Austrian public holidays for 2025."""
         holidays_dict = validator.get_public_holidays(2025)
 
@@ -345,15 +369,19 @@ class TestAustrianComplianceValidator:
         assert date(2025, 5, 1) in holidays_dict  # Staatsfeiertag
         assert date(2025, 12, 25) in holidays_dict  # Weihnachten
 
-    def test_is_public_holiday_christmas(self, validator):
+    def test_is_public_holiday_christmas(
+        self, validator: AustrianComplianceValidator
+    ) -> None:
         """Christmas is a public holiday."""
         assert validator.is_public_holiday(date(2025, 12, 25)) is True
 
-    def test_is_public_holiday_regular_day(self, validator):
+    def test_is_public_holiday_regular_day(
+        self, validator: AustrianComplianceValidator
+    ) -> None:
         """Regular day is not a holiday."""
         assert validator.is_public_holiday(date(2025, 3, 15)) is False
 
-    def test_get_holiday_name(self, validator):
+    def test_get_holiday_name(self, validator: AustrianComplianceValidator) -> None:
         """Get the name of a holiday."""
         name = validator.get_holiday_name(date(2025, 12, 25))
         assert name is not None
@@ -364,12 +392,12 @@ class TestAustrianComplianceValidator:
 class TestGetValidator:
     """Tests for get_validator factory function."""
 
-    def test_get_austrian_validator(self):
+    def test_get_austrian_validator(self) -> None:
         """Get Austrian validator for AT code."""
         validator = get_validator("AT")
         assert isinstance(validator, AustrianComplianceValidator)
 
-    def test_get_unknown_country_raises(self):
+    def test_get_unknown_country_raises(self) -> None:
         """Unknown country code raises ValueError."""
         with pytest.raises(ValueError, match="No compliance validator"):
             get_validator("XX")

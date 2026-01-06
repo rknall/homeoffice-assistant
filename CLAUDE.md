@@ -124,3 +124,9 @@ Update `RELEASENOTES.md` when:
 - Introducing breaking changes
 
 Sync version in `frontend/src/components/layout/Footer.tsx` with app version.
+
+## Git Tags and Releases
+
+**Version tags MUST use the `v` prefix** (e.g., `v0.4.0`, `v0.4.0-dev`, `v1.0.0-beta1`).
+
+The release workflow only triggers on `v*` tags. If the user requests a tag without the `v` prefix, always add it automatically.

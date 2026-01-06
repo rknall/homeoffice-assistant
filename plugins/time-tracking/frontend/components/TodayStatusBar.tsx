@@ -217,16 +217,17 @@ export function TodayStatusBar({
 
 			while (currentDay <= today) {
 				const dayOfWeek = currentDay.getDay();
-				const dateStr = currentDay.toISOString().split("T")[0];
+				// Format as YYYY-MM-DD for consistent comparison
+				const dateStr = `${currentDay.getFullYear()}-${String(currentDay.getMonth() + 1).padStart(2, "0")}-${String(currentDay.getDate()).padStart(2, "0")}`;
 				const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 				const isHoliday = holidays.has(dateStr);
 
-				// Check if this day has leave (vacation or sick)
+				// Check if this day has leave (vacation or sick) using string comparison
 				const hasLeave = entries.some(e => {
 					if (e.entry_type !== "vacation" && e.entry_type !== "sick") return false;
-					const entryDate = new Date(e.date);
-					const endDate = e.end_date ? new Date(e.end_date) : entryDate;
-					return currentDay >= entryDate && currentDay <= endDate;
+					const startDate = e.date;
+					const endDate = e.end_date || e.date;
+					return dateStr >= startDate && dateStr <= endDate;
 				});
 
 				if (!isWeekend && !isHoliday && !hasLeave) {
@@ -362,6 +363,20 @@ export function TodayStatusBar({
 		(e) => !e.is_open && e.entry_type === "work",
 	).length;
 
+	// Calculate today's total worked hours (completed sessions only)
+	const todayWorkedHours = useMemo(() => {
+		let totalMinutes = 0;
+		const dailyGross = todayEntries
+			.filter((e) => !e.is_open && e.entry_type === "work" && e.gross_hours !== null)
+			.reduce((sum, e) => sum + (e.gross_hours || 0), 0);
+
+		// Calculate break for today based on total gross hours
+		const breakMinutes = calculateBreakMinutes(dailyGross);
+		totalMinutes = dailyGross * 60 - breakMinutes;
+
+		return totalMinutes / 60;
+	}, [todayEntries]);
+
 	return (
 		<div className="bg-white rounded-lg shadow p-4">
 			<div className="flex items-center justify-between gap-6 flex-wrap">
@@ -401,11 +416,17 @@ export function TodayStatusBar({
 							{/* Gray indicator when not checked in */}
 							<div className="w-3 h-3 bg-gray-300 rounded-full" />
 							<div>
-								<div className="text-sm text-gray-500">Not checked in today</div>
-								{completedTodayCount > 0 && (
-									<div className="text-xs text-gray-400">
-										{completedTodayCount} completed session(s)
-									</div>
+								{todayWorkedHours > 0 ? (
+									<>
+										<div className="text-sm font-medium text-gray-700">
+											{formatHours(todayWorkedHours)} worked today
+										</div>
+										<div className="text-xs text-gray-400">
+											No session running
+										</div>
+									</>
+								) : (
+									<div className="text-sm text-gray-500">No sessions today</div>
 								)}
 							</div>
 						</>

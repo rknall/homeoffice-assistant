@@ -204,16 +204,52 @@ export function TodayStatusBar({
 		const actualWorkDays = workDays.size;
 		const actualNetHours = (totalGrossMinutes - totalBreakMinutes) / 60;
 
-		// Overtime: actual hours - expected hours for days worked (not month total)
-		const expectedForWorkedDays = actualWorkDays * 8;
-		const overtime = Math.max(0, actualNetHours - expectedForWorkedDays);
+		// Calculate expected work days up to today (not the whole month)
+		const today = new Date();
+		const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+
+		let expectedWorkDaysSoFar = expectedWorkDays;
+		if (isCurrentMonth) {
+			// Count workdays from start of month up to today
+			const monthStart = new Date(year, month, 1);
+			let workdayCount = 0;
+			const currentDay = new Date(monthStart);
+
+			while (currentDay <= today) {
+				const dayOfWeek = currentDay.getDay();
+				const dateStr = currentDay.toISOString().split("T")[0];
+				const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+				const isHoliday = holidays.has(dateStr);
+
+				// Check if this day has leave (vacation or sick)
+				const hasLeave = entries.some(e => {
+					if (e.entry_type !== "vacation" && e.entry_type !== "sick") return false;
+					const entryDate = new Date(e.date);
+					const endDate = e.end_date ? new Date(e.end_date) : entryDate;
+					return currentDay >= entryDate && currentDay <= endDate;
+				});
+
+				if (!isWeekend && !isHoliday && !hasLeave) {
+					workdayCount++;
+				}
+				currentDay.setDate(currentDay.getDate() + 1);
+			}
+			expectedWorkDaysSoFar = workdayCount;
+		}
+
+		const expectedHoursSoFar = expectedWorkDaysSoFar * 8;
+
+		// Comp time: actual hours - expected hours so far (can be negative)
+		const compTime = actualNetHours - expectedHoursSoFar;
 
 		return {
 			actualWorkDays,
 			expectedWorkDays,
+			expectedWorkDaysSoFar,
 			actualHours: actualNetHours,
 			expectedHours,
-			overtime,
+			expectedHoursSoFar,
+			compTime,
 		};
 	}, [entries, currentDate, holidays]);
 
@@ -311,12 +347,14 @@ export function TodayStatusBar({
 		return company?.color || "#3B82F6";
 	};
 
-	// Format hours for display
+	// Format hours for display (handles negative values)
 	const formatHours = (hours: number): string => {
-		const h = Math.floor(hours);
-		const m = Math.round((hours - h) * 60);
-		if (m === 0) return `${h}h`;
-		return `${h}h ${m}m`;
+		const absHours = Math.abs(hours);
+		const h = Math.floor(absHours);
+		const m = Math.round((absHours - h) * 60);
+		const sign = hours < 0 ? "-" : "";
+		if (m === 0) return `${sign}${h}h`;
+		return `${sign}${h}h ${m}m`;
 	};
 
 	// Count completed entries for today
@@ -397,13 +435,17 @@ export function TodayStatusBar({
 					<div className="text-center">
 						<div
 							className={`text-lg font-semibold ${
-								monthlyStats.overtime > 0 ? "text-green-600" : "text-gray-900"
+								monthlyStats.compTime > 0
+									? "text-green-600"
+									: monthlyStats.compTime < 0
+										? "text-red-600"
+										: "text-gray-900"
 							}`}
 						>
-							{monthlyStats.overtime > 0 ? "+" : ""}
-							{formatHours(monthlyStats.overtime)}
+							{monthlyStats.compTime > 0 ? "+" : ""}
+							{formatHours(monthlyStats.compTime)}
 						</div>
-						<div className="text-xs text-gray-500">Overtime</div>
+						<div className="text-xs text-gray-500">Comp Time</div>
 					</div>
 				</div>
 

@@ -13,7 +13,7 @@ import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
-import { Tabs, TabList, Tab, TabPanel } from '@/components/ui/Tabs'
+import { Tab, TabList, TabPanel, Tabs } from '@/components/ui/Tabs'
 import { useBreadcrumb } from '@/stores/breadcrumb'
 import type {
   Company,
@@ -120,7 +120,14 @@ export function CompanyDetail() {
       setIsLoading(false)
     }
     loadData()
-  }, [fetchCompany, fetchTemplates, fetchReasons, fetchStoragePaths, checkSmtpIntegration, fetchEventCount])
+  }, [
+    fetchCompany,
+    fetchTemplates,
+    fetchReasons,
+    fetchStoragePaths,
+    checkSmtpIntegration,
+    fetchEventCount,
+  ])
 
   useEffect(() => {
     if (company) {
@@ -319,7 +326,10 @@ export function CompanyDetail() {
           {!hasSmtpIntegration && (
             <Alert variant="warning" className="m-6 mb-0">
               No email integration has been configured. Email templates cannot be used until you{' '}
-              <Link to="/settings/integrations" className="font-medium underline hover:no-underline">
+              <Link
+                to="/settings/integrations"
+                className="font-medium underline hover:no-underline"
+              >
                 configure an SMTP server
               </Link>
               .

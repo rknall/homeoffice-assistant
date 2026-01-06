@@ -1,4 +1,6 @@
 # src/models/role.py
+from __future__ import annotations
+
 import uuid as uuid_lib
 from typing import TYPE_CHECKING
 

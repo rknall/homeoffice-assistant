@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Company contact model for organizational contacts."""
 
+from __future__ import annotations
+
 import uuid as uuid_lib
 from typing import TYPE_CHECKING
 

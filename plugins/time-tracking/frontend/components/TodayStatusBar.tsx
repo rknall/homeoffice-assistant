@@ -26,13 +26,15 @@ function getBaseWorkingDaysInMonth(
 	const lastDay = new Date(year, month + 1, 0);
 	let workingDays = 0;
 
-	for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
-		const dayOfWeek = d.getDay();
-		const dateStr = toISODateString(d);
+	const current = new Date(firstDay);
+	while (current <= lastDay) {
+		const dayOfWeek = current.getDay();
+		const dateStr = toISODateString(current);
 		// Count as working day if it's a weekday AND not a holiday
 		if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidays.has(dateStr)) {
 			workingDays++;
 		}
+		current.setDate(current.getDate() + 1);
 	}
 
 	return workingDays;
@@ -66,14 +68,11 @@ function countEffectiveLeaveDays(
 		const endDate = entry.end_date ? new Date(entry.end_date) : startDate;
 
 		// Iterate through each day in the entry's range
-		for (
-			let d = new Date(startDate);
-			d <= endDate;
-			d.setDate(d.getDate() + 1)
-		) {
+		const current = new Date(startDate);
+		while (current <= endDate) {
 			// Only count days within the target month
-			if (d >= monthStart && d <= monthEnd) {
-				const dateStr = toISODateString(d);
+			if (current >= monthStart && current <= monthEnd) {
+				const dateStr = toISODateString(current);
 				if (entry.entry_type === "sick") {
 					sickDates.add(dateStr);
 				} else if (entry.entry_type === "vacation") {
@@ -84,6 +83,7 @@ function countEffectiveLeaveDays(
 					}
 				}
 			}
+			current.setDate(current.getDate() + 1);
 		}
 	}
 

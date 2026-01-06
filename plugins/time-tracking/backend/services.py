@@ -171,7 +171,7 @@ def count_effective_leave_days(
     month_end = date(year, month, last_day)
 
     # If up_to_date is specified and falls within this month, use it as the end
-    if up_to_date and month_start <= up_to_date < month_end:
+    if up_to_date and month_start <= up_to_date <= month_end:
         month_end = up_to_date
 
     # If from_date is specified and falls within this month, use it as the start
@@ -323,6 +323,10 @@ class TimeEntryService:
         if entry_type != EntryType.VACATION.value:
             is_half_day = False
 
+        # is_half_day cannot be used with multi-day entries
+        if is_half_day and end_date and end_date != entry_date:
+            raise ValueError("Half-day vacation cannot span multiple days")
+
         entry = TimeEntry(
             user_id=user_id,
             date=entry_date,
@@ -396,6 +400,10 @@ class TimeEntryService:
                 user_id, entry.date, entry.check_in, entry.check_out,
                 exclude_entry_id=entry_id
             )
+
+        # Validate: is_half_day cannot be used with multi-day entries
+        if entry.is_half_day and entry.end_date and entry.end_date != entry.date:
+            raise ValueError("Half-day vacation cannot span multiple days")
 
         self.db.commit()
         self.db.refresh(entry)

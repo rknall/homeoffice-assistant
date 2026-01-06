@@ -153,11 +153,13 @@ export function UnifiedTimeTrackingPage() {
 			if (entry.end_date && entry.end_date !== entry.date) {
 				const startDate = new Date(entry.date);
 				const endDate = new Date(entry.end_date);
-				// Iterate through each day in the range
-				for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-					const dateStr = d.toISOString().split("T")[0];
+				// Iterate through each day in the range (using new Date each iteration to avoid mutation)
+				const current = new Date(startDate);
+				while (current <= endDate) {
+					const dateStr = current.toISOString().split("T")[0];
 					const existing = map.get(dateStr) || [];
 					map.set(dateStr, [...existing, entry]);
+					current.setDate(current.getDate() + 1);
 				}
 			} else {
 				// Single-day entry: just add to its date

@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calendar Connection Settings - HomeOffice Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <!-- Navigation Bar -->
+  <nav class="bg-white shadow-sm border-b border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <span class="text-xl font-semibold text-gray-900">HomeOffice Assistant</span>
+          <div class="hidden md:flex ml-10 space-x-8">
+            <a href="#" class="text-gray-500 hover:text-gray-900 px-3 py-2 text-sm font-medium">Dashboard</a>
+            <a href="#" class="text-gray-500 hover:text-gray-900 px-3 py-2 text-sm font-medium">Events</a>
+            <a href="#" class="text-gray-500 hover:text-gray-900 px-3 py-2 text-sm font-medium">Calendar</a>
+            <a href="#" class="text-blue-600 border-b-2 border-blue-600 px-3 py-2 text-sm font-medium">Companies</a>
+          </div>
+        </div>
+        <div class="flex items-center space-x-4">
+          <button class="text-gray-400 hover:text-gray-600">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+          </button>
+          <div class="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
+            RK
+          </div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="space-y-6">
+      <!-- Breadcrumb -->
+      <nav class="flex" aria-label="Breadcrumb">
+        <ol class="inline-flex items-center space-x-1 md:space-x-3">
+          <li class="inline-flex items-center">
+            <a href="#" class="text-sm font-medium text-gray-500 hover:text-gray-700">Companies</a>
+          </li>
+          <li>
+            <div class="flex items-center">
+              <svg class="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+              </svg>
+              <span class="ml-1 text-sm font-medium text-gray-900">Acme Corp</span>
+            </div>
+          </li>
+        </ol>
+      </nav>
+
+      <!-- Page Header -->
+      <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-gray-900">Company Settings - Acme Corp</h1>
+      </div>
+
+      <!-- Tab Navigation -->
+      <div class="border-b border-gray-200">
+        <nav class="-mb-px flex space-x-8">
+          <a href="#" class="text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 border-transparent font-medium text-sm">
+            General
+          </a>
+          <a href="#" class="text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 border-transparent font-medium text-sm">
+            Expenses
+          </a>
+          <a href="#" class="text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 border-transparent font-medium text-sm">
+            Integrations
+          </a>
+          <a href="#" class="text-blue-600 border-blue-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+            Connected Calendars
+          </a>
+        </nav>
+      </div>
+
+      <!-- Connected Calendars Content -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="text-lg font-semibold text-gray-900">Connected Calendars</h2>
+          <p class="text-sm text-gray-500 mt-1">
+            Sync your work calendars to see events in the consolidated calendar view alongside HomeOffice events.
+          </p>
+        </div>
+
+        <div class="px-6 py-4">
+          <!-- Connected Calendar List -->
+          <div class="space-y-4">
+            <!-- Calendar 1: Work Calendar (Connected & Active) -->
+            <div class="border border-gray-200 rounded-lg p-4">
+              <div class="flex items-start justify-between">
+                <div class="flex items-start space-x-4">
+                  <!-- Calendar Icon with Color -->
+                  <div class="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <svg class="h-6 w-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                    </svg>
+                  </div>
+
+                  <div>
+                    <h3 class="text-base font-medium text-gray-900">Work Calendar</h3>
+                    <p class="text-sm text-gray-500 mt-0.5">roland.knall@acmecorp.com</p>
+
+                    <!-- Status & Sync Info -->
+                    <div class="flex items-center space-x-4 mt-2">
+                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        <span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5"></span>
+                        Active
+                      </span>
+                      <span class="text-xs text-gray-500">
+                        Last synced: 2 minutes ago
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Toggle Switch -->
+                <div class="flex-shrink-0">
+                  <button type="button" class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-blue-600 transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" role="switch" aria-checked="true">
+                    <span class="translate-x-5 pointer-events-none relative inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out">
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Color Picker & Actions -->
+              <div class="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                  <span class="text-sm text-gray-600">Color:</span>
+                  <div class="flex items-center space-x-2">
+                    <button type="button" class="w-6 h-6 rounded-full bg-blue-500 ring-2 ring-blue-500 ring-offset-2 focus:outline-none" title="Blue"></button>
+                    <button type="button" class="w-6 h-6 rounded-full bg-green-500 hover:ring-2 hover:ring-green-500 hover:ring-offset-2 focus:outline-none" title="Green"></button>
+                    <button type="button" class="w-6 h-6 rounded-full bg-purple-500 hover:ring-2 hover:ring-purple-500 hover:ring-offset-2 focus:outline-none" title="Purple"></button>
+                    <button type="button" class="w-6 h-6 rounded-full bg-orange-500 hover:ring-2 hover:ring-orange-500 hover:ring-offset-2 focus:outline-none" title="Orange"></button>
+                    <button type="button" class="w-6 h-6 rounded-full bg-pink-500 hover:ring-2 hover:ring-pink-500 hover:ring-offset-2 focus:outline-none" title="Pink"></button>
+                    <button type="button" class="w-6 h-6 rounded-full border-2 border-dashed border-gray-300 hover:border-gray-400 flex items-center justify-center focus:outline-none" title="Custom color">
+                      <svg class="h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="flex items-center space-x-2">
+                  <button type="button" class="text-sm text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded hover:bg-gray-100 transition-colors">
+                    Sync Now
+                  </button>
+                  <button type="button" class="text-sm text-red-600 hover:text-red-800 px-3 py-1.5 rounded hover:bg-red-50 transition-colors">
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Calendar 2: Personal Calendar (Connected but Paused) -->
+            <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <div class="flex items-start justify-between">
+                <div class="flex items-start space-x-4">
+                  <div class="flex-shrink-0 w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
+                    <svg class="h-6 w-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                    </svg>
+                  </div>
+
+                  <div>
+                    <h3 class="text-base font-medium text-gray-600">Team Calendar</h3>
+                    <p class="text-sm text-gray-500 mt-0.5">team-calendar@acmecorp.com</p>
+
+                    <div class="flex items-center space-x-4 mt-2">
+                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-600">
+                        <span class="w-1.5 h-1.5 bg-gray-400 rounded-full mr-1.5"></span>
+                        Paused
+                      </span>
+                      <span class="text-xs text-gray-500">
+                        Last synced: 3 days ago
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex-shrink-0">
+                  <button type="button" class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-gray-300 transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2" role="switch" aria-checked="false">
+                    <span class="translate-x-0 pointer-events-none relative inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out">
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                  <span class="text-sm text-gray-500">Color:</span>
+                  <div class="flex items-center space-x-2">
+                    <button type="button" class="w-6 h-6 rounded-full bg-green-500 ring-2 ring-green-500 ring-offset-2 focus:outline-none opacity-50" title="Green"></button>
+                  </div>
+                </div>
+
+                <div class="flex items-center space-x-2">
+                  <button type="button" class="text-sm text-red-600 hover:text-red-800 px-3 py-1.5 rounded hover:bg-red-50 transition-colors">
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Connect New Calendar Button -->
+          <div class="mt-6">
+            <button type="button" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+              <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+              Connect Google Calendar
+            </button>
+          </div>
+
+          <!-- Info Box -->
+          <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div class="flex">
+              <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                </svg>
+              </div>
+              <div class="ml-3">
+                <h3 class="text-sm font-medium text-blue-800">About Calendar Sync</h3>
+                <div class="mt-2 text-sm text-blue-700">
+                  <ul class="list-disc list-inside space-y-1">
+                    <li>Calendars sync automatically every 15 minutes</li>
+                    <li>Only read access is required - we cannot modify your calendar</li>
+                    <li>Events from -30 days to +90 days are displayed</li>
+                    <li>You can have multiple calendars per company</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty State Card (for companies with no calendars) -->
+      <div class="hidden bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="text-lg font-semibold text-gray-900">Connected Calendars</h2>
+          <p class="text-sm text-gray-500 mt-1">
+            Sync your work calendars to see events in the consolidated calendar view.
+          </p>
+        </div>
+
+        <div class="px-6 py-12 text-center">
+          <div class="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+            <svg class="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+          </div>
+          <h3 class="text-base font-medium text-gray-900 mb-1">No calendars connected</h3>
+          <p class="text-sm text-gray-500 mb-6 max-w-sm mx-auto">
+            Connect your Google Calendar to see work events alongside your HomeOffice business trips.
+          </p>
+          <button type="button" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+            <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            Connect Google Calendar
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
+
+<!--
+  ======================================
+  VARIATION: Calendar Selection Modal (After OAuth)
+  ======================================
+-->
+<!--
+<div class="fixed inset-0 bg-black/50 z-40"></div>
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+      <h2 class="text-lg font-semibold text-gray-900">Select Calendar</h2>
+      <button type="button" class="text-gray-400 hover:text-gray-600 transition-colors">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="p-6">
+      <p class="text-sm text-gray-500 mb-4">
+        Choose which Google Calendar you'd like to connect to Acme Corp:
+      </p>
+      <div class="space-y-2">
+        <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+          <input type="radio" name="calendar" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500" checked>
+          <div class="ml-3">
+            <p class="text-sm font-medium text-gray-900">Work Calendar</p>
+            <p class="text-xs text-gray-500">roland.knall@acmecorp.com</p>
+          </div>
+        </label>
+        <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+          <input type="radio" name="calendar" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+          <div class="ml-3">
+            <p class="text-sm font-medium text-gray-900">Personal</p>
+            <p class="text-xs text-gray-500">roland.knall@gmail.com</p>
+          </div>
+        </label>
+        <label class="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+          <input type="radio" name="calendar" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+          <div class="ml-3">
+            <p class="text-sm font-medium text-gray-900">Team Calendar</p>
+            <p class="text-xs text-gray-500">team-calendar@acmecorp.com</p>
+          </div>
+        </label>
+      </div>
+    </div>
+    <div class="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
+      <button type="button" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+        Cancel
+      </button>
+      <button type="button" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors">
+        Connect Calendar
+      </button>
+    </div>
+  </div>
+</div>
+-->
+
+<!--
+  ======================================
+  VARIATION: Disconnect Confirmation Modal
+  ======================================
+-->
+<!--
+<div class="fixed inset-0 bg-black/50 z-40"></div>
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-lg shadow-xl w-full max-w-sm">
+    <div class="p-6">
+      <div class="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
+        <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+      </div>
+      <h3 class="text-lg font-semibold text-gray-900 text-center mb-2">Disconnect Calendar?</h3>
+      <p class="text-sm text-gray-500 text-center">
+        Are you sure you want to disconnect "Work Calendar"? Events from this calendar will no longer appear in your consolidated view.
+      </p>
+    </div>
+    <div class="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
+      <button type="button" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+        Cancel
+      </button>
+      <button type="button" class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors">
+        Disconnect
+      </button>
+    </div>
+  </div>
+</div>
+-->

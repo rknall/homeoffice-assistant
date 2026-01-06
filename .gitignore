@@ -67,7 +67,6 @@ logs/
 
 # Playwright MCP
 .playwright-mcp/
-docs/mockups/
 
 # Plugin frontend bundles (generated from TypeScript)
 plugins/*/frontend/index.js

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calendar Integration Mockups - HomeOffice Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <!-- Header -->
+    <div class="text-center mb-12">
+      <h1 class="text-3xl font-bold text-gray-900 mb-3">Calendar Integration Mockups</h1>
+      <p class="text-lg text-gray-600">
+        Interactive HTML mockups for the HomeOffice Assistant calendar feature
+      </p>
+      <p class="text-sm text-gray-500 mt-2">
+        Based on specification: <code class="bg-gray-200 px-2 py-0.5 rounded">docs/specs/calendar-integration.md</code>
+      </p>
+    </div>
+
+    <!-- Mockup List -->
+    <div class="space-y-6">
+      <!-- Main Views -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+          <h2 class="text-lg font-semibold text-gray-900">Main Calendar Views</h2>
+          <p class="text-sm text-gray-500 mt-1">Primary calendar display components</p>
+        </div>
+        <div class="divide-y divide-gray-200">
+          <a href="calendar-week-view.html" class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
+            <div class="flex items-center">
+              <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
+                <svg class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+              </div>
+              <div>
+                <h3 class="font-medium text-gray-900">Week View</h3>
+                <p class="text-sm text-gray-500">7-day view with time slots, all-day events, and multi-day spans</p>
+              </div>
+            </div>
+            <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </a>
+
+          <a href="calendar-month-view.html" class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
+            <div class="flex items-center">
+              <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-4">
+                <svg class="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/>
+                </svg>
+              </div>
+              <div>
+                <h3 class="font-medium text-gray-900">Month View</h3>
+                <p class="text-sm text-gray-500">Monthly grid with event indicators, today highlight, and overflow</p>
+              </div>
+            </div>
+            <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+
+      <!-- Modals -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+          <h2 class="text-lg font-semibold text-gray-900">Event Detail Modals</h2>
+          <p class="text-sm text-gray-500 mt-1">Popup dialogs for viewing event details</p>
+        </div>
+        <div class="divide-y divide-gray-200">
+          <a href="calendar-external-event-modal.html" class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
+            <div class="flex items-center">
+              <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
+                <svg class="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                </svg>
+              </div>
+              <div>
+                <h3 class="font-medium text-gray-900">External Event Modal</h3>
+                <p class="text-sm text-gray-500">Details for Google Calendar events with "Open in Calendar" link</p>
+              </div>
+            </div>
+            <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </a>
+
+          <a href="calendar-todo-modal.html" class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
+            <div class="flex items-center">
+              <div class="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center mr-4">
+                <svg class="h-5 w-5 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                </svg>
+              </div>
+              <div>
+                <h3 class="font-medium text-gray-900">Todo Modal</h3>
+                <p class="text-sm text-gray-500">Todo details with status, due date, and mark complete action</p>
+              </div>
+            </div>
+            <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+
+      <!-- Settings & Configuration -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+          <h2 class="text-lg font-semibold text-gray-900">Settings & Configuration</h2>
+          <p class="text-sm text-gray-500 mt-1">Calendar connection management</p>
+        </div>
+        <div class="divide-y divide-gray-200">
+          <a href="calendar-connection-settings.html" class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
+            <div class="flex items-center">
+              <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-4">
+                <svg class="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+              </div>
+              <div>
+                <h3 class="font-medium text-gray-900">Calendar Connection Settings</h3>
+                <p class="text-sm text-gray-500">Company settings page with connected calendars, color picker, OAuth flow</p>
+              </div>
+            </div>
+            <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+
+      <!-- States -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+          <h2 class="text-lg font-semibold text-gray-900">Loading & Edge States</h2>
+          <p class="text-sm text-gray-500 mt-1">Various UI states and feedback</p>
+        </div>
+        <div class="divide-y divide-gray-200">
+          <a href="calendar-states.html" class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
+            <div class="flex items-center">
+              <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center mr-4">
+                <svg class="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </div>
+              <div>
+                <h3 class="font-medium text-gray-900">UI States Collection</h3>
+                <p class="text-sm text-gray-500">Loading, empty, error, syncing states, and tooltips</p>
+              </div>
+            </div>
+            <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Specification Reference -->
+    <div class="mt-12 bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <h3 class="font-semibold text-blue-900 mb-3">Specification Documents</h3>
+      <ul class="space-y-2 text-sm text-blue-800">
+        <li class="flex items-center">
+          <svg class="h-4 w-4 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"/>
+          </svg>
+          <code class="bg-blue-100 px-2 py-0.5 rounded">docs/specs/calendar-integration.md</code> - Full technical spec
+        </li>
+        <li class="flex items-center">
+          <svg class="h-4 w-4 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"/>
+          </svg>
+          <code class="bg-blue-100 px-2 py-0.5 rounded">docs/specs/calendar-mockups.md</code> - ASCII mockups (reference)
+        </li>
+      </ul>
+    </div>
+
+    <!-- Color Legend -->
+    <div class="mt-8 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <h3 class="font-semibold text-gray-900 mb-4">Color Coding Reference</h3>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="flex items-center">
+          <span class="w-4 h-4 bg-orange-500 rounded mr-2"></span>
+          <span class="text-sm text-gray-600">HomeOffice Event (Acme)</span>
+        </div>
+        <div class="flex items-center">
+          <span class="w-4 h-4 bg-green-500 rounded mr-2"></span>
+          <span class="text-sm text-gray-600">HomeOffice Event (TechStart)</span>
+        </div>
+        <div class="flex items-center">
+          <span class="w-4 h-4 bg-blue-500 rounded mr-2"></span>
+          <span class="text-sm text-gray-600">External Calendar</span>
+        </div>
+        <div class="flex items-center">
+          <span class="w-4 h-4 bg-purple-500 rounded mr-2"></span>
+          <span class="text-sm text-gray-600">Todos</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-12 text-center text-sm text-gray-500">
+      <p>HomeOffice Assistant - Calendar Integration Mockups</p>
+      <p class="mt-1">These mockups use Tailwind CSS via CDN for styling</p>
+    </footer>
+  </main>
+</body>
+</html>

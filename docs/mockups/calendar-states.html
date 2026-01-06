@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calendar States - HomeOffice Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .animate-spin {
+      animation: spin 1s linear infinite;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <h1 class="text-2xl font-bold text-gray-900 mb-8">Calendar States Mockups</h1>
+
+    <div class="space-y-12">
+      <!-- ================================
+           STATE 1: Loading State
+           ================================ -->
+      <section>
+        <h2 class="text-lg font-semibold text-gray-700 mb-4 flex items-center">
+          <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded mr-2">1</span>
+          Loading State
+        </h2>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div class="px-6 py-4 border-b border-gray-200">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div class="flex items-center space-x-3">
+                <button class="px-3 py-1.5 text-sm bg-gray-100 text-gray-400 rounded-md font-medium cursor-not-allowed" disabled>
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                  </svg>
+                </button>
+                <button class="px-3 py-1.5 text-sm bg-gray-200 text-gray-400 rounded-md font-medium cursor-not-allowed" disabled>
+                  Today
+                </button>
+                <button class="px-3 py-1.5 text-sm bg-gray-100 text-gray-400 rounded-md font-medium cursor-not-allowed" disabled>
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                  </svg>
+                </button>
+                <span class="text-lg font-semibold text-gray-900 ml-2">January 2026</span>
+              </div>
+              <div class="flex items-center space-x-3">
+                <div class="flex rounded-md shadow-sm">
+                  <button class="px-4 py-2 text-sm font-medium text-gray-400 bg-gray-100 rounded-l-md cursor-not-allowed" disabled>Week</button>
+                  <button class="px-4 py-2 text-sm font-medium text-gray-400 bg-gray-100 rounded-r-md cursor-not-allowed" disabled>Month</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-16 flex flex-col items-center justify-center">
+            <svg class="animate-spin h-10 w-10 text-blue-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="text-gray-500 font-medium">Loading calendar events...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================
+           STATE 2: Empty State - No Events
+           ================================ -->
+      <section>
+        <h2 class="text-lg font-semibold text-gray-700 mb-4 flex items-center">
+          <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded mr-2">2</span>
+          Empty State - No Events This Week
+        </h2>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div class="px-6 py-4 border-b border-gray-200">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div class="flex items-center space-x-3">
+                <button class="px-3 py-1.5 text-sm bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-md font-medium transition-colors">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                  </svg>
+                </button>
+                <button class="px-3 py-1.5 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-md font-medium transition-colors">
+                  Today
+                </button>
+                <button class="px-3 py-1.5 text-sm bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-md font-medium transition-colors">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                  </svg>
+                </button>
+                <span class="text-lg font-semibold text-gray-900 ml-2">Week of Jan 13-19, 2026</span>
+              </div>
+              <div class="flex items-center space-x-3">
+                <div class="flex rounded-md shadow-sm">
+                  <button class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-l-md">Week</button>
+                  <button class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-r-md hover:bg-gray-50">Month</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty Week Grid Skeleton -->
+          <div class="p-4 border-b border-gray-200">
+            <div class="grid grid-cols-8 gap-px bg-gray-200">
+              <div class="bg-gray-50 p-2 text-xs font-medium text-gray-500 text-center">Time</div>
+              <div class="bg-gray-50 p-2 text-xs font-medium text-gray-500 text-center">Mon 13</div>
+              <div class="bg-gray-50 p-2 text-xs font-medium text-gray-500 text-center">Tue 14</div>
+              <div class="bg-gray-50 p-2 text-xs font-medium text-gray-500 text-center">Wed 15</div>
+              <div class="bg-blue-50 p-2 text-xs font-bold text-blue-700 text-center">Thu 16</div>
+              <div class="bg-gray-50 p-2 text-xs font-medium text-gray-500 text-center">Fri 17</div>
+              <div class="bg-gray-100 p-2 text-xs font-medium text-gray-400 text-center">Sat 18</div>
+              <div class="bg-gray-100 p-2 text-xs font-medium text-gray-400 text-center">Sun 19</div>
+            </div>
+          </div>
+
+          <div class="p-12 flex flex-col items-center justify-center">
+            <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+              <svg class="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            <h3 class="text-base font-medium text-gray-900 mb-1">No events this week</h3>
+            <p class="text-sm text-gray-500 text-center max-w-sm mb-6">
+              Your calendar is clear for this week. Create a new event or navigate to another week.
+            </p>
+            <div class="flex items-center space-x-3">
+              <button type="button" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors">
+                <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                Create Event
+              </button>
+              <button type="button" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+                Connect Calendar
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================
+           STATE 3: No Calendars Connected
+           ================================ -->
+      <section>
+        <h2 class="text-lg font-semibold text-gray-700 mb-4 flex items-center">
+          <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded mr-2">3</span>
+          Empty State - No Calendars Connected
+        </h2>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div class="px-6 py-4 border-b border-gray-200">
+            <div class="flex items-center space-x-3">
+              <span class="text-lg font-semibold text-gray-900">Calendar</span>
+            </div>
+          </div>
+
+          <div class="p-16 flex flex-col items-center justify-center">
+            <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6">
+              <svg class="h-10 w-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            <h3 class="text-xl font-semibold text-gray-900 mb-2">Connect your first calendar</h3>
+            <p class="text-sm text-gray-500 text-center max-w-md mb-8">
+              Sync your Google Calendar to see work events alongside your HomeOffice business trips in a unified view.
+            </p>
+            <button type="button" class="inline-flex items-center px-5 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors">
+              <svg class="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+              </svg>
+              Connect Google Calendar
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================
+           STATE 4: Error State
+           ================================ -->
+      <section>
+        <h2 class="text-lg font-semibold text-gray-700 mb-4 flex items-center">
+          <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded mr-2">4</span>
+          Error State - Failed to Load
+        </h2>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div class="px-6 py-4 border-b border-gray-200">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div class="flex items-center space-x-3">
+                <span class="text-lg font-semibold text-gray-900">Calendar</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-12 flex flex-col items-center justify-center">
+            <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+              <svg class="h-8 w-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+            </div>
+            <h3 class="text-base font-medium text-gray-900 mb-1">Error loading calendar events</h3>
+            <p class="text-sm text-gray-500 text-center max-w-sm mb-6">
+              Unable to sync your calendar. This might be a temporary issue with the connection.
+            </p>
+            <div class="flex items-center space-x-3">
+              <button type="button" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors">
+                <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                Retry
+              </button>
+              <button type="button" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+                View Details
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================
+           STATE 5: Syncing State
+           ================================ -->
+      <section>
+        <h2 class="text-lg font-semibold text-gray-700 mb-4 flex items-center">
+          <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded mr-2">5</span>
+          Syncing State - Calendar Refresh
+        </h2>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div class="px-6 py-4 border-b border-gray-200">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div class="flex items-center space-x-3">
+                <button class="px-3 py-1.5 text-sm bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-md font-medium transition-colors">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                  </svg>
+                </button>
+                <button class="px-3 py-1.5 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-md font-medium transition-colors">
+                  Today
+                </button>
+                <button class="px-3 py-1.5 text-sm bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-md font-medium transition-colors">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                  </svg>
+                </button>
+                <span class="text-lg font-semibold text-gray-900 ml-2">Week of Jan 13-19, 2026</span>
+              </div>
+              <div class="flex items-center space-x-3">
+                <div class="flex rounded-md shadow-sm">
+                  <button class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-l-md">Week</button>
+                  <button class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-r-md hover:bg-gray-50">Month</button>
+                </div>
+                <!-- Syncing Button State -->
+                <button class="inline-flex items-center px-3 py-2 text-sm bg-blue-50 text-blue-700 rounded-md font-medium cursor-not-allowed" disabled>
+                  <svg class="animate-spin h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Syncing...
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sync Progress Banner -->
+          <div class="bg-blue-50 border-b border-blue-200 px-6 py-3">
+            <div class="flex items-center">
+              <svg class="animate-spin h-4 w-4 text-blue-600 mr-3" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span class="text-sm text-blue-700">Syncing calendars... Fetching events from Work Calendar</span>
+            </div>
+          </div>
+
+          <div class="p-4">
+            <!-- Content shown with slight opacity during sync -->
+            <div class="opacity-60 h-64 bg-gray-50 rounded flex items-center justify-center text-gray-400">
+              Calendar content (partially visible during sync)
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================
+           STATE 6: Tooltip/Hover States
+           ================================ -->
+      <section>
+        <h2 class="text-lg font-semibold text-gray-700 mb-4 flex items-center">
+          <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded mr-2">6</span>
+          Event Tooltip (Hover State)
+        </h2>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+          <div class="relative inline-block">
+            <!-- Event Card -->
+            <button type="button" class="bg-blue-500 text-white text-sm px-3 py-2 rounded border border-dashed border-blue-600 hover:bg-blue-600 transition-colors text-left">
+              <span class="flex items-center">
+                <svg class="h-4 w-4 mr-1.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                </svg>
+                Team Meeting
+              </span>
+            </button>
+
+            <!-- Tooltip -->
+            <div class="absolute left-0 top-full mt-2 w-64 bg-gray-900 text-white rounded-lg shadow-xl p-3 z-10">
+              <div class="font-medium mb-2">Team Planning Meeting</div>
+              <div class="text-sm text-gray-300 space-y-1">
+                <div class="flex items-center">
+                  <svg class="h-4 w-4 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  Thu, Jan 16 - 2:00 PM - 3:00 PM
+                </div>
+                <div class="flex items-center">
+                  <svg class="h-4 w-4 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  </svg>
+                  Conference Room A
+                </div>
+                <div class="flex items-center">
+                  <svg class="h-4 w-4 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                  </svg>
+                  Work Calendar (Acme Corp)
+                </div>
+              </div>
+              <div class="text-xs text-gray-400 mt-3 pt-2 border-t border-gray-700">
+                Click to view details
+              </div>
+              <!-- Tooltip Arrow -->
+              <div class="absolute -top-2 left-4 w-4 h-4 bg-gray-900 transform rotate-45"></div>
+            </div>
+          </div>
+
+          <div class="mt-32 text-sm text-gray-500">
+            Tooltip appears on hover over calendar events
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</body>
+</html>

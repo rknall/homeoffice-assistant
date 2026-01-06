@@ -159,6 +159,15 @@ docker compose up --build
 
 Access at http://localhost:8000
 
+### Contributing & Code Review
+
+All pull requests automatically receive:
+- ✅ **Automated linting** (Ruff for Python, Biome for TypeScript)
+- ✅ **Test suite** (pytest for backend, vitest for frontend)
+- 🤖 **GitHub Copilot AI code review** (security, quality, best practices)
+
+See [docs/COPILOT_REVIEW.md](docs/COPILOT_REVIEW.md) for details on setting up automated AI reviews.
+
 ## Deployment
 
 ### Production with Docker
@@ -250,6 +259,7 @@ After reset, visit the application to run through the setup wizard again.
 
 - [Release Notes](RELEASENOTES.md) - Full changelog
 - [Development Guide](CLAUDE.md) - Architecture and development instructions
+- [GitHub Copilot Review Setup](docs/COPILOT_REVIEW.md) - Automatic AI code review for PRs
 
 ## Issues & Support
 

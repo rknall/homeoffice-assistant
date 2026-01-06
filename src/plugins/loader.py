@@ -181,6 +181,7 @@ def parse_manifest(manifest_path: Path) -> PluginManifest:
         provided_permissions=provided_permissions,
         dependencies=data.get("dependencies", []),
         python_dependencies=data.get("python_dependencies", []),
+        table_prefix=data.get("table_prefix"),
     )
 
 

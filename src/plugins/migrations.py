@@ -5,6 +5,7 @@
 import logging
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 from alembic.config import Config
@@ -16,6 +17,9 @@ from alembic import command
 from src.config import settings
 from src.database import SessionLocal
 
+if TYPE_CHECKING:
+    from src.plugins.base import PluginManifest
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,15 +30,22 @@ class PluginMigrationRunner:
     to track migration state independently.
     """
 
-    def __init__(self, plugin_path: Path, plugin_id: str) -> None:
+    def __init__(
+        self,
+        plugin_path: Path,
+        plugin_id: str,
+        manifest: PluginManifest | None = None,
+    ) -> None:
         """Initialize the migration runner.
 
         Args:
             plugin_path: Path to the plugin directory
             plugin_id: Plugin identifier (used for version table name)
+            manifest: Optional plugin manifest (used for table_prefix)
         """
         self.plugin_path = plugin_path
         self.plugin_id = plugin_id
+        self.manifest = manifest
         self.migrations_path = plugin_path / "backend" / "migrations"
         self._version_table = f"alembic_version_{plugin_id}"
 
@@ -221,11 +232,17 @@ class PluginMigrationRunner:
     def _get_table_prefix(self) -> str:
         """Get the table prefix for this plugin.
 
-        Derives a prefix from the plugin_id. For example:
+        If the plugin manifest specifies a table_prefix, uses that value.
+        Otherwise, derives a prefix from the plugin_id. For example:
         - "time-tracking" -> "tt_"
         - "example" -> "example_" (single word uses full name)
         - "my-cool-plugin" -> "mcp_"
         """
+        # Use manifest table_prefix if available
+        if self.manifest and self.manifest.table_prefix:
+            return self.manifest.table_prefix
+
+        # Fallback to deriving from plugin_id
         parts = self.plugin_id.replace("_", "-").split("-")
         if len(parts) == 1:
             # Single word plugin: use full name as prefix

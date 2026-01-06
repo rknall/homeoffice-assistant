@@ -218,7 +218,7 @@ class PluginRegistry:
 
         # Run migrations if plugin has them
         plugin_path = self._loader.plugins_dir / manifest.id
-        migration_runner = PluginMigrationRunner(plugin_path, manifest.id)
+        migration_runner = PluginMigrationRunner(plugin_path, manifest.id, manifest)
         if migration_runner.has_migrations():
             migration_runner.run_migrations()
 
@@ -315,7 +315,23 @@ class PluginRegistry:
         if drop_tables:
             plugin_path = self._loader.plugins_dir / plugin_id
             if plugin_path.exists():
-                migration_runner = PluginMigrationRunner(plugin_path, plugin_id)
+                # Try to load manifest for table_prefix, but don't fail if not available
+                manifest = None
+                try:
+                    from src.plugins.loader import PLUGIN_MANIFEST_FILE, parse_manifest
+
+                    manifest_path = plugin_path / PLUGIN_MANIFEST_FILE
+                    if manifest_path.exists():
+                        manifest = parse_manifest(manifest_path)
+                except Exception as e:
+                    logger.warning(
+                        f"Could not load manifest for plugin {plugin_id}: {e}. "
+                        "Will use derived table prefix."
+                    )
+
+                migration_runner = PluginMigrationRunner(
+                    plugin_path, plugin_id, manifest
+                )
                 migration_runner.downgrade_all()
 
         # Remove plugin-provided permissions if requested

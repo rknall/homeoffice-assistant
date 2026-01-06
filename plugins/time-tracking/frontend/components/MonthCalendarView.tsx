@@ -100,12 +100,51 @@ export function MonthCalendarView({
 		return entry.entry_type !== "public_holiday" && !entry.is_locked;
 	};
 
+	// Check if a leave entry should be faded (on weekend or holiday, doesn't count)
+	const isLeaveOnNonWorkday = (entry: TimeEntry, day: CalendarDay, holidayName: string | undefined): boolean => {
+		const isLeaveType = entry.entry_type === "vacation" || entry.entry_type === "sick";
+		return isLeaveType && (day.isWeekend || !!holidayName);
+	};
+
 	// Format time for tooltip
 	const formatTimeRange = (entry: TimeEntry): string => {
-		if (!entry.check_in) return ENTRY_TYPE_LABELS[entry.entry_type];
+		if (!entry.check_in) {
+			let label = ENTRY_TYPE_LABELS[entry.entry_type];
+			// Add half-day indicator for vacation
+			if (entry.is_half_day) {
+				label += " (½)";
+			}
+			return label;
+		}
 		const checkIn = entry.check_in.substring(0, 5);
 		const checkOut = entry.check_out ? entry.check_out.substring(0, 5) : "...";
 		return `${checkIn} - ${checkOut}`;
+	};
+
+	// Format display label for entry (shorter for calendar cells)
+	const formatEntryLabel = (entry: TimeEntry): string => {
+		// For work entries with times, show time range
+		if (entry.check_in) {
+			const checkIn = entry.check_in.substring(0, 5);
+			const checkOut = entry.check_out ? entry.check_out.substring(0, 5) : "...";
+			return `${checkIn} - ${checkOut}`;
+		}
+		// For leave entries, show type with indicators
+		let label = ENTRY_TYPE_LABELS[entry.entry_type];
+		if (entry.is_half_day) {
+			label += " (½)";
+		}
+		return label;
+	};
+
+	// Get tooltip for entry (includes date range for multi-day)
+	const getEntryTooltip = (entry: TimeEntry): string => {
+		let tooltip = formatTimeRange(entry);
+		// Add date range info for multi-day entries
+		if (entry.end_date && entry.end_date !== entry.date) {
+			tooltip += ` | ${entry.date} → ${entry.end_date}`;
+		}
+		return tooltip;
 	};
 
 	return (
@@ -130,15 +169,31 @@ export function MonthCalendarView({
 				{calendarDays.map((day) => {
 					const dayEntries = entriesByDate.get(day.dateString) || [];
 					const holidayName = holidaysByDate.get(day.dateString);
+					const isNonWorkday = day.isWeekend || !!holidayName;
+
+					// Determine background color based on day type (order matters for precedence)
+					let dayBgClass = "";
+					if (!day.isCurrentMonth) {
+						// Days from previous/next month - distinct muted background
+						dayBgClass = "bg-gray-50 opacity-60";
+					} else if (day.isToday && isNonWorkday) {
+						// Today AND a holiday/weekend - combine both indicators with gradient
+						dayBgClass = "bg-gradient-to-br from-blue-100 to-slate-200";
+					} else if (day.isToday) {
+						// Today (regular workday) - blue tint
+						dayBgClass = "bg-blue-50/50";
+					} else if (isNonWorkday) {
+						// Weekend or holiday - slate background
+						dayBgClass = "bg-slate-100";
+					}
+					// else: regular workday - no background (white)
 
 					return (
 						<div
 							key={day.dateString}
 							className={`
                 min-h-[100px] border-b border-r border-gray-100 p-1
-                ${!day.isCurrentMonth ? "bg-gray-50" : ""}
-                ${day.isWeekend && day.isCurrentMonth ? "bg-gray-50/50" : ""}
-                ${day.isToday ? "bg-blue-50/50" : ""}
+                ${dayBgClass}
               `}
 						>
 							{/* Date number with optional holiday badge inline */}
@@ -170,6 +225,8 @@ export function MonthCalendarView({
 									const isHovered = hoveredEntryId === entry.id;
 									const editable = isEditable(entry);
 									const companyColor = getCompanyColor(entry.company_id);
+									// Fade leave entries on weekends/holidays (they don't count)
+									const isFaded = isLeaveOnNonWorkday(entry, day, holidayName);
 
 									// Use button for editable entries, div for non-editable
 									if (editable) {
@@ -181,6 +238,7 @@ export function MonthCalendarView({
                           relative w-full text-left px-2.5 py-0.5 rounded text-xs font-medium
                           truncate transition-all hover:opacity-80
                           ${hasOverlap ? "ring-2 ring-red-500 ring-offset-1" : ""}
+                          ${isFaded ? "opacity-40" : ""}
                         `}
 												style={{
 													backgroundColor: hasOverlap
@@ -195,10 +253,10 @@ export function MonthCalendarView({
 												}}
 												onMouseEnter={() => setHoveredEntryId(entry.id)}
 												onMouseLeave={() => setHoveredEntryId(null)}
-												title={formatTimeRange(entry)}
+												title={isFaded ? `${getEntryTooltip(entry)} (doesn't count - non-workday)` : getEntryTooltip(entry)}
 											>
 												<span className="truncate">
-													{formatTimeRange(entry)}
+													{formatEntryLabel(entry)}
 													{entry.is_open && " ..."}
 												</span>
 
@@ -234,6 +292,7 @@ export function MonthCalendarView({
                         relative px-2.5 py-0.5 rounded text-xs font-medium
                         truncate cursor-default
                         ${hasOverlap ? "ring-2 ring-red-500 ring-offset-1" : ""}
+                        ${isFaded ? "opacity-40" : ""}
                       `}
 											style={{
 												backgroundColor: hasOverlap
@@ -242,10 +301,10 @@ export function MonthCalendarView({
 												color: hasOverlap ? "#991B1B" : companyColor,
 												borderLeft: `3px solid ${companyColor}`,
 											}}
-											title={ENTRY_TYPE_LABELS[entry.entry_type]}
+											title={isFaded ? `${getEntryTooltip(entry)} (doesn't count - non-workday)` : getEntryTooltip(entry)}
 										>
 											<span className="truncate">
-												{ENTRY_TYPE_LABELS[entry.entry_type] || entry.entry_type}
+												{formatEntryLabel(entry)}
 											</span>
 										</div>
 									);
@@ -270,7 +329,12 @@ export function MonthCalendarView({
 					<span>Overlapping entries</span>
 				</div>
 				<div className="flex items-center gap-1">
-					<span>Colors indicate company</span>
+					<div className="w-3 h-3 rounded bg-gray-100" />
+					<span>Non-workday</span>
+				</div>
+				<div className="flex items-center gap-1">
+					<div className="w-3 h-3 rounded bg-green-200 opacity-40" />
+					<span>Leave (doesn't count)</span>
 				</div>
 			</div>
 		</div>

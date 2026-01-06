@@ -111,9 +111,11 @@ export interface TimeEntry {
   id: Uuid
   user_id: Uuid
   date: string // ISO date string (YYYY-MM-DD)
+  end_date: string | null // For multi-day leave entries (inclusive)
   company_id: Uuid | null
   company_name: string | null // For display
   entry_type: EntryType
+  is_half_day: boolean // For vacation only - counts as 0.5 days
   check_in: string | null // HH:MM format
   check_out: string | null // HH:MM format
   timezone: string | null
@@ -131,8 +133,10 @@ export interface TimeEntry {
 
 export interface TimeEntryCreate {
   date: string
+  end_date?: string | null // For multi-day leave entries
   company_id?: Uuid | null
   entry_type?: EntryType
+  is_half_day?: boolean // For vacation only
   check_in?: string | null
   check_out?: string | null
   timezone?: string | null
@@ -141,8 +145,10 @@ export interface TimeEntryCreate {
 }
 
 export interface TimeEntryUpdate {
+  end_date?: string | null
   company_id?: Uuid | null
   entry_type?: EntryType
+  is_half_day?: boolean
   check_in?: string | null
   check_out?: string | null
   timezone?: string | null
@@ -268,12 +274,13 @@ export interface MonthlyReportResponse {
   company_name: string | null
   user_name: string
   total_work_days: number
+  expected_work_days: number // Expected work days after subtracting leave
   total_gross_hours: number
   total_net_hours: number
   total_break_minutes: number
   overtime_hours: number
-  vacation_days: number
-  sick_days: number
+  vacation_days: number // Float to support half-day vacation
+  sick_days: number // Float for consistency (effective days)
   comp_time_days: number
   public_holiday_days: number
   entries: TimeEntry[]

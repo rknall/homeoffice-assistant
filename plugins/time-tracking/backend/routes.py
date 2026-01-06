@@ -3,7 +3,7 @@
 """Time Tracking plugin API routes."""
 
 from calendar import monthrange
-from datetime import date
+from datetime import date, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -41,7 +41,9 @@ from .services import (
     LeaveBalanceService,
     TimeEntryService,
     calculate_break_minutes,
+    count_effective_leave_days,
 )
+from .validators import AustrianComplianceValidator
 
 router = APIRouter()
 
@@ -59,9 +61,11 @@ def _entry_to_response(
         id=str(entry.id),
         user_id=str(entry.user_id),
         date=entry.date,
+        end_date=entry.end_date,
         company_id=str(entry.company_id) if entry.company_id else None,
         company_name=company_name,
         entry_type=EntryType(entry.entry_type),
+        is_half_day=entry.is_half_day,
         check_in=entry.check_in,
         check_out=entry.check_out,
         timezone=entry.timezone,
@@ -139,6 +143,8 @@ def create_entry(
             entry_date=data.date,
             entry_type=data.entry_type.value,
             company_id=UUID(data.company_id) if data.company_id else None,
+            end_date=data.end_date,
+            is_half_day=data.is_half_day,
             check_in=data.check_in,
             check_out=data.check_out,
             timezone=data.timezone,
@@ -375,6 +381,114 @@ def get_daily_summary(
 # --- Leave Balance Endpoints ---
 
 
+def _calculate_planned_vacation(
+    db: Session,
+    user_id: UUID,
+    year: int,
+    company_id: UUID | None,
+) -> float:
+    """Calculate effective planned vacation days for a user.
+
+    Counts future vacation entries using effective leave day calculation,
+    which accounts for multi-day entries, half-days, weekends, and holidays.
+
+    Args:
+        db: Database session.
+        user_id: The user ID.
+        year: The year to calculate for.
+        company_id: Optional company filter.
+
+    Returns:
+        Total effective planned vacation days.
+    """
+    entry_service = TimeEntryService(db)
+    today = date.today()
+    year_end = date(year, 12, 31)
+
+    # Get all vacation entries that start today or later within the year
+    future_vacation = entry_service.list_entries(
+        user_id=user_id,
+        from_date=today,
+        to_date=year_end,
+        company_id=company_id,
+        entry_type=EntryType.VACATION.value,
+    )
+
+    # Get public holidays for effective day calculation
+    validator = AustrianComplianceValidator()
+    holidays_dict = validator.get_public_holidays(year)
+    holidays_set = set(holidays_dict.keys())
+
+    # Count effective planned vacation days per month (from today onwards)
+    vacation_planned = 0.0
+    for month in range(today.month, 13):
+        # For the current month, only count days from today onwards
+        start_from = today if month == today.month else None
+        effective = count_effective_leave_days(
+            future_vacation, holidays_set, year, month, from_date=start_from
+        )
+        # Only count vacation days (not sick days) for planned
+        vacation_planned += effective.total_vacation_equivalent
+
+    return vacation_planned
+
+
+def _calculate_used_vacation(
+    db: Session,
+    user_id: UUID,
+    year: int,
+    company_id: UUID | None,
+) -> float:
+    """Calculate effective used (past) vacation days for a user.
+
+    Counts past vacation entries using effective leave day calculation,
+    which accounts for multi-day entries, half-days, weekends, and holidays.
+
+    Args:
+        db: Database session.
+        user_id: The user ID.
+        year: The year to calculate for.
+        company_id: Optional company filter.
+
+    Returns:
+        Total effective used vacation days.
+    """
+    entry_service = TimeEntryService(db)
+    today = date.today()
+    year_start = date(year, 1, 1)
+    yesterday = today - timedelta(days=1)
+
+    # If we're before the target year, no used vacation yet
+    if yesterday < year_start:
+        return 0.0
+
+    # Get all vacation entries in the year up to yesterday
+    past_vacation = entry_service.list_entries(
+        user_id=user_id,
+        from_date=year_start,
+        to_date=yesterday,
+        company_id=company_id,
+        entry_type=EntryType.VACATION.value,
+    )
+
+    # Get public holidays for effective day calculation
+    validator = AustrianComplianceValidator()
+    holidays_dict = validator.get_public_holidays(year)
+    holidays_set = set(holidays_dict.keys())
+
+    # Count effective used vacation days per month (up to yesterday)
+    vacation_used = 0.0
+    for month in range(1, today.month + 1):
+        # For the current month, only count days up to yesterday
+        up_to = yesterday if month == today.month else None
+        effective = count_effective_leave_days(
+            past_vacation, holidays_set, year, month, up_to_date=up_to
+        )
+        vacation_used += effective.total_vacation_equivalent
+
+    return vacation_used
+
+
 @router.get("/leave-balance", response_model=LeaveBalanceResponse)
 def get_leave_balance(
     year: int | None = None,
@@ -391,15 +505,23 @@ def get_leave_balance(
     company_uuid = UUID(company_id) if company_id else None
     balance = service.get_balance(current_user.id, year, company_uuid)
 
-    # Calculate planned vacation (future vacation entries)
-    entry_service = TimeEntryService(db)
-    future_vacation = entry_service.list_entries(
-        user_id=current_user.id,
-        from_date=date.today(),
-        company_id=company_uuid,
-        entry_type=EntryType.VACATION.value,
+    # Calculate used vacation (past vacation entries - dynamically)
+    vacation_taken = _calculate_used_vacation(
+        db, current_user.id, year, company_uuid
     )
-    vacation_planned = len(future_vacation)
+
+    # Calculate planned vacation (future vacation entries)
+    vacation_planned = _calculate_planned_vacation(
+        db, current_user.id, year, company_uuid
+    )
+
+    # Calculate vacation remaining: entitled + carryover - taken - planned
+    vacation_remaining = (
+        balance.vacation_entitled
+        + balance.vacation_carryover
+        - vacation_taken
+        - vacation_planned
+    )
 
     return LeaveBalanceResponse(
         id=str(balance.id),
@@ -408,9 +530,9 @@ def get_leave_balance(
         year=balance.year,
         vacation_entitled=balance.vacation_entitled,
         vacation_carryover=balance.vacation_carryover,
-        vacation_taken=balance.vacation_taken,
-        vacation_planned=float(vacation_planned),
-        vacation_remaining=balance.vacation_remaining,
+        vacation_taken=vacation_taken,
+        vacation_planned=vacation_planned,
+        vacation_remaining=vacation_remaining,
         comp_time_balance=balance.comp_time_balance,
         sick_days_taken=balance.sick_days_taken,
         created_at=balance.created_at,
@@ -441,6 +563,24 @@ def update_leave_balance(
         vacation_carryover=data.vacation_carryover,
     )
 
+    # Calculate used vacation (past vacation entries - dynamically)
+    vacation_taken = _calculate_used_vacation(
+        db, current_user.id, year, company_uuid
+    )
+
+    # Calculate planned vacation for complete response
+    vacation_planned = _calculate_planned_vacation(
+        db, current_user.id, year, company_uuid
+    )
+
+    # Calculate vacation remaining: entitled + carryover - taken - planned
+    vacation_remaining = (
+        balance.vacation_entitled
+        + balance.vacation_carryover
+        - vacation_taken
+        - vacation_planned
+    )
+
     return LeaveBalanceResponse(
         id=str(balance.id),
         user_id=str(balance.user_id),
@@ -448,9 +588,9 @@ def update_leave_balance(
         year=balance.year,
         vacation_entitled=balance.vacation_entitled,
         vacation_carryover=balance.vacation_carryover,
-        vacation_taken=balance.vacation_taken,
-        vacation_planned=0.0,
-        vacation_remaining=balance.vacation_remaining,
+        vacation_taken=vacation_taken,
+        vacation_planned=vacation_planned,
+        vacation_remaining=vacation_remaining,
         comp_time_balance=balance.comp_time_balance,
         sick_days_taken=balance.sick_days_taken,
         created_at=balance.created_at,
@@ -700,8 +840,6 @@ def get_monthly_report(
     # Calculate totals
     work_dates: set[date] = set()
     total_gross_minutes = 0
-    vacation_days = 0
-    sick_days = 0
     comp_time_days = 0
     holiday_days = 0
 
@@ -710,14 +848,30 @@ def get_monthly_report(
             if entry.gross_minutes:
                 work_dates.add(entry.date)
                 total_gross_minutes += entry.gross_minutes
-        elif entry.entry_type == EntryType.VACATION.value:
-            vacation_days += 1
-        elif entry.entry_type == EntryType.SICK.value:
-            sick_days += 1
         elif entry.entry_type == EntryType.COMP_TIME.value:
             comp_time_days += 1
         elif entry.entry_type == EntryType.PUBLIC_HOLIDAY.value:
             holiday_days += 1
+
+    # Get public holidays for the month
+    validator = AustrianComplianceValidator()
+    public_holidays = validator.get_public_holidays(year)
+    holidays_set = set(public_holidays.keys())
+
+    # Calculate effective leave days with priority rules
+    effective_leave = count_effective_leave_days(entries, holidays_set, year, month)
+    vacation_days = effective_leave.total_vacation_equivalent
+    sick_days = effective_leave.sick_days
+
+    # Calculate base working days (weekdays minus holidays)
+    base_work_days = 0
+    for day in range(1, last_day + 1):
+        d = date(year, month, day)
+        if d.weekday() < 5 and d not in holidays_set:  # Weekday, not holiday
+            base_work_days += 1
+
+    # Expected work days = base work days - effective leave days
+    expected_work_days = base_work_days - effective_leave.total_leave_days
 
     total_work_days = len(work_dates)
     total_gross_hours = total_gross_minutes / 60
@@ -725,8 +879,8 @@ def get_monthly_report(
     break_minutes = calculate_break_minutes(avg_hours_per_day) * total_work_days
     total_net_hours = total_gross_hours - (break_minutes / 60)
 
-    # Calculate expected hours (8h per working day in month)
-    expected_hours = total_work_days * 8
+    # Calculate expected hours (8h per expected working day)
+    expected_hours = expected_work_days * 8
     overtime_hours = max(0, total_net_hours - expected_hours)
 
     # Build daily summaries
@@ -759,6 +913,7 @@ def get_monthly_report(
         company_name=company_name,
         user_name=current_user.username,
         total_work_days=total_work_days,
+        expected_work_days=expected_work_days,
         total_gross_hours=round(total_gross_hours, 2),
         total_net_hours=round(total_net_hours, 2),
         total_break_minutes=break_minutes,
@@ -806,6 +961,22 @@ def get_plugin_info(
         cb_company_id = (
             str(current_balance.company_id) if current_balance.company_id else None
         )
+        cb_company_uuid = current_balance.company_id
+        # Calculate used vacation (past vacation entries - dynamically)
+        vacation_taken = _calculate_used_vacation(
+            db, current_user.id, current_balance.year, cb_company_uuid
+        )
+        # Calculate planned vacation for complete response
+        vacation_planned = _calculate_planned_vacation(
+            db, current_user.id, current_balance.year, cb_company_uuid
+        )
+        # Calculate vacation remaining: entitled + carryover - taken - planned
+        vacation_remaining = (
+            current_balance.vacation_entitled
+            + current_balance.vacation_carryover
+            - vacation_taken
+            - vacation_planned
+        )
         balance_response = LeaveBalanceResponse(
             id=str(current_balance.id),
             user_id=str(current_balance.user_id),
@@ -813,9 +984,9 @@ def get_plugin_info(
             year=current_balance.year,
             vacation_entitled=current_balance.vacation_entitled,
             vacation_carryover=current_balance.vacation_carryover,
-            vacation_taken=current_balance.vacation_taken,
-            vacation_planned=0.0,
-            vacation_remaining=current_balance.vacation_remaining,
+            vacation_taken=vacation_taken,
+            vacation_planned=vacation_planned,
+            vacation_remaining=vacation_remaining,
             comp_time_balance=current_balance.comp_time_balance,
             sick_days_taken=current_balance.sick_days_taken,
             created_at=current_balance.created_at,

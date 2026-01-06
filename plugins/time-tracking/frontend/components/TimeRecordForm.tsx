@@ -71,10 +71,14 @@ export function TimeRecordForm({
 		entry?.work_location || "",
 	);
 	const [notes, setNotes] = useState(entry?.notes || "");
+	const [endDate, setEndDate] = useState(entry?.end_date || "");
+	const [isHalfDay, setIsHalfDay] = useState(entry?.is_half_day || false);
 	const [error, setError] = useState<string | null>(null);
 	const [timeError, setTimeError] = useState<string | null>(null);
 
 	const isWorkType = entryType === "work" || entryType === "doctor_visit";
+	const isLeaveType = entryType === "vacation" || entryType === "sick";
+	const supportsHalfDay = entryType === "vacation";
 	const showCompanyDropdown = companies && companies.length > 0;
 	const isNewEntry = !entry;
 
@@ -108,7 +112,16 @@ export function TimeRecordForm({
 			setCheckOut("");
 			setWorkLocation("");
 		}
-	}, [isWorkType]);
+		// Reset leave-specific fields when switching to non-leave types
+		if (!isLeaveType) {
+			setEndDate("");
+			setIsHalfDay(false);
+		}
+		// Reset half-day when switching away from vacation
+		if (!supportsHalfDay) {
+			setIsHalfDay(false);
+		}
+	}, [isWorkType, isLeaveType, supportsHalfDay]);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -131,6 +144,9 @@ export function TimeRecordForm({
 				check_out: isWorkType && checkOut ? checkOut : null,
 				work_location: isWorkType && workLocation ? workLocation : null,
 				notes: notes || null,
+				// Leave-specific fields
+				end_date: isLeaveType && endDate ? endDate : null,
+				is_half_day: supportsHalfDay ? isHalfDay : false,
 			};
 			await onSubmit(data);
 		} catch (err) {
@@ -221,6 +237,60 @@ export function TimeRecordForm({
 					))}
 				</select>
 			</div>
+
+			{/* Leave-specific fields (vacation, sick) */}
+			{isLeaveType && (
+				<>
+					{/* End date for multi-day leave */}
+					<div>
+						<label
+							htmlFor="end-date"
+							className="block text-sm font-medium text-gray-700 mb-1"
+						>
+							End Date (for multi-day leave)
+						</label>
+						<input
+							type="date"
+							id="end-date"
+							value={endDate}
+							min={selectedDate}
+							onChange={(e) => setEndDate(e.target.value)}
+							className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							disabled={entry?.is_locked || isLoading}
+						/>
+						<p className="mt-1 text-xs text-gray-500">
+							Leave empty for single-day entries
+						</p>
+					</div>
+
+					{/* Half-day checkbox (vacation only) */}
+					{supportsHalfDay && (
+						<div className="flex items-center gap-2">
+							<input
+								type="checkbox"
+								id="is-half-day"
+								checked={isHalfDay}
+								onChange={(e) => setIsHalfDay(e.target.checked)}
+								className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+								disabled={entry?.is_locked || isLoading}
+							/>
+							<label
+								htmlFor="is-half-day"
+								className="text-sm font-medium text-gray-700"
+							>
+								Half-day vacation (4 hours)
+							</label>
+						</div>
+					)}
+
+					{/* Warning about half-day overtime */}
+					{supportsHalfDay && isHalfDay && (
+						<p className="text-xs text-amber-600">
+							Note: Overtime is not permitted on half-vacation days
+						</p>
+					)}
+				</>
+			)}
 
 			{/* Time fields (only for work/doctor_visit) */}
 			{isWorkType && (

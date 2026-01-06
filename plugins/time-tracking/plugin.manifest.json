@@ -1,7 +1,7 @@
 {
 	"id": "time-tracking",
 	"name": "Time Tracking",
-	"version": "1.1.0",
+	"version": "1.2.0",
 	"description": "Track working hours, vacation balances, and comp time",
 	"author": "Roland Knall",
 	"homepage": "https://github.com/rknall/homeoffice-assistant",

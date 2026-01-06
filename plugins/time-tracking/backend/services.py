@@ -3,6 +3,7 @@
 """Time Tracking plugin business logic services."""
 
 from calendar import monthrange
+from dataclasses import dataclass
 from datetime import date, time, timedelta
 from typing import Any
 from uuid import UUID
@@ -20,6 +21,25 @@ from .models import (
 )
 from .schemas import ComplianceWarning
 from .validators import AustrianComplianceValidator
+
+
+@dataclass
+class EffectiveLeaveDays:
+    """Result of effective leave day calculation."""
+
+    sick_days: float
+    vacation_days: float  # Full vacation days
+    half_vacation_days: float  # Half vacation days (each counts as 0.5)
+
+    @property
+    def total_vacation_equivalent(self) -> float:
+        """Total vacation days including half days."""
+        return self.vacation_days + (self.half_vacation_days * 0.5)
+
+    @property
+    def total_leave_days(self) -> float:
+        """Total effective leave days (sick + vacation)."""
+        return self.sick_days + self.total_vacation_equivalent
 
 # --- Time Calculation Functions ---
 
@@ -119,6 +139,123 @@ def times_overlap(
     return start1_mins < end2_mins and start2_mins < end1_mins
 
 
+def count_effective_leave_days(
+    entries: list[TimeEntry],
+    holidays: set[date],
+    year: int,
+    month: int,
+    up_to_date: date | None = None,
+    from_date: date | None = None,
+) -> EffectiveLeaveDays:
+    """Count effective leave days applying priority rules.
+
+    Priority (highest to lowest):
+    1. National Holiday - takes precedence over everything
+    2. Weekend - takes precedence over sick/vacation
+    3. Sickness - takes precedence over vacation
+    4. Vacation - lowest priority
+
+    Args:
+        entries: List of time entries (vacation/sick only).
+        holidays: Set of holiday dates.
+        year: Year to calculate for.
+        month: Month to calculate for.
+        up_to_date: Optional end date limit - only count days up to this date.
+        from_date: Optional start date limit - only count days from this date.
+
+    Returns:
+        EffectiveLeaveDays with counts for each type.
+    """
+    month_start = date(year, month, 1)
+    _, last_day = monthrange(year, month)
+    month_end = date(year, month, last_day)
+
+    # If up_to_date is specified and falls within this month, use it as the end
+    if up_to_date and month_start <= up_to_date <= month_end:
+        month_end = up_to_date
+
+    # If from_date is specified and falls within this month, use it as the start
+    if from_date and month_start < from_date <= month_end:
+        month_start = from_date
+
+    # Collect all sick days and vacation days in the month
+    sick_dates: set[date] = set()
+    vacation_dates: set[date] = set()
+    half_vacation_dates: set[date] = set()
+
+    for entry in entries:
+        if entry.entry_type not in [EntryType.SICK.value, EntryType.VACATION.value]:
+            continue
+
+        # Determine date range (single day or multi-day)
+        start = entry.date
+        end = entry.end_date if entry.end_date else entry.date
+
+        # Iterate through each day in the entry's range
+        current = start
+        while current <= end:
+            # Only count days within the target month
+            if month_start <= current <= month_end:
+                if entry.entry_type == EntryType.SICK.value:
+                    sick_dates.add(current)
+                elif entry.entry_type == EntryType.VACATION.value:
+                    if entry.is_half_day:
+                        half_vacation_dates.add(current)
+                    else:
+                        vacation_dates.add(current)
+            current += timedelta(days=1)
+
+    # Apply priority rules and count effective days
+    effective_sick = 0.0
+    effective_vacation = 0.0
+    effective_half_vacation = 0.0
+
+    # Process sick days first (higher priority than vacation)
+    for d in sick_dates:
+        # Skip weekends
+        if d.weekday() >= 5:  # Saturday = 5, Sunday = 6
+            continue
+        # Skip holidays
+        if d in holidays:
+            continue
+        effective_sick += 1.0
+
+    # Process full vacation days (only if not already a sick day)
+    for d in vacation_dates:
+        # Skip weekends
+        if d.weekday() >= 5:
+            continue
+        # Skip holidays
+        if d in holidays:
+            continue
+        # Skip if sick day takes precedence
+        if d in sick_dates:
+            continue
+        effective_vacation += 1.0
+
+    # Process half vacation days (only if not already a sick day or full vacation)
+    for d in half_vacation_dates:
+        # Skip weekends
+        if d.weekday() >= 5:
+            continue
+        # Skip holidays
+        if d in holidays:
+            continue
+        # Skip if sick day takes precedence
+        if d in sick_dates:
+            continue
+        # Skip if full vacation already on this day
+        if d in vacation_dates:
+            continue
+        effective_half_vacation += 1.0
+
+    return EffectiveLeaveDays(
+        sick_days=effective_sick,
+        vacation_days=effective_vacation,
+        half_vacation_days=effective_half_vacation,
+    )
+
+
 # --- Time Entry Service ---
 
 
@@ -140,6 +277,8 @@ class TimeEntryService:
         entry_date: date,
         entry_type: str,
         company_id: UUID | None = None,
+        end_date: date | None = None,
+        is_half_day: bool = False,
         check_in: time | None = None,
         check_out: time | None = None,
         timezone: str | None = None,
@@ -153,6 +292,8 @@ class TimeEntryService:
             entry_date: The date of the entry.
             entry_type: Type of entry (work, vacation, etc.).
             company_id: Optional company ID.
+            end_date: End date for multi-day leave entries (inclusive).
+            is_half_day: Whether this is a half-day vacation (vacation only).
             check_in: Check-in time.
             check_out: Check-out time.
             timezone: Timezone.
@@ -178,9 +319,19 @@ class TimeEntryService:
                 user_id, entry_date, check_in, check_out, exclude_entry_id=None
             )
 
+        # is_half_day only applies to vacation entries
+        if entry_type != EntryType.VACATION.value:
+            is_half_day = False
+
+        # is_half_day cannot be used with multi-day entries
+        if is_half_day and end_date and end_date != entry_date:
+            raise ValueError("Half-day vacation cannot span multiple days")
+
         entry = TimeEntry(
             user_id=user_id,
             date=entry_date,
+            end_date=end_date,
+            is_half_day=is_half_day,
             company_id=company_id,
             entry_type=entry_type,
             check_in=check_in,
@@ -249,6 +400,10 @@ class TimeEntryService:
                 user_id, entry.date, entry.check_in, entry.check_out,
                 exclude_entry_id=entry_id
             )
+
+        # Validate: is_half_day cannot be used with multi-day entries
+        if entry.is_half_day and entry.end_date and entry.end_date != entry.date:
+            raise ValueError("Half-day vacation cannot span multiple days")
 
         self.db.commit()
         self.db.refresh(entry)
@@ -660,6 +815,22 @@ class TimeEntryService:
                 law_reference="AZG §9",
             ))
 
+        # Check half-vacation overtime rule
+        # If a half-vacation is taken, work hours should not exceed 4h
+        has_half_vacation = any(
+            e.entry_type == EntryType.VACATION.value and e.is_half_day
+            for e in entries
+        )
+        if has_half_vacation and total_hours > 4:
+            warnings.append(ComplianceWarning(
+                level="warning",
+                code="HALF_VACATION_OVERTIME",
+                message=(
+                    f"Half-vacation day with {total_hours:.1f}h of work. "
+                    "Overtime not permitted on half-vacation days."
+                ),
+            ))
+
         # Check rest period from previous day
         prev_entries = self.list_entries(
             user_id,
@@ -774,30 +945,57 @@ class TimeEntryService:
     def _recalculate_balance(self, balance: LeaveBalance) -> None:
         """Recalculate a leave balance from entries.
 
+        This counts effective leave days by iterating each day in multi-day
+        entries and accounting for half-day vacation.
+
+        vacation_taken only includes PAST vacation days (before today).
+        Future/planned vacation is calculated separately in the API response.
+
         Args:
             balance: The leave balance to update.
         """
         year_start = date(balance.year, 1, 1)
-        year_end = date(balance.year, 12, 31)
+        today = date.today()
+        # Only count entries up to yesterday (past entries)
+        past_end = today - timedelta(days=1)
 
-        # Count vacation days
-        vacation_count = self.db.query(func.count(TimeEntry.id)).filter(
+        # If we're in January of the target year, there are no past entries yet
+        if past_end < year_start:
+            balance.vacation_taken = 0.0
+            balance.sick_days_taken = 0
+            self.db.commit()
+            return
+
+        # Get vacation and sick entries from the past (before today)
+        leave_entries = self.db.query(TimeEntry).filter(
             TimeEntry.user_id == balance.user_id,
             TimeEntry.date >= year_start,
-            TimeEntry.date <= year_end,
-            TimeEntry.entry_type == EntryType.VACATION.value,
-        ).scalar() or 0
+            TimeEntry.date <= past_end,
+            TimeEntry.entry_type.in_([
+                EntryType.VACATION.value,
+                EntryType.SICK.value,
+            ]),
+        ).all()
 
-        # Count sick days
-        sick_count = self.db.query(func.count(TimeEntry.id)).filter(
-            TimeEntry.user_id == balance.user_id,
-            TimeEntry.date >= year_start,
-            TimeEntry.date <= year_end,
-            TimeEntry.entry_type == EntryType.SICK.value,
-        ).scalar() or 0
+        # Get holidays for the year
+        holidays_dict = self.validator.get_public_holidays(balance.year)
+        holidays_set = set(holidays_dict.keys())
 
-        balance.vacation_taken = float(vacation_count)
-        balance.sick_days_taken = sick_count
+        # Count effective leave days only for past days (up to yesterday)
+        total_vacation = 0.0
+        total_sick = 0
+
+        for month in range(1, today.month + 1):
+            # For the current month, only count days up to yesterday
+            up_to = past_end if month == today.month else None
+            effective = count_effective_leave_days(
+                leave_entries, holidays_set, balance.year, month, up_to_date=up_to
+            )
+            total_vacation += effective.total_vacation_equivalent
+            total_sick += int(effective.sick_days)
+
+        balance.vacation_taken = total_vacation
+        balance.sick_days_taken = total_sick
         self.db.commit()
 
 

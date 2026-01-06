@@ -39,8 +39,10 @@ class TimeEntryBase(BaseModel):
     """Base schema for time entries."""
 
     date: date
+    end_date: date | None = None  # For multi-day leave entries (inclusive)
     company_id: str | None = None
     entry_type: EntryType = EntryType.WORK
+    is_half_day: bool = False  # For vacation only - counts as 0.5 days
     check_in: time | None = None
     check_out: time | None = None
     timezone: str | None = None
@@ -57,8 +59,10 @@ class TimeEntryCreate(TimeEntryBase):
 class TimeEntryUpdate(BaseModel):
     """Schema for updating a time entry."""
 
+    end_date: date | None = None
     company_id: str | None = None
     entry_type: EntryType | None = None
+    is_half_day: bool | None = None
     check_in: time | None = None
     check_out: time | None = None
     timezone: str | None = None
@@ -74,9 +78,11 @@ class TimeEntryResponse(BaseModel):
     id: str
     user_id: str
     date: date
+    end_date: date | None = None  # For multi-day leave entries
     company_id: str | None = None
     company_name: str | None = None  # For display
     entry_type: EntryType
+    is_half_day: bool = False  # For vacation only
     check_in: time | None = None
     check_out: time | None = None
     timezone: str | None = None
@@ -286,12 +292,13 @@ class MonthlyReportResponse(BaseModel):
     company_name: str | None = None
     user_name: str
     total_work_days: int
+    expected_work_days: float  # Expected work days after subtracting leave
     total_gross_hours: float
     total_net_hours: float
     total_break_minutes: int
     overtime_hours: float
-    vacation_days: int
-    sick_days: int
+    vacation_days: float  # Float to support half-day vacation
+    sick_days: float  # Float for consistency (effective days)
     comp_time_days: int
     public_holiday_days: int
     entries: list[TimeEntryResponse]

@@ -15,9 +15,9 @@ interface TodayStatusBarProps {
 }
 
 /**
- * Calculate the number of working days (Mon-Fri, excluding holidays) in a given month
+ * Calculate the number of base working days (Mon-Fri, excluding holidays) in a given month
  */
-function getWorkingDaysInMonth(
+function getBaseWorkingDaysInMonth(
 	year: number,
 	month: number,
 	holidays: Set<string>,
@@ -26,16 +26,104 @@ function getWorkingDaysInMonth(
 	const lastDay = new Date(year, month + 1, 0);
 	let workingDays = 0;
 
-	for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
-		const dayOfWeek = d.getDay();
-		const dateStr = toISODateString(d);
+	const current = new Date(firstDay);
+	while (current <= lastDay) {
+		const dayOfWeek = current.getDay();
+		const dateStr = toISODateString(current);
 		// Count as working day if it's a weekday AND not a holiday
 		if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidays.has(dateStr)) {
 			workingDays++;
 		}
+		current.setDate(current.getDate() + 1);
 	}
 
 	return workingDays;
+}
+
+/**
+ * Count effective leave days applying priority rules:
+ * 1. National Holiday > 2. Weekend > 3. Sickness > 4. Vacation
+ */
+function countEffectiveLeaveDays(
+	entries: TimeEntry[],
+	holidays: Set<string>,
+	year: number,
+	month: number,
+): { sickDays: number; vacationDays: number } {
+	const monthStart = new Date(year, month, 1);
+	const monthEnd = new Date(year, month + 1, 0);
+
+	// Collect all sick and vacation days
+	const sickDates = new Set<string>();
+	const vacationDates = new Set<string>();
+	const halfVacationDates = new Set<string>();
+
+	for (const entry of entries) {
+		if (entry.entry_type !== "sick" && entry.entry_type !== "vacation") {
+			continue;
+		}
+
+		// Determine date range
+		const startDate = new Date(entry.date);
+		const endDate = entry.end_date ? new Date(entry.end_date) : startDate;
+
+		// Iterate through each day in the entry's range
+		const current = new Date(startDate);
+		while (current <= endDate) {
+			// Only count days within the target month
+			if (current >= monthStart && current <= monthEnd) {
+				const dateStr = toISODateString(current);
+				if (entry.entry_type === "sick") {
+					sickDates.add(dateStr);
+				} else if (entry.entry_type === "vacation") {
+					if (entry.is_half_day) {
+						halfVacationDates.add(dateStr);
+					} else {
+						vacationDates.add(dateStr);
+					}
+				}
+			}
+			current.setDate(current.getDate() + 1);
+		}
+	}
+
+	// Apply priority rules
+	let effectiveSick = 0;
+	let effectiveVacation = 0;
+
+	// Process sick days
+	for (const dateStr of sickDates) {
+		const d = new Date(dateStr);
+		const dayOfWeek = d.getDay();
+		// Skip weekends
+		if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+		// Skip holidays
+		if (holidays.has(dateStr)) continue;
+		effectiveSick += 1;
+	}
+
+	// Process full vacation days (skip if sick day exists)
+	for (const dateStr of vacationDates) {
+		const d = new Date(dateStr);
+		const dayOfWeek = d.getDay();
+		if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+		if (holidays.has(dateStr)) continue;
+		if (sickDates.has(dateStr)) continue;
+		effectiveVacation += 1;
+	}
+
+	// Process half vacation days (skip if sick or full vacation)
+	for (const dateStr of halfVacationDates) {
+		const d = new Date(dateStr);
+		const dayOfWeek = d.getDay();
+		if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+		if (holidays.has(dateStr)) continue;
+		if (sickDates.has(dateStr)) continue;
+		if (vacationDates.has(dateStr)) continue;
+		effectiveVacation += 0.5;
+	}
+
+	return { sickDays: effectiveSick, vacationDays: effectiveVacation };
 }
 
 /**
@@ -79,8 +167,14 @@ export function TodayStatusBar({
 		const year = currentDate.getFullYear();
 		const month = currentDate.getMonth();
 
-		// Expected values for the month (excluding holidays)
-		const expectedWorkDays = getWorkingDaysInMonth(year, month, holidays);
+		// Base working days (Mon-Fri, excluding public holidays)
+		const baseWorkDays = getBaseWorkingDaysInMonth(year, month, holidays);
+
+		// Count effective leave days (applying priority rules)
+		const effectiveLeave = countEffectiveLeaveDays(entries, holidays, year, month);
+
+		// Expected work days = base - effective leave
+		const expectedWorkDays = baseWorkDays - effectiveLeave.sickDays - effectiveLeave.vacationDays;
 		const expectedHours = expectedWorkDays * 8;
 
 		// Count unique work days (days with work entries)
@@ -110,16 +204,53 @@ export function TodayStatusBar({
 		const actualWorkDays = workDays.size;
 		const actualNetHours = (totalGrossMinutes - totalBreakMinutes) / 60;
 
-		// Overtime: actual hours - expected hours for days worked (not month total)
-		const expectedForWorkedDays = actualWorkDays * 8;
-		const overtime = Math.max(0, actualNetHours - expectedForWorkedDays);
+		// Calculate expected work days up to today (not the whole month)
+		const today = new Date();
+		const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+
+		let expectedWorkDaysSoFar = expectedWorkDays;
+		if (isCurrentMonth) {
+			// Count workdays from start of month up to today
+			const monthStart = new Date(year, month, 1);
+			let workdayCount = 0;
+			const currentDay = new Date(monthStart);
+
+			while (currentDay <= today) {
+				const dayOfWeek = currentDay.getDay();
+				// Format as YYYY-MM-DD for consistent comparison
+				const dateStr = `${currentDay.getFullYear()}-${String(currentDay.getMonth() + 1).padStart(2, "0")}-${String(currentDay.getDate()).padStart(2, "0")}`;
+				const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+				const isHoliday = holidays.has(dateStr);
+
+				// Check if this day has leave (vacation or sick) using string comparison
+				const hasLeave = entries.some(e => {
+					if (e.entry_type !== "vacation" && e.entry_type !== "sick") return false;
+					const startDate = e.date;
+					const endDate = e.end_date || e.date;
+					return dateStr >= startDate && dateStr <= endDate;
+				});
+
+				if (!isWeekend && !isHoliday && !hasLeave) {
+					workdayCount++;
+				}
+				currentDay.setDate(currentDay.getDate() + 1);
+			}
+			expectedWorkDaysSoFar = workdayCount;
+		}
+
+		const expectedHoursSoFar = expectedWorkDaysSoFar * 8;
+
+		// Comp time: actual hours - expected hours so far (can be negative)
+		const compTime = actualNetHours - expectedHoursSoFar;
 
 		return {
 			actualWorkDays,
 			expectedWorkDays,
+			expectedWorkDaysSoFar,
 			actualHours: actualNetHours,
 			expectedHours,
-			overtime,
+			expectedHoursSoFar,
+			compTime,
 		};
 	}, [entries, currentDate, holidays]);
 
@@ -217,18 +348,34 @@ export function TodayStatusBar({
 		return company?.color || "#3B82F6";
 	};
 
-	// Format hours for display
+	// Format hours for display (handles negative values)
 	const formatHours = (hours: number): string => {
-		const h = Math.floor(hours);
-		const m = Math.round((hours - h) * 60);
-		if (m === 0) return `${h}h`;
-		return `${h}h ${m}m`;
+		const absHours = Math.abs(hours);
+		const h = Math.floor(absHours);
+		const m = Math.round((absHours - h) * 60);
+		const sign = hours < 0 ? "-" : "";
+		if (m === 0) return `${sign}${h}h`;
+		return `${sign}${h}h ${m}m`;
 	};
 
 	// Count completed entries for today
 	const completedTodayCount = todayEntries.filter(
 		(e) => !e.is_open && e.entry_type === "work",
 	).length;
+
+	// Calculate today's total worked hours (completed sessions only)
+	const todayWorkedHours = useMemo(() => {
+		let totalMinutes = 0;
+		const dailyGross = todayEntries
+			.filter((e) => !e.is_open && e.entry_type === "work" && e.gross_hours !== null)
+			.reduce((sum, e) => sum + (e.gross_hours || 0), 0);
+
+		// Calculate break for today based on total gross hours
+		const breakMinutes = calculateBreakMinutes(dailyGross);
+		totalMinutes = dailyGross * 60 - breakMinutes;
+
+		return totalMinutes / 60;
+	}, [todayEntries]);
 
 	return (
 		<div className="bg-white rounded-lg shadow p-4">
@@ -269,11 +416,17 @@ export function TodayStatusBar({
 							{/* Gray indicator when not checked in */}
 							<div className="w-3 h-3 bg-gray-300 rounded-full" />
 							<div>
-								<div className="text-sm text-gray-500">Not checked in today</div>
-								{completedTodayCount > 0 && (
-									<div className="text-xs text-gray-400">
-										{completedTodayCount} completed session(s)
-									</div>
+								{todayWorkedHours > 0 ? (
+									<>
+										<div className="text-sm font-medium text-gray-700">
+											{formatHours(todayWorkedHours)} worked today
+										</div>
+										<div className="text-xs text-gray-400">
+											No session running
+										</div>
+									</>
+								) : (
+									<div className="text-sm text-gray-500">No sessions today</div>
 								)}
 							</div>
 						</>
@@ -303,13 +456,17 @@ export function TodayStatusBar({
 					<div className="text-center">
 						<div
 							className={`text-lg font-semibold ${
-								monthlyStats.overtime > 0 ? "text-green-600" : "text-gray-900"
+								monthlyStats.compTime > 0
+									? "text-green-600"
+									: monthlyStats.compTime < 0
+										? "text-red-600"
+										: "text-gray-900"
 							}`}
 						>
-							{monthlyStats.overtime > 0 ? "+" : ""}
-							{formatHours(monthlyStats.overtime)}
+							{monthlyStats.compTime > 0 ? "+" : ""}
+							{formatHours(monthlyStats.compTime)}
 						</div>
-						<div className="text-xs text-gray-500">Overtime</div>
+						<div className="text-xs text-gray-500">Comp Time</div>
 					</div>
 				</div>
 

@@ -252,7 +252,8 @@ class PluginRegistry:
         db.commit()
 
         # Load the plugin
-        config = PluginConfig(settings=db_config.get_decrypted_settings())
+        plugin_settings = db_config.get_decrypted_settings() if db_config else {}
+        config = PluginConfig(settings=plugin_settings)
         plugin = await self._load_single_plugin(plugin_path, manifest, config)
 
         # Call on_install lifecycle hook

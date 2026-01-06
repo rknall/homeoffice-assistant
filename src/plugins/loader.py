@@ -435,7 +435,17 @@ class PluginLoader:
                     try:
                         old_manifest = parse_manifest(old_manifest_path)
                         old_version = old_manifest.version
-                    except Exception:
+                    except (
+                        PluginValidationError,
+                        OSError,
+                        json.JSONDecodeError,
+                    ) as exc:
+                        logger.warning(
+                            "Failed to parse existing manifest for plugin %s at %s: %s",
+                            manifest.id,
+                            old_manifest_path,
+                            exc,
+                        )
                         old_version = "unknown"
 
                 # Remove old plugin directory

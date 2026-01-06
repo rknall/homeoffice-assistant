@@ -15,9 +15,9 @@ interface TodayStatusBarProps {
 }
 
 /**
- * Calculate the number of working days (Mon-Fri, excluding holidays) in a given month
+ * Calculate the number of base working days (Mon-Fri, excluding holidays) in a given month
  */
-function getWorkingDaysInMonth(
+function getBaseWorkingDaysInMonth(
 	year: number,
 	month: number,
 	holidays: Set<string>,
@@ -36,6 +36,94 @@ function getWorkingDaysInMonth(
 	}
 
 	return workingDays;
+}
+
+/**
+ * Count effective leave days applying priority rules:
+ * 1. National Holiday > 2. Weekend > 3. Sickness > 4. Vacation
+ */
+function countEffectiveLeaveDays(
+	entries: TimeEntry[],
+	holidays: Set<string>,
+	year: number,
+	month: number,
+): { sickDays: number; vacationDays: number } {
+	const monthStart = new Date(year, month, 1);
+	const monthEnd = new Date(year, month + 1, 0);
+
+	// Collect all sick and vacation days
+	const sickDates = new Set<string>();
+	const vacationDates = new Set<string>();
+	const halfVacationDates = new Set<string>();
+
+	for (const entry of entries) {
+		if (entry.entry_type !== "sick" && entry.entry_type !== "vacation") {
+			continue;
+		}
+
+		// Determine date range
+		const startDate = new Date(entry.date);
+		const endDate = entry.end_date ? new Date(entry.end_date) : startDate;
+
+		// Iterate through each day in the entry's range
+		for (
+			let d = new Date(startDate);
+			d <= endDate;
+			d.setDate(d.getDate() + 1)
+		) {
+			// Only count days within the target month
+			if (d >= monthStart && d <= monthEnd) {
+				const dateStr = toISODateString(d);
+				if (entry.entry_type === "sick") {
+					sickDates.add(dateStr);
+				} else if (entry.entry_type === "vacation") {
+					if (entry.is_half_day) {
+						halfVacationDates.add(dateStr);
+					} else {
+						vacationDates.add(dateStr);
+					}
+				}
+			}
+		}
+	}
+
+	// Apply priority rules
+	let effectiveSick = 0;
+	let effectiveVacation = 0;
+
+	// Process sick days
+	for (const dateStr of sickDates) {
+		const d = new Date(dateStr);
+		const dayOfWeek = d.getDay();
+		// Skip weekends
+		if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+		// Skip holidays
+		if (holidays.has(dateStr)) continue;
+		effectiveSick += 1;
+	}
+
+	// Process full vacation days (skip if sick day exists)
+	for (const dateStr of vacationDates) {
+		const d = new Date(dateStr);
+		const dayOfWeek = d.getDay();
+		if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+		if (holidays.has(dateStr)) continue;
+		if (sickDates.has(dateStr)) continue;
+		effectiveVacation += 1;
+	}
+
+	// Process half vacation days (skip if sick or full vacation)
+	for (const dateStr of halfVacationDates) {
+		const d = new Date(dateStr);
+		const dayOfWeek = d.getDay();
+		if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+		if (holidays.has(dateStr)) continue;
+		if (sickDates.has(dateStr)) continue;
+		if (vacationDates.has(dateStr)) continue;
+		effectiveVacation += 0.5;
+	}
+
+	return { sickDays: effectiveSick, vacationDays: effectiveVacation };
 }
 
 /**
@@ -79,8 +167,14 @@ export function TodayStatusBar({
 		const year = currentDate.getFullYear();
 		const month = currentDate.getMonth();
 
-		// Expected values for the month (excluding holidays)
-		const expectedWorkDays = getWorkingDaysInMonth(year, month, holidays);
+		// Base working days (Mon-Fri, excluding public holidays)
+		const baseWorkDays = getBaseWorkingDaysInMonth(year, month, holidays);
+
+		// Count effective leave days (applying priority rules)
+		const effectiveLeave = countEffectiveLeaveDays(entries, holidays, year, month);
+
+		// Expected work days = base - effective leave
+		const expectedWorkDays = baseWorkDays - effectiveLeave.sickDays - effectiveLeave.vacationDays;
 		const expectedHours = expectedWorkDays * 8;
 
 		// Count unique work days (days with work entries)

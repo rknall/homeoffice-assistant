@@ -145,11 +145,25 @@ export function UnifiedTimeTrackingPage() {
 	}, [entries, companies]);
 
 	// Group entries by date for calendar display
+	// Multi-day entries (with end_date) are expanded to appear on all days in the range
 	const entriesByDate = useMemo(() => {
 		const map = new Map<string, TimeEntry[]>();
 		for (const entry of visibleEntries) {
-			const existing = map.get(entry.date) || [];
-			map.set(entry.date, [...existing, entry]);
+			// If entry has end_date and it's different from start date, expand to all days
+			if (entry.end_date && entry.end_date !== entry.date) {
+				const startDate = new Date(entry.date);
+				const endDate = new Date(entry.end_date);
+				// Iterate through each day in the range
+				for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+					const dateStr = d.toISOString().split("T")[0];
+					const existing = map.get(dateStr) || [];
+					map.set(dateStr, [...existing, entry]);
+				}
+			} else {
+				// Single-day entry: just add to its date
+				const existing = map.get(entry.date) || [];
+				map.set(entry.date, [...existing, entry]);
+			}
 		}
 		return map;
 	}, [visibleEntries]);

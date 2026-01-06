@@ -40,13 +40,9 @@ export function LeaveBalanceCard({ currentDate }: LeaveBalanceCardProps) {
 		loadBalance();
 	}, [loadBalance]);
 
-	// Calculate total vacation entitlement
-	const vacationTotal = balance
-		? balance.vacation_entitled + balance.vacation_carryover
-		: 0;
-	const vacationTotalRemaining =
-		vacationTotal -
-		(balance ? balance.vacation_taken + balance.vacation_planned : 0);
+	// Use the backend-calculated vacation_remaining directly
+	// vacation_remaining = entitled + carryover - taken - planned
+	const vacationTotalRemaining = balance?.vacation_remaining ?? 0;
 
 	return (
 		<div className="bg-white rounded-lg shadow p-4">

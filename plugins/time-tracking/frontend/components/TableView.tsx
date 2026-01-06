@@ -239,9 +239,15 @@ export function TableView({
 											>
 												{ENTRY_TYPE_LABELS[row.entry.entry_type] ||
 													row.entry.entry_type}
+												{row.entry.is_half_day && " (½)"}
 											</span>
 											{row.entry.is_open && (
 												<span className="ml-1 text-xs text-green-600">(open)</span>
+											)}
+											{row.entry.end_date && row.entry.end_date !== row.entry.date && (
+												<span className="ml-1 text-xs text-gray-500">
+													→ {formatDate(row.entry.end_date)}
+												</span>
 											)}
 										</td>
 

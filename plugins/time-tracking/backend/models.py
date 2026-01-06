@@ -7,6 +7,7 @@ from datetime import datetime
 from enum import Enum
 
 from sqlalchemy import (
+    Boolean,
     Column,
     Date,
     DateTime,
@@ -74,6 +75,13 @@ class TimeEntry(Base):
 
     # Entry type classification
     entry_type = Column(String(30), nullable=False, default=EntryType.WORK.value)
+
+    # For multi-day leave entries (vacation, sick) - end_date is inclusive
+    # If end_date is None, the entry is for a single day (date only)
+    end_date = Column(Date, nullable=True)
+
+    # Half-day indicator (for vacation only - counts as 0.5 days)
+    is_half_day = Column(Boolean, default=False, nullable=False)
 
     # Working times (nullable for non-work entries like vacation)
     check_in = Column(Time, nullable=True)

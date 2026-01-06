@@ -1,0 +1,57 @@
+name: Copilot Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  copilot-review:
+    runs-on: ubuntu-latest
+    name: AI Code Review
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Copilot Code Review
+        uses: github/gh-copilot-code-review@v0.1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Review focus areas
+          review-level: detailed
+          # Include security analysis
+          check-security: true
+          # Check code quality
+          check-quality: true
+          # Check for best practices
+          check-best-practices: true
+
+      - name: Post Review Summary
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { data: reviews } = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+
+            const copilotReviews = reviews.filter(r => r.user.login.includes('github-actions'));
+
+            if (copilotReviews.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: '✨ **GitHub Copilot Code Review Complete**\n\nCopilot has analyzed this PR. Please review the comments and suggestions above.'
+              });
+            }

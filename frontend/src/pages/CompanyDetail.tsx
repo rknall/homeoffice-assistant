@@ -12,12 +12,13 @@ import { EmailTemplateEditor } from '@/components/EmailTemplateEditor'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
+import { Tabs, TabList, Tab, TabPanel } from '@/components/ui/Tabs'
 import { useBreadcrumb } from '@/stores/breadcrumb'
 import type {
   Company,
   EmailTemplate,
+  Event,
   IntegrationConfig,
   StoragePath,
   TemplateReason,
@@ -32,6 +33,7 @@ export function CompanyDetail() {
   const [templates, setTemplates] = useState<EmailTemplate[]>([])
   const [reasons, setReasons] = useState<TemplateReason[]>([])
   const [storagePaths, setStoragePaths] = useState<StoragePath[]>([])
+  const [eventCount, setEventCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
@@ -94,6 +96,16 @@ export function CompanyDetail() {
     }
   }, [])
 
+  const fetchEventCount = useCallback(async () => {
+    if (!id) return
+    try {
+      const events = await api.get<Event[]>(`/events?company_id=${id}`)
+      setEventCount(events.length)
+    } catch {
+      setEventCount(0)
+    }
+  }, [id])
+
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true)
@@ -103,11 +115,12 @@ export function CompanyDetail() {
         fetchReasons(),
         fetchStoragePaths(),
         checkSmtpIntegration(),
+        fetchEventCount(),
       ])
       setIsLoading(false)
     }
     loadData()
-  }, [fetchCompany, fetchTemplates, fetchReasons, fetchStoragePaths, checkSmtpIntegration])
+  }, [fetchCompany, fetchTemplates, fetchReasons, fetchStoragePaths, checkSmtpIntegration, fetchEventCount])
 
   useEffect(() => {
     if (company) {
@@ -180,6 +193,7 @@ export function CompanyDetail() {
 
   return (
     <div>
+      {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -235,115 +249,138 @@ export function CompanyDetail() {
         </Alert>
       )}
 
-      {/* Company Details Card */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Company Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {company.address && (
-              <div className="sm:col-span-2">
-                <dt className="text-sm font-medium text-gray-500">Address</dt>
-                <dd className="mt-1 text-gray-900 whitespace-pre-line">{company.address}</dd>
-              </div>
-            )}
-            {company.country && (
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Country</dt>
-                <dd className="mt-1 text-gray-900">{company.country}</dd>
-              </div>
-            )}
+      {/* Summary Stats Row */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-white rounded-lg border border-blue-200 p-4">
+          <div className="text-sm text-blue-600">Total Events</div>
+          <div className="text-2xl font-semibold text-gray-900">{eventCount}</div>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="text-sm text-gray-500">Contacts</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {company.contacts?.length || 0}
+          </div>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="text-sm text-gray-500">Email Templates</div>
+          <div className="text-2xl font-semibold text-gray-900">{templates.length}</div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <Tabs defaultTab="general" className="mb-6">
+        <TabList>
+          <Tab value="general">General</Tab>
+          <Tab value="contacts">Contacts</Tab>
+          <Tab value="templates">Email Templates</Tab>
+        </TabList>
+
+        {/* General Tab */}
+        <TabPanel value="general" className="bg-white rounded-b-lg shadow p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Company Details</h3>
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+            <div>
+              <dt className="text-sm text-gray-500">Address</dt>
+              <dd className="mt-1 text-sm text-gray-900 whitespace-pre-line">
+                {company.address || <span className="text-gray-400 italic">No address</span>}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm text-gray-500">Country</dt>
+              <dd className="mt-1 text-sm text-gray-900">
+                {company.country || <span className="text-gray-400 italic">Not specified</span>}
+              </dd>
+            </div>
             {storagePaths.length > 0 && (
               <div>
-                <dt className="text-sm font-medium text-gray-500">Paperless Storage Path</dt>
-                <dd className="mt-1 text-gray-900">
+                <dt className="text-sm text-gray-500">Paperless Storage Path</dt>
+                <dd className="mt-1 text-sm text-gray-900">
                   {storagePaths.find((sp) => sp.id === company.paperless_storage_path_id)?.name ||
                     '-'}
                 </dd>
               </div>
             )}
           </dl>
-        </CardContent>
-      </Card>
+        </TabPanel>
 
-      {/* Contacts Section */}
-      {id && (
-        <div className="mb-6">
-          <CompanyContactsSection
-            companyId={id}
-            contacts={company.contacts || []}
-            onContactsChanged={fetchCompany}
-          />
-        </div>
-      )}
-
-      {/* Email Templates Card */}
-      {!hasSmtpIntegration && (
-        <Alert variant="warning" className="mb-4">
-          No email integration has been configured. Email templates cannot be used until you{' '}
-          <Link to="/settings/integrations" className="font-medium underline hover:no-underline">
-            configure an SMTP server
-          </Link>
-          .
-        </Alert>
-      )}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Email Templates</CardTitle>
-          <Button onClick={() => openTemplateModal()}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Template
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {templates.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              No company-specific email templates. This company will use global templates.
-            </p>
-          ) : (
-            <div className="divide-y divide-gray-200">
-              {templates.map((template) => (
-                <div key={template.id} className="flex items-center justify-between py-4">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-gray-900">{template.name}</h3>
-                    <p className="text-sm text-gray-500">
-                      {template.reason === 'expense_report' && 'Expense Report'}
-                      {template.is_default && ' (Default)'}
-                    </p>
-                    {template.contact_types && template.contact_types.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {template.contact_types.map((type) => (
-                          <ContactTypeBadge key={type} type={type} size="sm" />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 ml-4">
-                    {template.is_default && <Badge variant="success">Default</Badge>}
-                    <button
-                      type="button"
-                      onClick={() => openTemplateModal(template)}
-                      className="p-1 text-gray-400 hover:text-gray-600"
-                      title="Edit template"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteTemplate(template.id)}
-                      className="p-1 text-gray-400 hover:text-red-600"
-                      title="Delete template"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+        {/* Contacts Tab */}
+        <TabPanel value="contacts" className="bg-white rounded-b-lg shadow">
+          {id && (
+            <CompanyContactsSection
+              companyId={id}
+              contacts={company.contacts || []}
+              onContactsChanged={fetchCompany}
+            />
           )}
-        </CardContent>
-      </Card>
+        </TabPanel>
+
+        {/* Email Templates Tab */}
+        <TabPanel value="templates" className="bg-white rounded-b-lg shadow">
+          {!hasSmtpIntegration && (
+            <Alert variant="warning" className="m-6 mb-0">
+              No email integration has been configured. Email templates cannot be used until you{' '}
+              <Link to="/settings/integrations" className="font-medium underline hover:no-underline">
+                configure an SMTP server
+              </Link>
+              .
+            </Alert>
+          )}
+          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <h3 className="text-lg font-medium text-gray-900">Email Templates</h3>
+            <Button onClick={() => openTemplateModal()}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Template
+            </Button>
+          </div>
+          <div className="p-6">
+            {templates.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">
+                No company-specific email templates. This company will use global templates.
+              </p>
+            ) : (
+              <div className="divide-y divide-gray-200">
+                {templates.map((template) => (
+                  <div key={template.id} className="flex items-center justify-between py-4">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-gray-900">{template.name}</h4>
+                      <p className="text-sm text-gray-500">
+                        {template.reason === 'expense_report' && 'Expense Report'}
+                        {template.is_default && ' (Default)'}
+                      </p>
+                      {template.contact_types && template.contact_types.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {template.contact_types.map((type) => (
+                            <ContactTypeBadge key={type} type={type} size="sm" />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 ml-4">
+                      {template.is_default && <Badge variant="success">Default</Badge>}
+                      <button
+                        type="button"
+                        onClick={() => openTemplateModal(template)}
+                        className="p-1 text-gray-400 hover:text-gray-600"
+                        title="Edit template"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteTemplate(template.id)}
+                        className="p-1 text-gray-400 hover:text-red-600"
+                        title="Delete template"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </TabPanel>
+      </Tabs>
 
       {/* Edit Company Modal */}
       <CompanyFormModal

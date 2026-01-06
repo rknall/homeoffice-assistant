@@ -139,7 +139,7 @@ def create_new_year_balance(
 class TestLeaveBalance:
     """Tests for LeaveBalance calculations."""
 
-    def test_available_days_calculation(self):
+    def test_available_days_calculation(self) -> None:
         """Available days = entitled + carried_over - used - pending."""
         balance = LeaveBalance(
             user_id="user1",
@@ -153,7 +153,7 @@ class TestLeaveBalance:
         )
         assert balance.available_days == Decimal("21")
 
-    def test_available_days_with_no_carryover(self):
+    def test_available_days_with_no_carryover(self) -> None:
         """Available days when no days carried over."""
         balance = LeaveBalance(
             user_id="user1",
@@ -167,7 +167,7 @@ class TestLeaveBalance:
         )
         assert balance.available_days == Decimal("15")
 
-    def test_available_days_can_be_zero(self):
+    def test_available_days_can_be_zero(self) -> None:
         """Available days can be zero when all used."""
         balance = LeaveBalance(
             user_id="user1",
@@ -181,7 +181,7 @@ class TestLeaveBalance:
         )
         assert balance.available_days == Decimal("0")
 
-    def test_available_days_can_be_negative(self):
+    def test_available_days_can_be_negative(self) -> None:
         """Available days can go negative (overdraft)."""
         balance = LeaveBalance(
             user_id="user1",
@@ -199,37 +199,37 @@ class TestLeaveBalance:
 class TestCompTimeEarned:
     """Tests for compensatory time accrual."""
 
-    def test_no_comp_time_under_standard_hours(self):
+    def test_no_comp_time_under_standard_hours(self) -> None:
         """No comp time earned when working standard hours or less."""
         assert calculate_comp_time_earned(8.0, 8.0) == 0.0
         assert calculate_comp_time_earned(7.0, 8.0) == 0.0
         assert calculate_comp_time_earned(4.0, 8.0) == 0.0
 
-    def test_comp_time_for_regular_overtime(self):
+    def test_comp_time_for_regular_overtime(self) -> None:
         """Comp time earned for regular weekday overtime."""
         assert calculate_comp_time_earned(9.0, 8.0) == 1.0
         assert calculate_comp_time_earned(10.0, 8.0) == 2.0
         assert calculate_comp_time_earned(8.5, 8.0) == 0.5
 
-    def test_comp_time_2x_for_sunday(self):
+    def test_comp_time_2x_for_sunday(self) -> None:
         """Sunday work earns 2x comp time."""
         assert calculate_comp_time_earned(9.0, 8.0, is_sunday=True) == 2.0
         assert calculate_comp_time_earned(10.0, 8.0, is_sunday=True) == 4.0
         assert calculate_comp_time_earned(8.5, 8.0, is_sunday=True) == 1.0
 
-    def test_comp_time_2x_for_holiday(self):
+    def test_comp_time_2x_for_holiday(self) -> None:
         """Holiday work earns 2x comp time."""
         assert calculate_comp_time_earned(9.0, 8.0, is_holiday=True) == 2.0
         assert calculate_comp_time_earned(10.0, 8.0, is_holiday=True) == 4.0
 
-    def test_comp_time_sunday_and_holiday(self):
+    def test_comp_time_sunday_and_holiday(self) -> None:
         """Sunday that is also a holiday still earns 2x (not 4x)."""
         # When is_sunday=True AND is_holiday=True, the multiplier is still 2x
         assert (
             calculate_comp_time_earned(9.0, 8.0, is_sunday=True, is_holiday=True) == 2.0
         )
 
-    def test_no_comp_time_on_sunday_without_overtime(self):
+    def test_no_comp_time_on_sunday_without_overtime(self) -> None:
         """No extra comp time for working standard hours on Sunday."""
         assert calculate_comp_time_earned(8.0, 8.0, is_sunday=True) == 0.0
 
@@ -237,7 +237,7 @@ class TestCompTimeEarned:
 class TestVacationUsed:
     """Tests for vacation day calculations."""
 
-    def test_count_vacation_days(self):
+    def test_count_vacation_days(self) -> None:
         """Count vacation days from records."""
         records = [
             TimeRecord(
@@ -250,7 +250,7 @@ class TestVacationUsed:
         ]
         assert calculate_vacation_used(records) == Decimal("2")
 
-    def test_no_vacation_days(self):
+    def test_no_vacation_days(self) -> None:
         """Zero vacation days when none used."""
         records = [
             TimeRecord(day_type=DayType.WORK, net_hours=8.0, date=date(2025, 1, 6)),
@@ -258,7 +258,7 @@ class TestVacationUsed:
         ]
         assert calculate_vacation_used(records) == Decimal("0")
 
-    def test_sick_days_not_counted_as_vacation(self):
+    def test_sick_days_not_counted_as_vacation(self) -> None:
         """Sick days should not count as vacation."""
         records = [
             TimeRecord(day_type=DayType.SICK, net_hours=None, date=date(2025, 1, 6)),
@@ -272,7 +272,7 @@ class TestVacationUsed:
 class TestCompTimeUsed:
     """Tests for comp time usage calculations."""
 
-    def test_count_comp_time_days(self):
+    def test_count_comp_time_days(self) -> None:
         """Count comp time days from records."""
         records = [
             TimeRecord(
@@ -285,7 +285,7 @@ class TestCompTimeUsed:
         ]
         assert calculate_comp_time_used(records) == Decimal("2")
 
-    def test_no_comp_time_used(self):
+    def test_no_comp_time_used(self) -> None:
         """Zero comp time when none used."""
         records = [
             TimeRecord(day_type=DayType.WORK, net_hours=8.0, date=date(2025, 1, 6)),
@@ -296,7 +296,7 @@ class TestCompTimeUsed:
 class TestYearEndCarryover:
     """Tests for year-end carryover calculations."""
 
-    def test_carryover_within_limit(self):
+    def test_carryover_within_limit(self) -> None:
         """Days under limit are fully carried over."""
         balance = LeaveBalance(
             user_id="user1",
@@ -314,7 +314,7 @@ class TestYearEndCarryover:
         )
         assert carryover == Decimal("3")
 
-    def test_carryover_at_limit(self):
+    def test_carryover_at_limit(self) -> None:
         """Days at limit are fully carried over."""
         balance = LeaveBalance(
             user_id="user1",
@@ -332,7 +332,7 @@ class TestYearEndCarryover:
         )
         assert carryover == Decimal("5")
 
-    def test_carryover_over_limit_is_capped(self):
+    def test_carryover_over_limit_is_capped(self) -> None:
         """Days over limit are capped at max carryover."""
         balance = LeaveBalance(
             user_id="user1",
@@ -350,7 +350,7 @@ class TestYearEndCarryover:
         )
         assert carryover == Decimal("5")
 
-    def test_no_carryover_when_nothing_remaining(self):
+    def test_no_carryover_when_nothing_remaining(self) -> None:
         """No carryover when all days used."""
         balance = LeaveBalance(
             user_id="user1",
@@ -367,7 +367,7 @@ class TestYearEndCarryover:
         )
         assert carryover == Decimal("0")
 
-    def test_no_carryover_when_negative_balance(self):
+    def test_no_carryover_when_negative_balance(self) -> None:
         """No carryover when balance is negative."""
         balance = LeaveBalance(
             user_id="user1",
@@ -388,7 +388,7 @@ class TestYearEndCarryover:
 class TestNewYearBalance:
     """Tests for creating new year balances with carryover."""
 
-    def test_create_new_year_with_carryover(self):
+    def test_create_new_year_with_carryover(self) -> None:
         """New year balance includes carryover from previous year."""
         previous = LeaveBalance(
             user_id="user1",
@@ -415,7 +415,7 @@ class TestNewYearBalance:
         assert new_balance.pending_days == Decimal("0")
         assert new_balance.available_days == Decimal("28")
 
-    def test_create_new_year_carryover_capped(self):
+    def test_create_new_year_carryover_capped(self) -> None:
         """Carryover is capped at maximum when creating new year."""
         previous = LeaveBalance(
             user_id="user1",
@@ -438,7 +438,7 @@ class TestNewYearBalance:
         assert new_balance.carried_over == Decimal("5")
         assert new_balance.available_days == Decimal("30")
 
-    def test_create_new_year_no_carryover_when_overdrawn(self):
+    def test_create_new_year_no_carryover_when_overdrawn(self) -> None:
         """No carryover when previous year was overdrawn."""
         previous = LeaveBalance(
             user_id="user1",

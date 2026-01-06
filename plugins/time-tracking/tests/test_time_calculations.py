@@ -88,52 +88,52 @@ def calculate_net_hours(
 class TestRoundTimeEmployerFavor:
     """Tests for round_time_employer_favor function."""
 
-    def test_check_in_rounds_up_from_03(self):
+    def test_check_in_rounds_up_from_03(self) -> None:
         """Check-in at 08:03 rounds up to 08:05."""
         result = round_time_employer_favor(time(8, 3), is_check_in=True)
         assert result == time(8, 5)
 
-    def test_check_in_rounds_up_from_07(self):
+    def test_check_in_rounds_up_from_07(self) -> None:
         """Check-in at 08:07 rounds up to 08:10."""
         result = round_time_employer_favor(time(8, 7), is_check_in=True)
         assert result == time(8, 10)
 
-    def test_check_in_exact_5_unchanged(self):
+    def test_check_in_exact_5_unchanged(self) -> None:
         """Check-in at 08:05 stays at 08:05."""
         result = round_time_employer_favor(time(8, 5), is_check_in=True)
         assert result == time(8, 5)
 
-    def test_check_in_exact_0_unchanged(self):
+    def test_check_in_exact_0_unchanged(self) -> None:
         """Check-in at 08:00 stays at 08:00."""
         result = round_time_employer_favor(time(8, 0), is_check_in=True)
         assert result == time(8, 0)
 
-    def test_check_out_rounds_down_from_43(self):
+    def test_check_out_rounds_down_from_43(self) -> None:
         """Check-out at 17:43 rounds down to 17:40."""
         result = round_time_employer_favor(time(17, 43), is_check_in=False)
         assert result == time(17, 40)
 
-    def test_check_out_rounds_down_from_47(self):
+    def test_check_out_rounds_down_from_47(self) -> None:
         """Check-out at 17:47 rounds down to 17:45."""
         result = round_time_employer_favor(time(17, 47), is_check_in=False)
         assert result == time(17, 45)
 
-    def test_check_out_exact_5_unchanged(self):
+    def test_check_out_exact_5_unchanged(self) -> None:
         """Check-out at 17:45 stays at 17:45."""
         result = round_time_employer_favor(time(17, 45), is_check_in=False)
         assert result == time(17, 45)
 
-    def test_check_out_exact_0_unchanged(self):
+    def test_check_out_exact_0_unchanged(self) -> None:
         """Check-out at 17:00 stays at 17:00."""
         result = round_time_employer_favor(time(17, 0), is_check_in=False)
         assert result == time(17, 0)
 
-    def test_check_in_at_01(self):
+    def test_check_in_at_01(self) -> None:
         """Check-in at 08:01 rounds up to 08:05."""
         result = round_time_employer_favor(time(8, 1), is_check_in=True)
         assert result == time(8, 5)
 
-    def test_check_out_at_59(self):
+    def test_check_out_at_59(self) -> None:
         """Check-out at 17:59 rounds down to 17:55."""
         result = round_time_employer_favor(time(17, 59), is_check_in=False)
         assert result == time(17, 55)
@@ -142,23 +142,23 @@ class TestRoundTimeEmployerFavor:
 class TestCalculateBreakMinutes:
     """Tests for calculate_break_minutes function."""
 
-    def test_over_6_hours_gets_30_min_break(self):
+    def test_over_6_hours_gets_30_min_break(self) -> None:
         """Working over 6 hours requires 30 minute break."""
         assert calculate_break_minutes(7.0) == 30
         assert calculate_break_minutes(8.0) == 30
         assert calculate_break_minutes(9.5) == 30
 
-    def test_exactly_6_hours_no_break(self):
+    def test_exactly_6_hours_no_break(self) -> None:
         """Working exactly 6 hours needs no break."""
         assert calculate_break_minutes(6.0) == 0
 
-    def test_under_6_hours_no_break(self):
+    def test_under_6_hours_no_break(self) -> None:
         """Working under 6 hours needs no break."""
         assert calculate_break_minutes(5.0) == 0
         assert calculate_break_minutes(4.5) == 0
         assert calculate_break_minutes(1.0) == 0
 
-    def test_just_over_6_hours_gets_break(self):
+    def test_just_over_6_hours_gets_break(self) -> None:
         """Working just over 6 hours gets 30 min break."""
         assert calculate_break_minutes(6.01) == 30
         assert calculate_break_minutes(6.1) == 30
@@ -167,27 +167,27 @@ class TestCalculateBreakMinutes:
 class TestCalculateGrossHours:
     """Tests for calculate_gross_hours function."""
 
-    def test_standard_8_hour_day(self):
+    def test_standard_8_hour_day(self) -> None:
         """8:00 to 17:00 is 9 gross hours."""
         result = calculate_gross_hours(time(8, 0), time(17, 0))
         assert result == 9.0
 
-    def test_8_30_to_17_30(self):
+    def test_8_30_to_17_30(self) -> None:
         """8:30 to 17:30 is 9 gross hours."""
         result = calculate_gross_hours(time(8, 30), time(17, 30))
         assert result == 9.0
 
-    def test_short_day(self):
+    def test_short_day(self) -> None:
         """9:00 to 12:00 is 3 gross hours."""
         result = calculate_gross_hours(time(9, 0), time(12, 0))
         assert result == 3.0
 
-    def test_with_minutes(self):
+    def test_with_minutes(self) -> None:
         """8:15 to 16:45 is 8.5 gross hours."""
         result = calculate_gross_hours(time(8, 15), time(16, 45))
         assert result == 8.5
 
-    def test_overnight_shift(self):
+    def test_overnight_shift(self) -> None:
         """22:00 to 06:00 (overnight) is 8 gross hours."""
         result = calculate_gross_hours(time(22, 0), time(6, 0))
         assert result == 8.0
@@ -196,21 +196,21 @@ class TestCalculateGrossHours:
 class TestCalculateNetHours:
     """Tests for calculate_net_hours function."""
 
-    def test_standard_day_with_auto_break(self):
+    def test_standard_day_with_auto_break(self) -> None:
         """8:00 to 17:00 = 9h gross, 30m auto break, 8.5h net."""
         net, break_mins, gross = calculate_net_hours(time(8, 0), time(17, 0))
         assert gross == 9.0
         assert break_mins == 30
         assert net == 8.5
 
-    def test_short_day_no_break(self):
+    def test_short_day_no_break(self) -> None:
         """9:00 to 14:00 = 5h gross, no break, 5h net."""
         net, break_mins, gross = calculate_net_hours(time(9, 0), time(14, 0))
         assert gross == 5.0
         assert break_mins == 0
         assert net == 5.0
 
-    def test_with_manual_break_override(self):
+    def test_with_manual_break_override(self) -> None:
         """Manual break override of 45 minutes."""
         net, break_mins, gross = calculate_net_hours(
             time(8, 0), time(17, 0), break_override=45
@@ -219,14 +219,14 @@ class TestCalculateNetHours:
         assert break_mins == 45
         assert net == 8.25
 
-    def test_exactly_6_hours_no_auto_break(self):
+    def test_exactly_6_hours_no_auto_break(self) -> None:
         """Exactly 6 hours = no automatic break."""
         net, break_mins, gross = calculate_net_hours(time(8, 0), time(14, 0))
         assert gross == 6.0
         assert break_mins == 0
         assert net == 6.0
 
-    def test_just_over_6_hours_gets_break(self):
+    def test_just_over_6_hours_gets_break(self) -> None:
         """Just over 6 hours = 30 min break."""
         net, break_mins, gross = calculate_net_hours(time(8, 0), time(14, 5))
         assert gross == pytest.approx(6.083, rel=0.01)

@@ -17,6 +17,35 @@ from src.schemas.event import EventCreate, EventUpdate
 from src.services import integration_service
 
 
+def count_events(
+    db: Session,
+    user_id: uuid.UUID | None = None,
+    company_id: uuid.UUID | None = None,
+    status: EventStatus | None = None,
+) -> int:
+    """Count events with optional filters.
+
+    More efficient than fetching all events when only count is needed.
+    """
+    query = db.query(func.count(Event.id))
+    if user_id:
+        query = query.filter(Event.user_id == user_id)
+    if company_id:
+        query = query.filter(Event.company_id == company_id)
+
+    # Filter by computed status using date conditions
+    if status:
+        today = date.today()
+        if status == EventStatus.UPCOMING:
+            query = query.filter(Event.start_date > today)
+        elif status == EventStatus.ACTIVE:
+            query = query.filter(Event.start_date <= today, Event.end_date >= today)
+        elif status == EventStatus.PAST:
+            query = query.filter(Event.end_date < today)
+
+    return query.scalar() or 0
+
+
 def get_events(
     db: Session,
     user_id: uuid.UUID | None = None,

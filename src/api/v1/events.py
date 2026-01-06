@@ -31,6 +31,26 @@ from src.services import company_service, event_service, integration_service
 router = APIRouter()
 
 
+@router.get("/count")
+def count_events(
+    company_id: uuid.UUID | None = None,
+    event_status: EventStatus | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, int]:
+    """Count events for the current user with optional filters.
+
+    More efficient than listing all events when only the count is needed.
+    """
+    count = event_service.count_events(
+        db,
+        user_id=current_user.id,
+        company_id=company_id,
+        status=event_status,
+    )
+    return {"count": count}
+
+
 @router.get("", response_model=list[EventDetailResponse])
 def list_events(
     company_id: uuid.UUID | None = None,

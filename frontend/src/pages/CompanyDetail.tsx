@@ -18,7 +18,6 @@ import { useBreadcrumb } from '@/stores/breadcrumb'
 import type {
   Company,
   EmailTemplate,
-  Event,
   IntegrationConfig,
   StoragePath,
   TemplateReason,
@@ -99,8 +98,8 @@ export function CompanyDetail() {
   const fetchEventCount = useCallback(async () => {
     if (!id) return
     try {
-      const events = await api.get<Event[]>(`/events?company_id=${id}`)
-      setEventCount(events.length)
+      const data = await api.get<{ count: number }>(`/events/count?company_id=${id}`)
+      setEventCount(data.count)
     } catch {
       setEventCount(0)
     }

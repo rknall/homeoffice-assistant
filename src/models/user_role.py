@@ -1,6 +1,4 @@
 # src/models/user_role.py
-from __future__ import annotations
-
 import uuid as uuid_lib
 from datetime import datetime
 from typing import TYPE_CHECKING

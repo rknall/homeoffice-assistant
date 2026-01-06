@@ -2,8 +2,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Plugin discovery, loading, and management."""
 
-from __future__ import annotations
-
 import importlib.util
 import json
 import logging

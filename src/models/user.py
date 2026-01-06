@@ -2,8 +2,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """User model for authentication."""
 
-from __future__ import annotations
-
 import uuid as uuid_lib
 from typing import TYPE_CHECKING
 

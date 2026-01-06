@@ -2,8 +2,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Plugin registry for managing loaded plugins."""
 
-from __future__ import annotations
-
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar

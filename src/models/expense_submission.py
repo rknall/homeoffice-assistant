@@ -2,8 +2,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Expense submission tracking models."""
 
-from __future__ import annotations
-
 import uuid as uuid_lib
 from datetime import datetime
 from decimal import Decimal

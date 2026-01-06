@@ -2,8 +2,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Base classes and interfaces for the plugin system."""
 
-from __future__ import annotations
-
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field

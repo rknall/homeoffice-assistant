@@ -9,8 +9,6 @@ This module provides a Starlette Router-based approach that allows dynamic
 route registration after the app has started.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import TYPE_CHECKING
 

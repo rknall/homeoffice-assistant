@@ -1,16 +1,20 @@
 # GitHub Copilot Automatic PR Review
 
-This repository is configured with automatic GitHub Copilot code review for all pull requests. Copilot provides AI-powered code analysis to catch potential issues, suggest improvements, and ensure code quality.
+This document explains how to enable GitHub Copilot's automatic code review feature for pull requests. Copilot provides AI-powered code analysis to catch potential issues, suggest improvements, and ensure code quality.
+
+**Important:** GitHub Copilot code review is a **repository settings feature**, not a GitHub Actions workflow. It's built directly into GitHub's pull request interface.
 
 ## How It Works
 
-When you open a pull request, GitHub Copilot automatically:
+When enabled, GitHub Copilot automatically:
 
-1. **Analyzes the code changes** - Reviews all modified files
+1. **Analyzes the code changes** - Reviews all modified files in PRs
 2. **Checks for security issues** - Identifies potential vulnerabilities
 3. **Evaluates code quality** - Suggests improvements and best practices
 4. **Posts review comments** - Adds inline comments on specific lines
 5. **Provides a summary** - Creates an overall review assessment
+
+This happens **natively within GitHub** without requiring any workflow files.
 
 ## What Copilot Reviews
 
@@ -90,42 +94,31 @@ Copilot reviews complement human review:
 - **Validate suggestions** - Copilot may occasionally suggest incorrect changes
 - **Add your own comments** - Focus on business logic and architecture
 
-## Workflow Configuration
+## Customizing the Review
 
-The automated review is configured in `.github/workflows/copilot-review.yml`:
+GitHub Copilot code review behavior is controlled through repository settings, not configuration files.
 
-```yaml
-review-level: detailed        # Options: quick, standard, detailed
-check-security: true          # Enable security scanning
-check-quality: true           # Enable quality checks
-check-best-practices: true    # Enable best practice checks
-```
+### What You Can Configure
 
-### Customizing the Review
+Through the GitHub interface, you can:
 
-You can customize what Copilot reviews by editing the workflow file:
+- **Enable/Disable** - Turn Copilot reviews on or off
+- **Review Scope** - Copilot reviews all changed files by default
+- **File Exclusions** - Use `.gitattributes` to mark files as generated:
+  ```
+  # .gitattributes
+  *.min.js linguist-generated=true
+  migrations/* linguist-generated=true
+  ```
 
-**Review Levels:**
-- `quick` - Fast, surface-level review (1-2 min)
-- `standard` - Balanced review (2-3 min)
-- `detailed` - Thorough, deep analysis (3-5 min)
+### Review Behavior
 
-**Focus Areas:**
-```yaml
-# Disable specific checks if needed
-check-security: false         # Skip security checks
-check-quality: false          # Skip quality checks
-check-best-practices: false   # Skip best practices
-```
+Copilot automatically adjusts its review depth based on:
+- **PR size** - Smaller PRs get more detailed reviews
+- **File types** - Focuses on code files, skips documentation
+- **Change complexity** - More complex changes get deeper analysis
 
-**File Exclusions:**
-Add to workflow to exclude specific files:
-```yaml
-exclude-patterns: |
-  **/*.md
-  **/test_*.py
-  **/migrations/**
-```
+**Note:** Unlike GitHub Actions workflows, you cannot configure specific review levels or focus areas through YAML. The review behavior is managed by GitHub's Copilot service.
 
 ## Integration with CI
 
@@ -149,36 +142,38 @@ All checks must pass before merging.
 
 ### For Repository Maintainers
 
-1. **Monitor false positives** - Adjust configuration if Copilot is too noisy
+1. **Monitor false positives** - Disable Copilot reviews if consistently unhelpful
 2. **Train your team** - Educate on how to use Copilot feedback effectively
 3. **Combine with human review** - Don't replace human reviewers
-4. **Update exclusions** - Exclude generated code or vendored dependencies
+4. **Update exclusions** - Use `.gitattributes` to exclude generated code
 
 ## Troubleshooting
 
-### Copilot Review Not Triggering
+### Copilot Review Not Appearing
 
-**Issue**: Workflow doesn't run on PR
+**Issue**: No Copilot comments on PRs
 **Solutions**:
-- Check that Copilot is enabled in repository settings
-- Verify workflow file syntax: `gh workflow view copilot-review.yml`
-- Check Actions permissions: Settings → Actions → General → Read/Write permissions
+- Verify Copilot is enabled: Settings → Code security and analysis → Copilot code review
+- Check you have GitHub Copilot Business/Enterprise license
+- Ensure the PR is against the `main` branch (or configured base branch)
+- Wait a few minutes - initial reviews can take 2-5 minutes
 
 ### Too Many False Positives
 
-**Issue**: Copilot suggests incorrect changes
+**Issue**: Copilot suggests incorrect or irrelevant changes
 **Solutions**:
-- Switch to `quick` or `standard` review level
-- Add file exclusions for generated code
-- Disable specific check types (e.g., `check-best-practices: false`)
+- Mark files as generated in `.gitattributes` to exclude them
+- Respond to Copilot comments explaining why suggestions aren't applicable
+- Consider disabling Copilot reviews if consistently unhelpful for your codebase
 
-### Review Takes Too Long
+### Review Quality Issues
 
-**Issue**: Workflow times out or takes >5 minutes
+**Issue**: Reviews are too superficial or miss important issues
 **Solutions**:
-- Use `quick` review level for faster feedback
-- Split large PRs into smaller ones
-- Exclude test files or documentation from review
+- Keep PRs focused and reasonably sized (under 500 lines)
+- Ensure PR descriptions explain the context and goals
+- Use descriptive commit messages to give Copilot more context
+- Remember: Copilot complements but doesn't replace human review
 
 ## Privacy & Security
 
@@ -224,8 +219,8 @@ Copilot code review has some limitations:
 ## Further Reading
 
 - [GitHub Copilot Documentation](https://docs.github.com/en/copilot)
+- [GitHub Copilot Code Review](https://docs.github.com/en/copilot/using-github-copilot/code-review/about-copilot-code-review)
 - [Code Review Best Practices](https://google.github.io/eng-practices/review/)
-- [GitHub Actions Workflow Syntax](https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions)
 
 ## Support
 
@@ -234,7 +229,7 @@ If you encounter issues with Copilot reviews:
 1. Check the [GitHub Status Page](https://www.githubstatus.com/)
 2. Review the [Copilot discussions](https://github.com/orgs/community/discussions/categories/copilot)
 3. Contact GitHub Support (for license/billing issues)
-4. Open an issue in this repository (for workflow configuration issues)
+4. Open an issue in this repository (for feature requests or documentation improvements)
 
 ---
 

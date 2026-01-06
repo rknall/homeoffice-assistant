@@ -162,11 +162,12 @@
 #### Developer Tooling
 - Added `scripts/dev_checks.py`, a combined runner for linting (`ruff check`, `npm run lint`) and tests (`pytest`, `npm run test`) with consolidated per-file issue counts and suite summaries.
 - The runner now prints short failure snippets (when not in `--verbose` mode) so you immediately see the offending error lines without digging through full logs.
-- **GitHub Copilot Automatic Code Review**: Added workflow and documentation for AI-powered PR code review
-  - Automated security scanning, code quality checks, and best practices validation
-  - Runs in parallel with CI linting and tests
-  - Comprehensive setup guide in `docs/COPILOT_REVIEW.md`
-  - Configurable review levels (quick, standard, detailed)
+- **GitHub Copilot Code Review**: Added comprehensive documentation for enabling AI-powered PR code review
+  - Guide for enabling Copilot code review through repository settings (no workflow needed)
+  - Explains automated security scanning, code quality checks, and best practices validation
+  - Setup instructions for repository admins and organization owners
+  - Best practices and troubleshooting guide in `docs/COPILOT_REVIEW.md`
+  - Requires GitHub Copilot Business or Enterprise license
 
 ### Bug Fixes
 

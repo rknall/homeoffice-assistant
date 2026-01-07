@@ -30,7 +30,7 @@ def get_integration_configs(
     if integration_type:
         query = query.filter(IntegrationConfig.integration_type == integration_type)
     if active_only:
-        query = query.filter(IntegrationConfig.is_active == True)  # noqa: E712
+        query = query.filter(IntegrationConfig.is_active)
     return query.all()
 
 

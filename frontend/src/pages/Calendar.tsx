@@ -37,7 +37,7 @@ export function Calendar() {
   const { setItems: setBreadcrumb } = useBreadcrumb()
 
   const [viewMode, setViewMode] = useState<ViewMode>(
-    (searchParams.get('view') as ViewMode) || 'week'
+    (searchParams.get('view') as ViewMode) || 'week',
   )
   const [currentDate, setCurrentDate] = useState(() => {
     const dateParam = searchParams.get('date')

@@ -224,11 +224,7 @@ export function CalendarFormModal({
                 title={color}
               />
             ))}
-            <Input
-              className="w-24 ml-2"
-              {...register('color')}
-              error={errors.color?.message}
-            />
+            <Input className="w-24 ml-2" {...register('color')} error={errors.color?.message} />
           </div>
         </div>
 

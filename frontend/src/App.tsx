@@ -5,6 +5,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Layout } from '@/components/layout/Layout'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { Spinner } from '@/components/ui/Spinner'
+import { Calendar } from '@/pages/Calendar'
 import { Companies } from '@/pages/Companies'
 import { CompanyDetail } from '@/pages/CompanyDetail'
 import { Dashboard } from '@/pages/Dashboard'
@@ -57,6 +58,7 @@ function AppRoutes() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/events" element={<Events />} />
         <Route path="/events/:id" element={<EventDetail />} />
+        <Route path="/calendar" element={<Calendar />} />
         <Route path="/companies" element={<Companies />} />
         <Route path="/companies/:id" element={<CompanyDetail />} />
         <Route path="/settings" element={<Settings />} />

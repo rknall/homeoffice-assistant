@@ -12,6 +12,7 @@ from src.models.base import Base, TimestampMixin
 from src.models.enums import CompanyType
 
 if TYPE_CHECKING:
+    from src.models.company_calendar import CompanyCalendar
     from src.models.company_contact import CompanyContact
     from src.models.email_template import EmailTemplate
     from src.models.event import Event
@@ -70,6 +71,11 @@ class Company(Base, TimestampMixin):
 
     user_roles: Mapped[list[UserRole]] = relationship(
         "UserRole",
+        back_populates="company",
+        cascade="all, delete-orphan",
+    )
+    calendars: Mapped[list[CompanyCalendar]] = relationship(
+        "CompanyCalendar",
         back_populates="company",
         cascade="all, delete-orphan",
     )

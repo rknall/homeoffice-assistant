@@ -4,7 +4,8 @@
 import { ExternalLink, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api, getCompanyLogoUrl } from '@/api/client'
+import { api, companyCalendarsApi, getCompanyLogoUrl } from '@/api/client'
+import { CalendarConnectionsSection } from '@/components/CalendarConnectionsSection'
 import { CompanyContactsSection } from '@/components/CompanyContactsSection'
 import { CompanyFormModal } from '@/components/CompanyFormModal'
 import { ContactTypeBadge } from '@/components/ContactTypeBadge'
@@ -33,6 +34,7 @@ export function CompanyDetail() {
   const [reasons, setReasons] = useState<TemplateReason[]>([])
   const [storagePaths, setStoragePaths] = useState<StoragePath[]>([])
   const [eventCount, setEventCount] = useState(0)
+  const [calendarCount, setCalendarCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
@@ -105,6 +107,16 @@ export function CompanyDetail() {
     }
   }, [id])
 
+  const fetchCalendarCount = useCallback(async () => {
+    if (!id) return
+    try {
+      const calendars = await companyCalendarsApi.getCalendars(id)
+      setCalendarCount(calendars.length)
+    } catch {
+      setCalendarCount(0)
+    }
+  }, [id])
+
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true)
@@ -115,6 +127,7 @@ export function CompanyDetail() {
         fetchStoragePaths(),
         checkSmtpIntegration(),
         fetchEventCount(),
+        fetchCalendarCount(),
       ])
       setIsLoading(false)
     }
@@ -126,6 +139,7 @@ export function CompanyDetail() {
     fetchStoragePaths,
     checkSmtpIntegration,
     fetchEventCount,
+    fetchCalendarCount,
   ])
 
   useEffect(() => {
@@ -256,7 +270,7 @@ export function CompanyDetail() {
       )}
 
       {/* Summary Stats Row */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-lg border border-blue-200 p-4">
           <div className="text-sm text-blue-600">Total Events</div>
           <div className="text-2xl font-semibold text-gray-900">{eventCount}</div>
@@ -266,6 +280,10 @@ export function CompanyDetail() {
           <div className="text-2xl font-semibold text-gray-900">
             {company.contacts?.length || 0}
           </div>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="text-sm text-gray-500">Connected Calendars</div>
+          <div className="text-2xl font-semibold text-gray-900">{calendarCount}</div>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <div className="text-sm text-gray-500">Email Templates</div>
@@ -278,6 +296,7 @@ export function CompanyDetail() {
         <TabList>
           <Tab value="general">General</Tab>
           <Tab value="contacts">Contacts</Tab>
+          <Tab value="calendars">Connected Calendars</Tab>
           <Tab value="templates">Email Templates</Tab>
         </TabList>
 
@@ -317,6 +336,13 @@ export function CompanyDetail() {
               contacts={company.contacts || []}
               onContactsChanged={fetchCompany}
             />
+          )}
+        </TabPanel>
+
+        {/* Connected Calendars Tab */}
+        <TabPanel value="calendars" className="bg-white rounded-b-lg shadow">
+          {id && (
+            <CalendarConnectionsSection companyId={id} onCalendarsChanged={fetchCalendarCount} />
           )}
         </TabPanel>
 

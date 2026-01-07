@@ -161,7 +161,7 @@ def get_main_contact(db: Session, company_id: uuid.UUID) -> CompanyContact | Non
         db.query(CompanyContact)
         .filter(
             CompanyContact.company_id == company_id,
-            CompanyContact.is_main_contact == True,  # noqa: E712
+            CompanyContact.is_main_contact,
         )
         .first()
     )
@@ -230,7 +230,7 @@ def _unset_main_contact(db: Session, company_id: uuid.UUID) -> None:
     """Unset the main contact flag for all contacts of a company."""
     db.query(CompanyContact).filter(
         CompanyContact.company_id == company_id,
-        CompanyContact.is_main_contact == True,  # noqa: E712
+        CompanyContact.is_main_contact,
     ).update({CompanyContact.is_main_contact: False})
 
 

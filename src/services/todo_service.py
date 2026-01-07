@@ -30,7 +30,7 @@ def auto_complete_report_todos(db: Session, event_id: uuid.UUID) -> int:
         db.query(Todo)
         .filter(
             Todo.event_id == event_id,
-            Todo.completed == False,  # noqa: E712 - SQLAlchemy requires == for comparison
+            Todo.completed.is_(False),
             or_(
                 Todo.category == TodoCategory.FOLLOWUP,
                 Todo.title.ilike("%report%"),

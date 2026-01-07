@@ -117,11 +117,15 @@ Runs automatically: **ruff** (Python), **biome** (TypeScript)
 
 ## Release Notes
 
+**REQUIRED**: Update `RELEASENOTES.md` whenever a new feature is implemented. This is mandatory, not optional. Release notes keep track of all implemented features for users and developers.
+
 Update `RELEASENOTES.md` when:
-- Adding new features
+- Adding new features (mandatory)
 - Making substantial changes
 - Fixing bugs
 - Introducing breaking changes
+
+**PR Verification**: When creating or updating a pull request, verify that the `RELEASENOTES.md` section for the feature (based on the current branch) accurately reflects what was implemented. Update the release notes if the implementation differs from what was originally documented.
 
 Sync version in `frontend/src/components/layout/Footer.tsx` with app version.
 
@@ -130,3 +134,47 @@ Sync version in `frontend/src/components/layout/Footer.tsx` with app version.
 **Version tags MUST use the `v` prefix** (e.g., `v0.4.0`, `v0.4.0-dev`, `v1.0.0-beta1`).
 
 The release workflow only triggers on `v*` tags. If the user requests a tag without the `v` prefix, always add it automatically.
+
+## Mockups and Specifications
+
+**Local-only directories** (gitignored, never commit):
+- `docs/mockups/` - HTML mockups for UI design
+- `docs/specs/` - Feature specification documents
+
+**Structure**: Organize by feature in subdirectories:
+```
+docs/
+├── mockups/
+│   └── <feature-name>/
+│       ├── <view-name>.html
+│       └── index.html      # Links to all mockups for this feature
+└── specs/
+    └── <feature-name>/
+        └── <feature-name>.md
+```
+
+### When to Create Mockups
+
+**REQUIRED** for any UI change beyond trivial modifications (adding a button, removing text):
+- New pages or views
+- Layout changes
+- New components or component redesigns
+- Navigation changes
+- Form redesigns
+
+**NEVER** create ASCII/text-based mockups. Always generate proper HTML mockups.
+
+### Mockup Workflow
+
+1. **Generate**: Use `/skill frontend-design` to create HTML mockups matching the current design language
+2. **Organize**: Save to `docs/mockups/<feature-name>/` with an `index.html` linking all views
+3. **Review**: User MUST sign off on mockups before implementation begins
+4. **Implement**: Build the UI according to approved mockups
+5. **Verify**: Use Playwright to compare implementation against mockups
+
+### Verification
+
+After implementing UI changes, use Playwright browser tools to:
+- Take screenshots of the implemented views
+- Compare against the approved mockups
+- Ensure design language consistency (spacing, colors, typography)

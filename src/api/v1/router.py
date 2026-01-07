@@ -8,6 +8,7 @@ from src.api.v1 import (
     auth,
     backup,
     companies,
+    company_calendars,
     company_contacts,
     contacts,
     currencies,
@@ -51,6 +52,11 @@ api_router.include_router(companies.router, prefix="/companies", tags=["companie
 # Company contact routes (nested under companies)
 api_router.include_router(
     company_contacts.router, prefix="/companies", tags=["company-contacts"]
+)
+
+# Company calendar routes (nested under companies)
+api_router.include_router(
+    company_calendars.router, prefix="/companies", tags=["company-calendars"]
 )
 
 # Event routes

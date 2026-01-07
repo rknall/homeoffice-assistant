@@ -30,6 +30,12 @@ htmlcov/
 .tox/
 .nox/
 
+# Linting cache
+.ruff_cache/
+
+# Build output (frontend copied here during docker build)
+static/
+
 # IDE
 .idea/
 .vscode/*
@@ -53,6 +59,7 @@ data/
 node_modules/
 frontend/node_modules/
 frontend/dist/
+**/package-lock.json
 
 # Build artifacts
 *.whl

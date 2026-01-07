@@ -1,16 +1,14 @@
 # Multi-stage build for HomeOffice Assistant
 # Stage 1: Build frontend
-# Note: node:25-alpine has CVE-2025-64756 (glob package, HIGH severity)
-# This only affects the build stage - vulnerable package is not in final image
-FROM node:25-alpine AS frontend-builder
+FROM oven/bun:1-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
-# Copy frontend package files
-COPY frontend/package*.json ./
+# Copy frontend package files and lockfile
+COPY frontend/package.json frontend/bun.lock ./
 
 # Install dependencies
-RUN npm ci
+RUN bun install --frozen-lockfile
 
 # Copy frontend source
 COPY frontend/ ./
@@ -19,7 +17,7 @@ COPY frontend/ ./
 COPY plugins/ /app/plugins/
 
 # Build plugins and production bundle
-RUN npm run build:all
+RUN bun run build:all
 
 
 # Stage 2: Build Python dependencies
@@ -78,7 +76,7 @@ COPY --from=frontend-builder /app/frontend/dist /app/static
 COPY --from=frontend-builder /app/plugins /app/plugins
 
 # Copy entrypoint script
-COPY docker-entrypoint.sh /app/
+COPY docker/docker-entrypoint.sh /app/
 
 # Create data directory
 RUN mkdir -p /app/data && chown -R appuser:appuser /app

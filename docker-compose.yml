@@ -1,6 +1,8 @@
 services:
   homeoffice-assistant:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     container_name: homeoffice-assistant
     ports:
       - "8123:8000"

@@ -94,6 +94,13 @@ DATABASE_URL=sqlite:///./data/homeoffice_assistant.db # Optional
 - Port: 8123
 - Admin: `roland` / `pass123!`
 
+### Troubleshooting Frontend Changes Not Showing
+1. First, close the browser and reopen to clear cache
+2. If still not working, rebuild Docker image: `docker compose build --no-cache`
+3. Never rebuild more than once - assume it fixes all caching issues
+4. If rebuild doesn't help, the issue is in the TypeScript code
+5. If code appears correct but changes still don't show, STOP and ask the user
+
 ## Pre-commit Hooks
 
 ```bash
@@ -109,6 +116,8 @@ Runs automatically: **ruff** (Python), **biome** (TypeScript)
 - Max 88 chars, Google-style docstrings
 - `snake_case` functions/variables, `PascalCase` classes
 - Type hints required
+- No `# noqa` comments - fix the underlying issue instead
+- SQLAlchemy boolean filters: use `Model.is_active` not `Model.is_active == True`
 
 ### TypeScript (Biome)
 - Max 100 chars, single quotes (double in JSX)

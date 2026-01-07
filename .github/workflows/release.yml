@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      test_version:
+        description: 'Test version tag (e.g., 0.4.0-dev1)'
+        required: true
+        default: '0.0.0-test1'
 
 env:
   REGISTRY: ghcr.io
@@ -37,9 +43,15 @@ jobs:
         env:
           # GITHUB_REF_NAME is safe - it's the git tag name, not user input
           REF_NAME: ${{ github.ref_name }}
+          # For workflow_dispatch testing
+          TEST_VERSION: ${{ inputs.test_version }}
         run: |
-          # Extract version from tag (remove 'v' prefix)
-          VERSION="${REF_NAME#v}"
+          # Use test version if provided (workflow_dispatch), otherwise extract from tag
+          if [[ -n "$TEST_VERSION" ]]; then
+            VERSION="$TEST_VERSION"
+          else
+            VERSION="${REF_NAME#v}"
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
           # Check if this is a prerelease (contains dev, alpha, beta, or rc)

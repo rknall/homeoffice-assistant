@@ -4,6 +4,7 @@
 import {
   Building2,
   Calendar,
+  CalendarDays,
   ClipboardList,
   FileText,
   Globe,
@@ -50,6 +51,7 @@ function resolvePluginIcon(icon?: PluginNavItem['icon']): IconComponent | undefi
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/events', label: 'Events', icon: Calendar },
+  { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/companies', label: 'Companies', icon: Building2 },
 ]
 

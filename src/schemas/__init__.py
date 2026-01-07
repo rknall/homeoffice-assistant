@@ -19,6 +19,12 @@ from src.schemas.company import (
     CompanyResponse,
     CompanyUpdate,
 )
+from src.schemas.company_calendar import (
+    CalendarSyncResult,
+    CompanyCalendarCreate,
+    CompanyCalendarResponse,
+    CompanyCalendarUpdate,
+)
 from src.schemas.company_contact import (
     CompanyContactCreate,
     CompanyContactResponse,
@@ -107,6 +113,11 @@ __all__ = [
     "ApplyTemplatesResponse",
     "AuthResponse",
     "AuthStatusResponse",
+    # Company Calendar
+    "CalendarSyncResult",
+    "CompanyCalendarCreate",
+    "CompanyCalendarResponse",
+    "CompanyCalendarUpdate",
     # Company Contact
     "CompanyContactCreate",
     "CompanyContactResponse",

@@ -165,6 +165,9 @@ export function getCompanyLogoUrl(companyId: string): string {
 import type {
   ApplyTemplatesRequest,
   ApplyTemplatesResponse,
+  CompanyCalendar,
+  CompanyCalendarCreate,
+  CompanyCalendarUpdate,
   TemplateSet,
   TemplateSetWithComputedDates,
   TodoTemplate,
@@ -199,4 +202,31 @@ export const todoTemplatesApi = {
   /** Apply selected templates to an event */
   applyTemplatesToEvent: (eventId: string, data: ApplyTemplatesRequest) =>
     api.post<ApplyTemplatesResponse>(`/events/${eventId}/todos/from-templates`, data),
+}
+
+// Company Calendar API functions
+export const companyCalendarsApi = {
+  /** Get all calendars for a company */
+  getCalendars: (companyId: string) =>
+    api.get<CompanyCalendar[]>(`/companies/${companyId}/calendars`),
+
+  /** Get a specific calendar */
+  getCalendar: (companyId: string, calendarId: string) =>
+    api.get<CompanyCalendar>(`/companies/${companyId}/calendars/${calendarId}`),
+
+  /** Create a new calendar connection */
+  createCalendar: (companyId: string, data: CompanyCalendarCreate) =>
+    api.post<CompanyCalendar>(`/companies/${companyId}/calendars`, data),
+
+  /** Update a calendar connection */
+  updateCalendar: (companyId: string, calendarId: string, data: CompanyCalendarUpdate) =>
+    api.put<CompanyCalendar>(`/companies/${companyId}/calendars/${calendarId}`, data),
+
+  /** Delete a calendar connection */
+  deleteCalendar: (companyId: string, calendarId: string) =>
+    api.delete<void>(`/companies/${companyId}/calendars/${calendarId}`),
+
+  /** Trigger a sync for a calendar */
+  syncCalendar: (companyId: string, calendarId: string) =>
+    api.post<CompanyCalendar>(`/companies/${companyId}/calendars/${calendarId}/sync`),
 }

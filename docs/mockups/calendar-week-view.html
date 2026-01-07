@@ -22,43 +22,108 @@
     }
   </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
-  <!-- Navigation Bar -->
-  <nav class="bg-white shadow-sm border-b border-gray-200">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between h-16">
-        <div class="flex items-center">
-          <span class="text-xl font-semibold text-gray-900">HomeOffice Assistant</span>
-          <div class="hidden md:flex ml-10 space-x-8">
-            <a href="#" class="text-gray-500 hover:text-gray-900 px-3 py-2 text-sm font-medium">Dashboard</a>
-            <a href="#" class="text-gray-500 hover:text-gray-900 px-3 py-2 text-sm font-medium">Events</a>
-            <a href="#" class="text-blue-600 border-b-2 border-blue-600 px-3 py-2 text-sm font-medium">Calendar</a>
-            <a href="#" class="text-gray-500 hover:text-gray-900 px-3 py-2 text-sm font-medium">Companies</a>
-          </div>
-        </div>
-        <div class="flex items-center space-x-4">
-          <button class="text-gray-400 hover:text-gray-600">
-            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-            </svg>
-          </button>
-          <div class="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
-            RK
-          </div>
-        </div>
+<body class="bg-gray-100 min-h-screen flex">
+  <!-- Sidebar Navigation (matching app) -->
+  <aside class="w-64 bg-slate-800 text-white flex flex-col min-h-screen">
+    <div class="p-4 flex items-center gap-3">
+      <div class="w-10 h-10 bg-slate-700 rounded-lg flex items-center justify-center">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+        </svg>
+      </div>
+      <div>
+        <div class="font-semibold">HomeOffice Assistant</div>
+        <div class="text-xs text-slate-400">Your homeoffice co-pilot</div>
       </div>
     </div>
-  </nav>
+
+    <nav class="flex-1 px-3 py-4 space-y-1">
+      <a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-300 rounded-lg hover:bg-slate-700">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+        </svg>
+        Dashboard
+      </a>
+      <a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-300 rounded-lg hover:bg-slate-700">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        Events
+      </a>
+      <a href="#" class="flex items-center gap-3 px-3 py-2 bg-slate-700 text-white rounded-lg">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        Calendar
+      </a>
+      <a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-300 rounded-lg hover:bg-slate-700">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+        </svg>
+        Companies
+      </a>
+
+      <div class="pt-4 mt-4 border-t border-slate-700">
+        <a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-300 rounded-lg hover:bg-slate-700">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/>
+          </svg>
+          Example Plugin
+        </a>
+        <a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-300 rounded-lg hover:bg-slate-700">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          Time Tracking
+        </a>
+      </div>
+
+      <div class="pt-4 mt-4 border-t border-slate-700">
+        <a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-300 rounded-lg hover:bg-slate-700">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          Settings
+        </a>
+      </div>
+    </nav>
+
+    <!-- User section at bottom -->
+    <div class="p-3 border-t border-slate-700">
+      <div class="flex items-center gap-3 px-3 py-2">
+        <img src="https://ui-avatars.com/api/?name=Roland+Knall&background=3b82f6&color=fff" alt="User" class="w-8 h-8 rounded-full">
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium truncate">Roland Knall</div>
+          <div class="text-xs text-slate-400 truncate">rknall@gmail.com</div>
+        </div>
+      </div>
+      <button class="flex items-center gap-3 px-3 py-2 w-full text-slate-300 rounded-lg hover:bg-slate-700">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+        </svg>
+        Sign out
+      </button>
+    </div>
+  </aside>
 
   <!-- Main Content -->
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="space-y-6">
+  <div class="flex-1 flex flex-col">
+    <main class="flex-1 p-6">
+      <!-- Breadcrumb -->
+      <nav class="flex items-center gap-2 text-sm text-gray-500 mb-4">
+        <a href="#" class="hover:text-gray-700">Dashboard</a>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+        </svg>
+        <span class="text-gray-900 font-medium">Calendar</span>
+      </nav>
+
       <!-- Page Title -->
-      <h1 class="text-2xl font-bold text-gray-900">Calendar</h1>
+      <h1 class="text-2xl font-semibold text-gray-900 mb-6">Calendar</h1>
 
       <!-- Calendar Card -->
-      <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+      <div class="bg-white rounded-lg shadow border border-gray-200">
         <!-- Calendar Header -->
         <div class="px-6 py-4 border-b border-gray-200">
           <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -121,7 +186,7 @@
               <label for="company-filter" class="text-sm text-gray-600">Companies:</label>
               <select id="company-filter" class="text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                 <option>All</option>
-                <option>Acme Corp</option>
+                <option>Profitap</option>
                 <option>TechStart Inc</option>
               </select>
             </div>
@@ -175,7 +240,7 @@
                   <svg class="h-3 w-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                     <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
                   </svg>
-                  Berlin Trip - Acme Corp
+                  Berlin Trip - Profitap
                 </span>
               </a>
             </div>
@@ -390,7 +455,18 @@
           </div>
         </div>
       </div>
-    </div>
-  </main>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-gray-200 bg-white px-6 py-4">
+      <div class="flex items-center justify-center gap-2 text-sm text-gray-500">
+        <span>HomeOffice Assistant</span>
+        <span>|</span>
+        <span>Version 0.4.0-dev</span>
+        <span>|</span>
+        <span>© 2026 All rights reserved</span>
+      </div>
+    </footer>
+  </div>
 </body>
 </html>

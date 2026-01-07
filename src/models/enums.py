@@ -106,3 +106,11 @@ class ContactType(str, Enum):
     SALES = "sales"
     MANAGEMENT = "management"
     OTHER = "other"
+
+
+class CalendarType(str, Enum):
+    """Calendar provider type enumeration."""
+
+    GOOGLE = "google"
+    OUTLOOK = "outlook"
+    ICAL = "ical"

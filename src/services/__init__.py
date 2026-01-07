@@ -4,6 +4,7 @@
 
 from src.services import (
     auth_service,
+    company_calendar_service,
     company_service,
     currency_service,
     email_template_service,
@@ -16,6 +17,7 @@ from src.services import (
 
 __all__ = [
     "auth_service",
+    "company_calendar_service",
     "company_service",
     "currency_service",
     "email_template_service",

@@ -4,12 +4,14 @@
 
 from src.models.base import Base, TimestampMixin
 from src.models.company import Company
+from src.models.company_calendar import CompanyCalendar
 from src.models.company_contact import CompanyContact
 from src.models.contact import Contact
 from src.models.currency_cache import CurrencyCache
 from src.models.document_reference import DocumentReference
 from src.models.email_template import EmailTemplate
 from src.models.enums import (
+    CalendarType,
     CompanyType,
     ContactType,
     EventStatus,
@@ -41,7 +43,9 @@ from src.models.user_role import UserRole
 
 __all__ = [
     "Base",
+    "CalendarType",
     "Company",
+    "CompanyCalendar",
     "CompanyContact",
     "CompanyType",
     "Contact",

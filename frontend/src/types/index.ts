@@ -95,6 +95,47 @@ export interface CompanyContactUpdate {
   is_main_contact?: boolean
 }
 
+// Calendar type enumeration for external calendar connections
+export type CalendarType = 'google' | 'outlook' | 'ical'
+
+export const CALENDAR_TYPE_LABELS: Record<CalendarType, string> = {
+  google: 'Google Calendar',
+  outlook: 'Outlook',
+  ical: 'iCal (URL)',
+}
+
+// Company calendar types
+export interface CompanyCalendar {
+  id: Uuid
+  company_id: Uuid
+  name: string
+  calendar_type: CalendarType
+  external_id: string
+  color: string
+  is_active: boolean
+  sync_interval_minutes: number
+  last_synced_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CompanyCalendarCreate {
+  name: string
+  calendar_type: CalendarType
+  external_id: string
+  color?: string
+  is_active?: boolean
+  sync_interval_minutes?: number
+}
+
+export interface CompanyCalendarUpdate {
+  name?: string
+  external_id?: string
+  color?: string
+  is_active?: boolean
+  sync_interval_minutes?: number
+}
+
 export interface Company {
   id: Uuid
   name: string

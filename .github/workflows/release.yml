@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       test_version:
-        description: 'Test version tag (e.g., 0.4.0-dev1)'
+        description: 'Test version tag with v prefix (e.g., v0.4.0-dev1)'
         required: true
-        default: '0.0.0-test1'
+        default: 'v0.0.0-test1'
 
 env:
   REGISTRY: ghcr.io
@@ -46,9 +46,9 @@ jobs:
           # For workflow_dispatch testing
           TEST_VERSION: ${{ inputs.test_version }}
         run: |
-          # Use test version if provided (workflow_dispatch), otherwise extract from tag
+          # Use test version if provided (workflow_dispatch), otherwise use ref name
           if [[ -n "$TEST_VERSION" ]]; then
-            VERSION="$TEST_VERSION"
+            VERSION="${TEST_VERSION#v}"
           else
             VERSION="${REF_NAME#v}"
           fi

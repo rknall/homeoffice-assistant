@@ -141,12 +141,36 @@ The release workflow only triggers on `v*` tags. If the user requests a tag with
 ```
 docs/
 ├── mockups/
-│   └── <feature-name>/     # e.g., calendar/, company/
-│       ├── mockup1.html
-│       └── index.html
+│   └── <feature-name>/
+│       ├── <view-name>.html
+│       └── index.html      # Links to all mockups for this feature
 └── specs/
     └── <feature-name>/
-        └── specification.md
+        └── <feature-name>.md
 ```
 
-Keep related mockups and specs together under matching feature names. These files are for local development planning only and must not be committed to the repository.
+### When to Create Mockups
+
+**REQUIRED** for any UI change beyond trivial modifications (adding a button, removing text):
+- New pages or views
+- Layout changes
+- New components or component redesigns
+- Navigation changes
+- Form redesigns
+
+**NEVER** create ASCII/text-based mockups. Always generate proper HTML mockups.
+
+### Mockup Workflow
+
+1. **Generate**: Use `/skill frontend-design` to create HTML mockups matching the current design language
+2. **Organize**: Save to `docs/mockups/<feature-name>/` with an `index.html` linking all views
+3. **Review**: User MUST sign off on mockups before implementation begins
+4. **Implement**: Build the UI according to approved mockups
+5. **Verify**: Use Playwright to compare implementation against mockups
+
+### Verification
+
+After implementing UI changes, use Playwright browser tools to:
+- Take screenshots of the implemented views
+- Compare against the approved mockups
+- Ensure design language consistency (spacing, colors, typography)

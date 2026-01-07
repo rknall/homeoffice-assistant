@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      test_version:
+        description: 'Test version tag with v prefix (e.g., v0.4.0-dev1)'
+        required: true
+        default: 'v0.0.0-test1'
 
 env:
   REGISTRY: ghcr.io
@@ -37,13 +43,19 @@ jobs:
         env:
           # GITHUB_REF_NAME is safe - it's the git tag name, not user input
           REF_NAME: ${{ github.ref_name }}
+          # For workflow_dispatch testing
+          TEST_VERSION: ${{ inputs.test_version }}
         run: |
-          # Extract version from tag (remove 'v' prefix)
-          VERSION="${REF_NAME#v}"
+          # Use test version if provided (workflow_dispatch), otherwise use ref name
+          if [[ -n "$TEST_VERSION" ]]; then
+            VERSION="${TEST_VERSION#v}"
+          else
+            VERSION="${REF_NAME#v}"
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-          # Check if this is a prerelease (contains alpha, beta, or rc)
-          if [[ "$VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-(alpha|beta|rc)([0-9]+)$ ]]; then
+          # Check if this is a prerelease (contains dev, alpha, beta, or rc)
+          if [[ "$VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-(dev|alpha|beta|rc)([0-9]+)$ ]]; then
             BASE_VERSION="${BASH_REMATCH[1]}"
             PRERELEASE_TYPE="${BASH_REMATCH[2]}"
             echo "base_version=$BASE_VERSION" >> "$GITHUB_OUTPUT"
@@ -78,6 +90,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: docker/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}

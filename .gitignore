@@ -53,6 +53,7 @@ data/
 node_modules/
 frontend/node_modules/
 frontend/dist/
+package-lock.json
 
 # Build artifacts
 *.whl

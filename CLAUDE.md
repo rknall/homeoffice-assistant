@@ -117,11 +117,15 @@ Runs automatically: **ruff** (Python), **biome** (TypeScript)
 
 ## Release Notes
 
+**REQUIRED**: Update `RELEASENOTES.md` whenever a new feature is implemented. This is mandatory, not optional. Release notes keep track of all implemented features for users and developers.
+
 Update `RELEASENOTES.md` when:
-- Adding new features
+- Adding new features (mandatory)
 - Making substantial changes
 - Fixing bugs
 - Introducing breaking changes
+
+**PR Verification**: When creating or updating a pull request, verify that the `RELEASENOTES.md` section for the feature (based on the current branch) accurately reflects what was implemented. Update the release notes if the implementation differs from what was originally documented.
 
 Sync version in `frontend/src/components/layout/Footer.tsx` with app version.
 

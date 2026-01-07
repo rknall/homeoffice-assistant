@@ -1,5 +1,20 @@
 # Release Notes
 
+## Version 0.4.0
+
+### Major Features
+
+#### Calendar Integration
+- Connect external calendars (Google Calendar, Outlook, iCal/CalDAV) to companies
+- Calendar page with week and month views for visualizing events
+- Filter calendar by company and calendar source
+- Sync external calendar events with event management
+- Connected Calendars tab on company detail page for managing calendar connections
+- Support for multiple calendars per company
+- Calendar sync status tracking and manual sync trigger
+
+---
+
 ## Version 0.3.0
 
 ### Major Features

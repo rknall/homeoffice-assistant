@@ -62,7 +62,7 @@ def get_templates_for_user(
         db.query(TodoTemplate)
         .filter(
             or_(
-                TodoTemplate.is_global == True,  # noqa: E712
+                TodoTemplate.is_global,
                 TodoTemplate.user_id == user_id,
             )
         )
@@ -272,9 +272,7 @@ def apply_templates_to_event(
     if not event:
         return (0, [])
 
-    templates = (
-        db.query(TodoTemplate).filter(TodoTemplate.id.in_(template_ids)).all()
-    )
+    templates = db.query(TodoTemplate).filter(TodoTemplate.id.in_(template_ids)).all()
 
     created_ids: list[uuid.UUID] = []
     for template in templates:
@@ -310,11 +308,7 @@ def seed_default_templates(db: Session) -> int:
         Number of templates created
     """
     # Check if global templates already exist
-    existing = (
-        db.query(TodoTemplate)
-        .filter(TodoTemplate.is_global == True)  # noqa: E712
-        .first()
-    )
+    existing = db.query(TodoTemplate).filter(TodoTemplate.is_global).first()
     if existing:
         return 0
 

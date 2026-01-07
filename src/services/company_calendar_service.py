@@ -3,7 +3,7 @@
 """Company calendar service for managing external calendar connections."""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -30,7 +30,7 @@ def get_active_calendars(db: Session, company_id: uuid.UUID) -> list[CompanyCale
         db.query(CompanyCalendar)
         .filter(
             CompanyCalendar.company_id == company_id,
-            CompanyCalendar.is_active == True,  # noqa: E712
+            CompanyCalendar.is_active,
         )
         .order_by(CompanyCalendar.name)
         .all()
@@ -103,7 +103,7 @@ def delete_calendar(db: Session, calendar: CompanyCalendar) -> None:
 
 def update_last_synced(db: Session, calendar: CompanyCalendar) -> CompanyCalendar:
     """Update the last_synced_at timestamp for a calendar."""
-    calendar.last_synced_at = datetime.utcnow()
+    calendar.last_synced_at = datetime.now(UTC)
     db.commit()
     db.refresh(calendar)
     return calendar

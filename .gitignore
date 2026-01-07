@@ -30,6 +30,12 @@ htmlcov/
 .tox/
 .nox/
 
+# Linting cache
+.ruff_cache/
+
+# Build output (frontend copied here during docker build)
+static/
+
 # IDE
 .idea/
 .vscode/*

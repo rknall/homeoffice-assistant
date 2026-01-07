@@ -42,8 +42,8 @@ jobs:
           VERSION="${REF_NAME#v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-          # Check if this is a prerelease (contains alpha, beta, or rc)
-          if [[ "$VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-(alpha|beta|rc)([0-9]+)$ ]]; then
+          # Check if this is a prerelease (contains dev, alpha, beta, or rc)
+          if [[ "$VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-(dev|alpha|beta|rc)([0-9]+)$ ]]; then
             BASE_VERSION="${BASH_REMATCH[1]}"
             PRERELEASE_TYPE="${BASH_REMATCH[2]}"
             echo "base_version=$BASE_VERSION" >> "$GITHUB_OUTPUT"
@@ -78,6 +78,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: docker/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}

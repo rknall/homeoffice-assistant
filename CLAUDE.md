@@ -109,6 +109,8 @@ Runs automatically: **ruff** (Python), **biome** (TypeScript)
 - Max 88 chars, Google-style docstrings
 - `snake_case` functions/variables, `PascalCase` classes
 - Type hints required
+- No `# noqa` comments - fix the underlying issue instead
+- SQLAlchemy boolean filters: use `Model.is_active` not `Model.is_active == True`
 
 ### TypeScript (Biome)
 - Max 100 chars, single quotes (double in JSX)

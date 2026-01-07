@@ -130,3 +130,23 @@ Sync version in `frontend/src/components/layout/Footer.tsx` with app version.
 **Version tags MUST use the `v` prefix** (e.g., `v0.4.0`, `v0.4.0-dev`, `v1.0.0-beta1`).
 
 The release workflow only triggers on `v*` tags. If the user requests a tag without the `v` prefix, always add it automatically.
+
+## Mockups and Specifications
+
+**Local-only directories** (gitignored, never commit):
+- `docs/mockups/` - HTML mockups for UI design
+- `docs/specs/` - Feature specification documents
+
+**Structure**: Organize by feature in subdirectories:
+```
+docs/
+├── mockups/
+│   └── <feature-name>/     # e.g., calendar/, company/
+│       ├── mockup1.html
+│       └── index.html
+└── specs/
+    └── <feature-name>/
+        └── specification.md
+```
+
+Keep related mockups and specs together under matching feature names. These files are for local development planning only and must not be committed to the repository.

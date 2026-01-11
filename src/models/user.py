@@ -12,6 +12,7 @@ from src.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from src.models.event import Event
+    from src.models.holiday_calendar import HolidayCalendar
     from src.models.integration_config import IntegrationConfig
     from src.models.session import Session
     from src.models.todo_template import TodoTemplate
@@ -61,6 +62,11 @@ class User(Base, TimestampMixin):
     )
     todo_templates: Mapped[list[TodoTemplate]] = relationship(
         "TodoTemplate",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    holiday_calendars: Mapped[list[HolidayCalendar]] = relationship(
+        "HolidayCalendar",
         back_populates="user",
         cascade="all, delete-orphan",
     )

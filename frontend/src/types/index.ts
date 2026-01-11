@@ -919,3 +919,46 @@ export interface ApplyTemplatesResponse {
   created_count: number
   todos_created: Uuid[]
 }
+
+// Holiday Calendar types
+export interface HolidayCalendar {
+  id: Uuid
+  user_id: Uuid
+  country_code: string
+  subdivision: string | null
+  display_label: string
+  created_at: string
+  updated_at: string
+}
+
+export interface HolidayCalendarCreate {
+  country_code: string
+  subdivision?: string | null
+  display_label: string
+}
+
+export interface HolidayCalendarUpdate {
+  display_label?: string
+}
+
+export interface HolidayEntry {
+  date: string
+  name: string
+  country_code: string
+  subdivision: string | null
+  display_label: string
+}
+
+export interface CountryInfo {
+  code: string
+  name: string
+  subdivisions: string[]
+}
+
+export interface HolidaysResponse {
+  holidays: HolidayEntry[]
+}
+
+export interface SupportedCountriesResponse {
+  countries: CountryInfo[]
+}

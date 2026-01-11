@@ -4,12 +4,12 @@
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { api, companyCalendarsApi } from '@/api/client'
+import { api, companyCalendarsApi, holidayCalendarsApi } from '@/api/client'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
 import { useBreadcrumb } from '@/stores/breadcrumb'
-import type { Company, CompanyCalendar, EventWithSummary, Todo } from '@/types'
+import type { Company, CompanyCalendar, EventWithSummary, HolidayEntry, Todo } from '@/types'
 
 type ViewMode = 'week' | 'month'
 
@@ -17,6 +17,7 @@ interface CalendarFilters {
   showHomeOfficeEvents: boolean
   showExternalCalendars: boolean
   showTodos: boolean
+  showHolidays: boolean
   companyId: string
 }
 
@@ -47,6 +48,7 @@ export function Calendar() {
   const [events, setEvents] = useState<EventWithSummary[]>([])
   const [_calendars, setCalendars] = useState<CompanyCalendar[]>([])
   const [todos, setTodos] = useState<Todo[]>([])
+  const [holidays, setHolidays] = useState<HolidayEntry[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
@@ -56,6 +58,7 @@ export function Calendar() {
     showHomeOfficeEvents: true,
     showExternalCalendars: true,
     showTodos: true,
+    showHolidays: true,
     companyId: 'all',
   })
 
@@ -71,16 +74,33 @@ export function Calendar() {
     setSearchParams(params, { replace: true })
   }, [viewMode, currentDate, setSearchParams])
 
+  // Calculate date range for holiday fetching (3 months window)
+  const getHolidayDateRange = useCallback(() => {
+    const start = new Date(currentDate)
+    start.setMonth(start.getMonth() - 1)
+    start.setDate(1)
+    const end = new Date(currentDate)
+    end.setMonth(end.getMonth() + 2)
+    end.setDate(0) // Last day of next month
+    return {
+      startDate: start.toISOString().split('T')[0],
+      endDate: end.toISOString().split('T')[0],
+    }
+  }, [currentDate])
+
   const fetchData = useCallback(async () => {
     try {
-      const [eventsData, companiesData, todosData] = await Promise.all([
+      const { startDate, endDate } = getHolidayDateRange()
+      const [eventsData, companiesData, todosData, holidaysData] = await Promise.all([
         api.get<EventWithSummary[]>('/events?include_summary=true'),
         api.get<Company[]>('/companies'),
         api.get<Todo[]>('/todos'),
+        holidayCalendarsApi.getHolidays(startDate, endDate),
       ])
       setEvents(eventsData)
       setCompanies(companiesData)
       setTodos(todosData)
+      setHolidays(holidaysData.holidays)
 
       // Fetch calendars for all companies
       const allCalendars: CompanyCalendar[] = []
@@ -99,7 +119,7 @@ export function Calendar() {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [getHolidayDateRange])
 
   useEffect(() => {
     fetchData()
@@ -315,6 +335,15 @@ export function Calendar() {
                 />
                 <span className="text-sm text-gray-700">Todos</span>
               </label>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={filters.showHolidays}
+                  onChange={(e) => setFilters((f) => ({ ...f, showHolidays: e.target.checked }))}
+                  className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Holidays</span>
+              </label>
             </div>
             <div className="flex items-center space-x-2">
               <label htmlFor="company-filter" className="text-sm text-gray-600">
@@ -342,12 +371,14 @@ export function Calendar() {
             <WeekView
               currentDate={currentDate}
               events={calendarEvents}
+              holidays={filters.showHolidays ? holidays : []}
               getWeekBoundaries={getWeekBoundaries}
             />
           ) : (
             <MonthView
               currentDate={currentDate}
               events={calendarEvents}
+              holidays={filters.showHolidays ? holidays : []}
               getMonthBoundaries={getMonthBoundaries}
             />
           )}
@@ -369,6 +400,10 @@ export function Calendar() {
               <span className="w-3 h-3 bg-purple-500 rounded mr-1 border border-dotted border-purple-600" />
               Todos
             </span>
+            <span className="flex items-center">
+              <span className="w-3 h-3 bg-gray-200 rounded mr-1" />
+              Holiday
+            </span>
           </div>
         </div>
       </Card>
@@ -379,10 +414,11 @@ export function Calendar() {
 interface WeekViewProps {
   currentDate: Date
   events: CalendarEvent[]
+  holidays: HolidayEntry[]
   getWeekBoundaries: (date: Date) => { start: Date; end: Date }
 }
 
-function WeekView({ currentDate, events, getWeekBoundaries }: WeekViewProps) {
+function WeekView({ currentDate, events, holidays, getWeekBoundaries }: WeekViewProps) {
   const { start } = getWeekBoundaries(currentDate)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -402,6 +438,15 @@ function WeekView({ currentDate, events, getWeekBoundaries }: WeekViewProps) {
   const isWeekend = (date: Date) => {
     const day = date.getDay()
     return day === 0 || day === 6
+  }
+
+  const getHolidaysForDate = (date: Date): HolidayEntry[] => {
+    const dateStr = date.toISOString().split('T')[0]
+    return holidays.filter((h) => h.date === dateStr)
+  }
+
+  const isHoliday = (date: Date): boolean => {
+    return getHolidaysForDate(date).length > 0
   }
 
   const getEventsForDay = (date: Date) => {
@@ -449,7 +494,7 @@ function WeekView({ currentDate, events, getWeekBoundaries }: WeekViewProps) {
             <div
               key={day.toISOString()}
               className={`p-2 border-r border-gray-200 min-h-[60px] ${
-                isToday(day) ? 'bg-blue-50' : isWeekend(day) ? 'bg-gray-100' : ''
+                isToday(day) ? 'bg-blue-50' : isWeekend(day) || isHoliday(day) ? 'bg-gray-100' : ''
               }`}
             >
               <div
@@ -460,6 +505,16 @@ function WeekView({ currentDate, events, getWeekBoundaries }: WeekViewProps) {
                 {dayName} {dayNum}
                 {isToday(day) && ' (Today)'}
               </div>
+              {/* Holiday labels */}
+              {getHolidaysForDate(day).map((holiday) => (
+                <div
+                  key={`${holiday.date}-${holiday.display_label}`}
+                  className="text-xs text-gray-600 bg-gray-200 px-1 rounded truncate mb-0.5"
+                  title={`${holiday.display_label} - ${holiday.name}`}
+                >
+                  {holiday.display_label} - {holiday.name}
+                </div>
+              ))}
               <div className="space-y-0.5">
                 {dayEvents.slice(0, 2).map((event) => (
                   <button
@@ -502,7 +557,7 @@ function WeekView({ currentDate, events, getWeekBoundaries }: WeekViewProps) {
             <div
               key={day.toISOString()}
               className={`border-r border-gray-200 relative ${
-                isToday(day) ? 'bg-blue-50/50' : isWeekend(day) ? 'bg-gray-50' : ''
+                isToday(day) ? 'bg-blue-50/50' : isWeekend(day) || isHoliday(day) ? 'bg-gray-50' : ''
               }`}
             >
               {hours.map((hour) => (
@@ -548,10 +603,11 @@ function WeekView({ currentDate, events, getWeekBoundaries }: WeekViewProps) {
 interface MonthViewProps {
   currentDate: Date
   events: CalendarEvent[]
+  holidays: HolidayEntry[]
   getMonthBoundaries: (date: Date) => { start: Date; end: Date }
 }
 
-function MonthView({ currentDate, events, getMonthBoundaries }: MonthViewProps) {
+function MonthView({ currentDate, events, holidays, getMonthBoundaries }: MonthViewProps) {
   const { start: monthStart } = getMonthBoundaries(currentDate)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -574,6 +630,15 @@ function MonthView({ currentDate, events, getMonthBoundaries }: MonthViewProps) 
   const isWeekend = (date: Date) => {
     const d = date.getDay()
     return d === 0 || d === 6
+  }
+
+  const getHolidaysForDate = (date: Date): HolidayEntry[] => {
+    const dateStr = date.toISOString().split('T')[0]
+    return holidays.filter((h) => h.date === dateStr)
+  }
+
+  const isHoliday = (date: Date): boolean => {
+    return getHolidaysForDate(date).length > 0
   }
 
   const getEventsForDay = (date: Date) => {
@@ -617,7 +682,7 @@ function MonthView({ currentDate, events, getMonthBoundaries }: MonthViewProps) 
               className={`min-h-28 border-r border-b border-gray-200 p-1 ${
                 !inCurrentMonth
                   ? 'bg-gray-50'
-                  : isWeekend(date)
+                  : isWeekend(date) || isHoliday(date)
                     ? 'bg-gray-50'
                     : isToday(date)
                       ? 'bg-blue-50 ring-2 ring-inset ring-blue-500'
@@ -630,13 +695,23 @@ function MonthView({ currentDate, events, getMonthBoundaries }: MonthViewProps) 
                     ? 'text-gray-400'
                     : isToday(date)
                       ? 'font-bold text-blue-700'
-                      : isWeekend(date)
+                      : isWeekend(date) || isHoliday(date)
                         ? 'text-gray-600'
                         : 'text-gray-900'
                 }`}
               >
                 {date.getDate()}
               </div>
+              {/* Holiday labels */}
+              {getHolidaysForDate(date).map((holiday) => (
+                <div
+                  key={`${holiday.date}-${holiday.display_label}`}
+                  className="text-xs text-gray-600 bg-gray-200 px-1 rounded truncate mb-0.5"
+                  title={`${holiday.display_label} - ${holiday.name}`}
+                >
+                  {holiday.display_label}
+                </div>
+              ))}
               <div className="space-y-0.5">
                 {dayEvents.slice(0, 3).map((event) => (
                   <button

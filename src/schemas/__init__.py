@@ -62,6 +62,15 @@ from src.schemas.expense import (
     ExpenseResponse,
     ExpenseUpdate,
 )
+from src.schemas.holiday_calendar import (
+    CountryInfo,
+    HolidayCalendarCreate,
+    HolidayCalendarResponse,
+    HolidayCalendarUpdate,
+    HolidayEntry,
+    HolidaysResponse,
+    SupportedCountriesResponse,
+)
 from src.schemas.integration import (
     IntegrationConfigCreate,
     IntegrationConfigResponse,
@@ -149,6 +158,14 @@ __all__ = [
     "ExpenseResponse",
     "ExpenseUpdate",
     "HealthResponse",
+    # Holiday Calendar
+    "CountryInfo",
+    "HolidayCalendarCreate",
+    "HolidayCalendarResponse",
+    "HolidayCalendarUpdate",
+    "HolidayEntry",
+    "HolidaysResponse",
+    "SupportedCountriesResponse",
     # Integration
     "IntegrationConfigCreate",
     "IntegrationConfigResponse",

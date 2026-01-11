@@ -13,6 +13,15 @@
 - Support for multiple calendars per company
 - Calendar sync status tracking and manual sync trigger
 
+#### National Holidays
+- Display national holidays in the calendar with visual highlighting (gray background like weekends)
+- Configure multiple countries/regions for holiday display in Settings > Holidays
+- Holiday labels show country prefix (e.g., "AT - Neujahr", "DE-BY - Karfreitag")
+- Filter holidays on/off in calendar view
+- Preview holidays before adding a country configuration
+- Support for 100+ countries via Python `holidays` library
+- Regional subdivision support (e.g., German federal states, US states)
+
 ---
 
 ## Version 0.3.0

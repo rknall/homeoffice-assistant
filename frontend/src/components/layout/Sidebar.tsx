@@ -7,6 +7,7 @@ import {
   CalendarDays,
   ClipboardList,
   FileText,
+  Flag,
   Globe,
   HardDrive,
   LayoutDashboard,
@@ -57,6 +58,7 @@ const navItems = [
 
 const settingsSubItems = [
   { to: '/settings/regional', label: 'Regional', icon: Globe },
+  { to: '/settings/holidays', label: 'Holidays', icon: Flag },
   { to: '/settings/integrations', label: 'Integrations', icon: Link2 },
   { to: '/settings/plugins', label: 'Plugins', icon: Puzzle },
   { to: '/settings/templates', label: 'Email Templates', icon: Mail },

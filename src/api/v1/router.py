@@ -16,6 +16,7 @@ from src.api.v1 import (
     email_templates,
     events,
     expenses,
+    holiday_calendars,
     integrations,
     locations,
     notes,
@@ -57,6 +58,11 @@ api_router.include_router(
 # Company calendar routes (nested under companies)
 api_router.include_router(
     company_calendars.router, prefix="/companies", tags=["company-calendars"]
+)
+
+# Holiday calendar routes
+api_router.include_router(
+    holiday_calendars.router, prefix="/holiday-calendars", tags=["holiday-calendars"]
 )
 
 # Event routes

@@ -16,6 +16,7 @@ import { Settings } from '@/pages/Settings'
 import { Setup } from '@/pages/Setup'
 import { BackupSettings } from '@/pages/settings/BackupSettings'
 import { EmailTemplateSettings } from '@/pages/settings/EmailTemplateSettings'
+import { HolidaySettings } from '@/pages/settings/HolidaySettings'
 import { IntegrationSettings } from '@/pages/settings/IntegrationSettings'
 import { PluginSettings } from '@/pages/settings/PluginSettings'
 import { RegionalSettings } from '@/pages/settings/RegionalSettings'
@@ -63,6 +64,7 @@ function AppRoutes() {
         <Route path="/companies/:id" element={<CompanyDetail />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/settings/regional" element={<RegionalSettings />} />
+        <Route path="/settings/holidays" element={<HolidaySettings />} />
         <Route path="/settings/integrations" element={<IntegrationSettings />} />
         <Route path="/settings/plugins" element={<PluginSettings />} />
         <Route path="/settings/templates" element={<EmailTemplateSettings />} />

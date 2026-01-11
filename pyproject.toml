@@ -21,6 +21,7 @@ dependencies = [
     "cryptography>=46.0.3",
     "python-slugify>=8.0.4",
     "tzdata>=2025.1",
+    "holidays>=0.87",
 ]
 
 [project.optional-dependencies]

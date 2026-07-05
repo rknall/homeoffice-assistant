@@ -268,6 +268,16 @@ export interface Expense {
   updated_at: string
 }
 
+export interface ExpenseScanResult {
+  date: string | null
+  amount: string | null
+  currency: string | null
+  category: ExpenseCategory | null
+  payment_type: PaymentType | null
+  description: string | null
+  warnings: string[]
+}
+
 // Expense status display constants
 export const EXPENSE_STATUS_CONFIG: Record<
   ExpenseStatus,

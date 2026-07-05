@@ -80,6 +80,11 @@ class DocumentProvider(IntegrationProvider):
         """Download document. Returns (content, filename, mime_type)."""
         ...
 
+    @abstractmethod
+    async def get_document_content(self, doc_id: int) -> str:
+        """Get the extracted (OCR) text content of a document."""
+        ...
+
 
 class PhotoProvider(IntegrationProvider):
     """Interface for photo management systems (Immich, etc.)."""
@@ -145,6 +150,19 @@ class EmailProvider(IntegrationProvider):
         attachments: list[tuple[str, bytes, str]] | None = None,
     ) -> bool:
         """Send email with optional HTML and attachments. Returns success."""
+        ...
+
+
+class LlmProvider(IntegrationProvider):
+    """Interface for LLM services (OpenAI-compatible APIs, LiteLLM, etc.)."""
+
+    @abstractmethod
+    async def extract_expense(self, text: str) -> dict[str, Any]:
+        """Extract expense fields from document text.
+
+        Returns a dict with nullable keys: date, amount, currency, category,
+        payment_type, description.
+        """
         ...
 
 

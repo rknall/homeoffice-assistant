@@ -171,6 +171,9 @@ class DummyDocumentProvider(DocumentProvider):
     async def download_document(self, doc_id: int):
         return b"", "doc.pdf", "application/pdf"
 
+    async def get_document_content(self, doc_id: int) -> str:
+        return ""
+
     async def get_custom_field_by_name(self, name: str):
         self.custom_field_calls += 1
         return self.custom_field_data

@@ -183,6 +183,12 @@ class PaperlessProvider(DocumentProvider):
             for doc in results
         ]
 
+    async def get_document_content(self, doc_id: int) -> str:
+        """Get the OCR text content of a document from Paperless-ngx."""
+        resp = await self._client.get(f"/api/documents/{doc_id}/")
+        resp.raise_for_status()
+        return resp.json().get("content") or ""
+
     async def download_document(self, doc_id: int) -> tuple[bytes, str, str]:
         """Download a document from Paperless-ngx."""
         # First get document metadata for filename

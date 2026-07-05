@@ -38,6 +38,21 @@ class ExpenseCreate(ExpenseBase):
     is_private: bool = False
 
 
+class ExpenseScanResult(BaseModel):
+    """LLM-extracted expense suggestions from a scanned document.
+
+    All fields are nullable: null means the value could not be determined.
+    """
+
+    date: datetime.date | None = None
+    amount: Decimal | None = None
+    currency: str | None = Field(None, min_length=3, max_length=3)
+    category: ExpenseCategory | None = None
+    payment_type: PaymentType | None = None
+    description: str | None = None
+    warnings: list[str] = []
+
+
 class ExpenseUpdate(BaseModel):
     """Schema for updating an expense."""
 

@@ -203,6 +203,9 @@ class DummyDocumentProvider(DocumentProvider):
     async def download_document(self, doc_id: int):
         return b"", "doc.pdf", "application/pdf"
 
+    async def get_document_content(self, doc_id: int) -> str:
+        return ""
+
 
 @pytest.mark.asyncio
 async def test_create_report_generator(monkeypatch, db_session):

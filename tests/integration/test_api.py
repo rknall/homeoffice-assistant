@@ -395,3 +395,107 @@ class TestIntegrationsAPI:
         data = response.json()
         assert data["name"] == "Test Paperless"
         assert data["integration_type"] == "paperless"
+
+
+class TestExpenseScanAPI:
+    """Test LLM expense scan endpoint."""
+
+    @staticmethod
+    def _create_event(client) -> str:
+        company = client.post(
+            "/api/v1/companies", json={"name": "ScanCo", "type": "employer"}
+        ).json()
+        event = client.post(
+            "/api/v1/events",
+            json={
+                "name": "Scan Trip",
+                "company_id": company["id"],
+                "start_date": "2025-05-01",
+                "end_date": "2025-05-02",
+            },
+        ).json()
+        return event["id"]
+
+    def test_llm_type_registered(self, admin_client):
+        response = admin_client.get("/api/v1/integrations/types")
+        assert any(t["type"] == "llm" for t in response.json())
+
+    def test_scan_without_llm_integration(self, admin_client):
+        event_id = self._create_event(admin_client)
+        response = admin_client.post(
+            f"/api/v1/events/{event_id}/documents/123/scan-expense"
+        )
+        assert response.status_code == 400
+        assert "LLM integration" in response.json()["detail"]
+
+    def test_scan_end_to_end_with_mocked_services(self, admin_client):
+        import json
+
+        import respx
+        from httpx import Response
+
+        event_id = self._create_event(admin_client)
+        admin_client.post(
+            "/api/v1/integrations",
+            json={
+                "name": "LLM",
+                "integration_type": "llm",
+                "config": {
+                    "base_url": "https://llm.example.com/v1",
+                    "api_key": "sk-test",
+                    "model": "gpt-4o-mini",
+                },
+            },
+        )
+        admin_client.post(
+            "/api/v1/integrations",
+            json={
+                "name": "Paperless",
+                "integration_type": "paperless",
+                "config": {
+                    "url": "https://paperless.example.com",
+                    "token": "test-token",
+                    "custom_field_name": "Trip",
+                },
+            },
+        )
+
+        with respx.mock:
+            respx.get("https://paperless.example.com/api/documents/42/").mock(
+                return_value=Response(200, json={"content": "Taxi receipt 12.50 EUR"})
+            )
+            respx.post("https://llm.example.com/v1/chat/completions").mock(
+                return_value=Response(
+                    200,
+                    json={
+                        "choices": [
+                            {
+                                "message": {
+                                    "content": json.dumps(
+                                        {
+                                            "date": "2025-05-01",
+                                            "amount": 12.5,
+                                            "currency": "EUR",
+                                            "category": "transport",
+                                            "payment_type": None,
+                                            "description": "Taxi",
+                                        }
+                                    )
+                                }
+                            }
+                        ]
+                    },
+                )
+            )
+            response = admin_client.post(
+                f"/api/v1/events/{event_id}/documents/42/scan-expense"
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["date"] == "2025-05-01"
+        assert float(data["amount"]) == 12.5
+        assert data["currency"] == "EUR"
+        assert data["category"] == "transport"
+        assert data["payment_type"] is None
+        assert data["description"] == "Taxi"

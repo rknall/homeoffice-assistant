@@ -118,6 +118,7 @@ def create_expense(db: Session, event_id: uuid.UUID, data: ExpenseCreate) -> Exp
         description=data.description,
         status=ExpenseStatus.PENDING,
         original_filename=data.original_filename,
+        is_private=data.is_private,
     )
     db.add(expense)
     db.commit()

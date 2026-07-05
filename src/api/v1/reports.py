@@ -50,6 +50,10 @@ class GenerateReportRequest(BaseModel):
         None,
         description="Optional notes about this submission.",
     )
+    include_private: bool = Field(
+        False,
+        description="Include expenses marked as private (excluded by default).",
+    )
 
 
 class SendReportRequest(BaseModel):
@@ -138,10 +142,13 @@ async def generate_expense_report(
     mark_as_submitted = data.mark_as_submitted if data else True
     submission_method = data.submission_method if data else "download"
     notes = data.notes if data else None
+    include_private = data.include_private if data else False
 
     generator = await create_report_generator(db, event)
     try:
-        zip_bytes, included_expenses = await generator.generate(event, expense_ids)
+        zip_bytes, included_expenses = await generator.generate(
+            event, expense_ids, include_private=include_private
+        )
         filename = generator.get_filename(event)
 
         # Create submission record if marking as submitted

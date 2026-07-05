@@ -11,6 +11,11 @@
 - Expense report emails only include the expenses actually contained in the report (respects selection and private-expense exclusion)
 - Dashboard expense overview and event expense totals are expressed in the system currency
 - Migration seeds the global setting from the most common existing company currency
+- Changing the system currency invalidates stored conversions; they are recomputed with the correct daily rates automatically
+
+#### Expense Report Improvements
+- "Include private expenses" switch in the export report dialog (private expenses remain excluded by default)
+- Fixed: creating an expense ignored the private flag (it could only be set via edit)
 
 #### Calendar Integration
 - Connect external calendars (Google Calendar, Outlook, iCal/CalDAV) to companies

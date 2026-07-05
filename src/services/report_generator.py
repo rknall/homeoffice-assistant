@@ -211,17 +211,20 @@ class ExpenseReportGenerator:
 
             ws.cell(row=row, column=9, value=base_currency).border = border
 
-            # Exchange rate
-            rate = expense.exchange_rate if expense.exchange_rate else Decimal(1)
-            rate_cell = ws.cell(row=row, column=10, value=float(rate))
-            rate_cell.number_format = rate_format
-            rate_cell.border = border
+            # Rate and rate date: only meaningful for actual conversions
+            if expense.currency.upper() == base_currency.upper():
+                ws.cell(row=row, column=10).border = border
+                ws.cell(row=row, column=11).border = border
+            else:
+                rate = expense.exchange_rate if expense.exchange_rate else Decimal(1)
+                rate_cell = ws.cell(row=row, column=10, value=float(rate))
+                rate_cell.number_format = rate_format
+                rate_cell.border = border
 
-            # Rate date
-            rate_date = expense.rate_date if expense.rate_date else expense.date
-            rate_date_cell = ws.cell(row=row, column=11, value=rate_date)
-            rate_date_cell.number_format = date_format
-            rate_date_cell.border = border
+                rate_date = expense.rate_date if expense.rate_date else expense.date
+                rate_date_cell = ws.cell(row=row, column=11, value=rate_date)
+                rate_date_cell.number_format = date_format
+                rate_date_cell.border = border
 
             doc_ref = f"{idx:02d}_*.pdf" if expense.paperless_doc_id else "N/A"
             ws.cell(row=row, column=12, value=doc_ref).border = border
@@ -229,13 +232,21 @@ class ExpenseReportGenerator:
             total_original += expense.amount
             total_converted += converted
 
-        # Total row
-        total_row = header_row + len(expenses) + 1
+        # Total row, separated from the data by an empty row
+        total_row = header_row + len(expenses) + 2
         ws.cell(row=total_row, column=5, value="Totals:").font = Font(bold=True)
 
-        orig_total_cell = ws.cell(row=total_row, column=6, value=float(total_original))
-        orig_total_cell.font = Font(bold=True)
-        orig_total_cell.number_format = amount_format
+        # A sum of original amounts only makes sense in a single currency
+        currencies = {e.currency.upper() for e in expenses}
+        if len(currencies) == 1:
+            orig_total_cell = ws.cell(
+                row=total_row, column=6, value=float(total_original)
+            )
+            orig_total_cell.font = Font(bold=True)
+            orig_total_cell.number_format = amount_format
+            ws.cell(row=total_row, column=7, value=currencies.pop()).font = Font(
+                bold=True
+            )
 
         conv_total_cell = ws.cell(row=total_row, column=8, value=float(total_converted))
         conv_total_cell.font = Font(bold=True)
@@ -257,30 +268,26 @@ class ExpenseReportGenerator:
         self,
         event: Event,
         expense_ids: list | None = None,
+        include_private: bool = False,
     ) -> tuple[bytes, list[Expense]]:
         """Generate ZIP with Excel and documents.
 
         Args:
             event: The event to generate a report for.
             expense_ids: Optional list of expense IDs to include. If None, includes all.
+            include_private: Include expenses marked as private (excluded by default).
 
         Returns:
             Tuple of (zip_bytes, included_expenses)
         """
         if expense_ids:
-            # Get specific expenses
             expenses = expense_service.get_expenses_by_ids(self.db, expense_ids)
-            # Filter to only expenses for this event and exclude private expenses
-            expenses = [
-                e for e in expenses if e.event_id == event.id and not e.is_private
-            ]
+            expenses = [e for e in expenses if e.event_id == event.id]
         else:
-            # Get all non-private expenses for the event
-            expenses = [
-                e
-                for e in expense_service.get_expenses(self.db, event.id)
-                if not e.is_private
-            ]
+            expenses = expense_service.get_expenses(self.db, event.id)
+
+        if not include_private:
+            expenses = [e for e in expenses if not e.is_private]
 
         expenses.sort(key=lambda e: e.date)
 

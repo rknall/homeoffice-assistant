@@ -32,11 +32,13 @@ export function GenerateReportModal({
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('pending')
   const [selectedExpenses, setSelectedExpenses] = useState<Set<string>>(new Set())
   const [markAsSubmitted, setMarkAsSubmitted] = useState(true)
+  const [includePrivate, setIncludePrivate] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Filter out private expenses (they are excluded from official reports)
-  const reportableExpenses = expenses.filter((e) => !e.is_private)
+  // Private expenses are excluded from official reports unless explicitly included
+  const privateCount = expenses.filter((e) => e.is_private).length
+  const reportableExpenses = includePrivate ? expenses : expenses.filter((e) => !e.is_private)
 
   // Categorize expenses by status (only non-private expenses)
   const pendingExpenses = reportableExpenses.filter((e) => e.status === 'pending')
@@ -74,6 +76,7 @@ export function GenerateReportModal({
       setSelectionMode('pending')
       setSelectedExpenses(new Set())
       setMarkAsSubmitted(true)
+      setIncludePrivate(false)
       setError(null)
     }
   }, [isOpen])
@@ -108,6 +111,7 @@ export function GenerateReportModal({
         mark_as_submitted: markAsSubmitted,
         submission_method: 'download',
         notes: null,
+        include_private: includePrivate,
       }
 
       await downloadFile(`/events/${eventId}/expense-report/generate`, filename, {
@@ -294,6 +298,23 @@ export function GenerateReportModal({
             {total.toFixed(2)} {baseCurrency}
           </span>
         </div>
+
+        {/* Include Private Expenses Option */}
+        <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+          <input
+            type="checkbox"
+            checked={includePrivate}
+            onChange={(e) => setIncludePrivate(e.target.checked)}
+            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <div className="flex-1">
+            <span className="font-medium">Include private expenses</span>
+            <span className="text-gray-500 ml-2">({privateCount})</span>
+            <p className="text-sm text-gray-500">
+              Private expenses are excluded from official reports by default
+            </p>
+          </div>
+        </label>
 
         {/* Mark as Submitted Option */}
         <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">

@@ -39,7 +39,6 @@ def create_company(db: Session, data: CompanyCreate) -> Company:
         webpage=data.webpage,
         address=data.address,
         country=data.country,
-        base_currency=data.base_currency,
     )
     db.add(company)
     db.commit()
@@ -74,8 +73,6 @@ def update_company(db: Session, company: Company, data: CompanyUpdate) -> Compan
         company.address = data.address
     if data.country is not None:
         company.country = data.country
-    if data.base_currency is not None:
-        company.base_currency = data.base_currency
 
     db.commit()
     db.refresh(company)
@@ -115,7 +112,6 @@ def company_to_response_dict(company: Company, include_contacts: bool = True) ->
         "address": company.address,
         "country": company.country,
         "logo_path": company.logo_path,
-        "base_currency": company.base_currency,
         "created_at": company.created_at,
         "updated_at": company.updated_at,
     }

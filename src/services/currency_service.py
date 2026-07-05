@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
-"""Currency conversion service using frankfurter.app API."""
+"""Currency conversion service using the Frankfurter API."""
 
 import logging
 from dataclasses import dataclass
@@ -14,8 +14,9 @@ from src.models.currency_cache import CurrencyCache
 
 logger = logging.getLogger(__name__)
 
-# frankfurter.app API base URL (ECB data, free, no API key needed)
-FRANKFURTER_API_URL = "https://api.frankfurter.app"
+# Frankfurter API base URL (ECB data, free, no API key needed).
+# api.frankfurter.app redirects here since the v1 API move.
+FRANKFURTER_API_URL = "https://api.frankfurter.dev/v1"
 
 # Cache duration before we consider re-fetching (in hours)
 CACHE_FRESHNESS_HOURS = 24
@@ -71,6 +72,7 @@ class CurrencyService:
             self._http_client = httpx.AsyncClient(
                 base_url=FRANKFURTER_API_URL,
                 timeout=10.0,
+                follow_redirects=True,
             )
         return self._http_client
 
@@ -330,7 +332,7 @@ async def backfill_expense_conversions(db: Session) -> dict:
     """Backfill currency conversions for expenses missing converted_amount.
 
     Finds all expenses where converted_amount is NULL and the expense currency
-    differs from the company's base currency, then converts them.
+    differs from the system base currency, then converts them.
 
     Args:
         db: Database session.
@@ -338,9 +340,11 @@ async def backfill_expense_conversions(db: Session) -> dict:
     Returns:
         Dict with counts: converted, skipped, failed.
     """
-    from src.models import Event, Expense
+    from src.models import Expense
+    from src.services import settings_service
 
     results = {"converted": 0, "skipped": 0, "failed": 0}
+    base_currency = settings_service.get_base_currency(db)
 
     # Find expenses without converted_amount
     expenses = (
@@ -355,13 +359,6 @@ async def backfill_expense_conversions(db: Session) -> dict:
     service = CurrencyService(db)
     try:
         for expense in expenses:
-            # Get the event to find company base currency
-            event = db.query(Event).filter(Event.id == expense.event_id).first()
-            if not event or not event.company:
-                results["skipped"] += 1
-                continue
-
-            base_currency = event.company.base_currency
             if expense.currency.upper() == base_currency.upper():
                 # Same currency: set 1:1 conversion
                 expense.converted_amount = expense.amount

@@ -31,7 +31,7 @@ class TestGetSupportedCurrencies:
     @pytest.mark.asyncio
     async def test_fetches_currencies_from_api(self, currency_service):
         """Should fetch and return currencies from frankfurter API."""
-        respx.get("https://api.frankfurter.app/currencies").mock(
+        respx.get("https://api.frankfurter.dev/v1/currencies").mock(
             return_value=Response(
                 200,
                 json={
@@ -52,7 +52,7 @@ class TestGetSupportedCurrencies:
     @pytest.mark.asyncio
     async def test_caches_currencies_in_memory(self, currency_service):
         """Should cache currencies and not call API twice."""
-        route = respx.get("https://api.frankfurter.app/currencies").mock(
+        route = respx.get("https://api.frankfurter.dev/v1/currencies").mock(
             return_value=Response(200, json={"EUR": "Euro"})
         )
 
@@ -65,7 +65,7 @@ class TestGetSupportedCurrencies:
     @pytest.mark.asyncio
     async def test_raises_on_api_error(self, currency_service):
         """Should raise CurrencyServiceError on API failure."""
-        respx.get("https://api.frankfurter.app/currencies").mock(
+        respx.get("https://api.frankfurter.dev/v1/currencies").mock(
             return_value=Response(500)
         )
 
@@ -118,7 +118,7 @@ class TestGetRate:
     @pytest.mark.asyncio
     async def test_fetches_from_api_when_not_cached(self, currency_service):
         """Should fetch from API when rate not in cache."""
-        respx.get("https://api.frankfurter.app/2025-01-15").mock(
+        respx.get("https://api.frankfurter.dev/v1/2025-01-15").mock(
             return_value=Response(
                 200,
                 json={
@@ -141,7 +141,7 @@ class TestGetRate:
     @pytest.mark.asyncio
     async def test_caches_fetched_rate(self, currency_service, db_session):
         """Should cache the rate after fetching from API."""
-        respx.get("https://api.frankfurter.app/2025-01-15").mock(
+        respx.get("https://api.frankfurter.dev/v1/2025-01-15").mock(
             return_value=Response(
                 200,
                 json={
@@ -171,7 +171,7 @@ class TestGetRate:
     async def test_handles_weekend_rate_date(self, currency_service):
         """API returns Friday's rate for weekend dates."""
         # Request Saturday, API returns Friday's date
-        respx.get("https://api.frankfurter.app/2025-01-18").mock(
+        respx.get("https://api.frankfurter.dev/v1/2025-01-18").mock(
             return_value=Response(
                 200,
                 json={
@@ -194,10 +194,10 @@ class TestGetRate:
     @pytest.mark.asyncio
     async def test_falls_back_to_latest_on_404(self, currency_service):
         """Should fall back to latest rate when date not found."""
-        respx.get("https://api.frankfurter.app/2025-01-15").mock(
+        respx.get("https://api.frankfurter.dev/v1/2025-01-15").mock(
             return_value=Response(404)
         )
-        respx.get("https://api.frankfurter.app/latest").mock(
+        respx.get("https://api.frankfurter.dev/v1/latest").mock(
             return_value=Response(
                 200,
                 json={
@@ -237,7 +237,7 @@ class TestConvert:
     @pytest.mark.asyncio
     async def test_converts_with_exchange_rate(self, currency_service):
         """Should convert amount using exchange rate."""
-        respx.get("https://api.frankfurter.app/2025-01-15").mock(
+        respx.get("https://api.frankfurter.dev/v1/2025-01-15").mock(
             return_value=Response(
                 200,
                 json={
@@ -266,7 +266,7 @@ class TestConvert:
     @pytest.mark.asyncio
     async def test_rounds_to_two_decimal_places(self, currency_service):
         """Converted amount should be rounded to 2 decimals."""
-        respx.get("https://api.frankfurter.app/2025-01-15").mock(
+        respx.get("https://api.frankfurter.dev/v1/2025-01-15").mock(
             return_value=Response(
                 200,
                 json={
@@ -292,7 +292,7 @@ class TestConvert:
     @pytest.mark.asyncio
     async def test_returns_conversion_result_dataclass(self, currency_service):
         """Should return a ConversionResult with all fields."""
-        respx.get("https://api.frankfurter.app/2025-01-15").mock(
+        respx.get("https://api.frankfurter.dev/v1/2025-01-15").mock(
             return_value=Response(
                 200,
                 json={
@@ -335,7 +335,7 @@ class TestCacheExpiry:
         db_session.commit()
 
         # Mock API with fresh rate
-        respx.get("https://api.frankfurter.app/2025-01-15").mock(
+        respx.get("https://api.frankfurter.dev/v1/2025-01-15").mock(
             return_value=Response(
                 200,
                 json={

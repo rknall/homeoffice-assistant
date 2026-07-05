@@ -168,6 +168,11 @@ import type {
   CompanyCalendar,
   CompanyCalendarCreate,
   CompanyCalendarUpdate,
+  HolidayCalendar,
+  HolidayCalendarCreate,
+  HolidayCalendarUpdate,
+  HolidayEntry,
+  SupportedCountriesResponse,
   TemplateSet,
   TemplateSetWithComputedDates,
   TodoTemplate,
@@ -229,4 +234,41 @@ export const companyCalendarsApi = {
   /** Trigger a sync for a calendar */
   syncCalendar: (companyId: string, calendarId: string) =>
     api.post<CompanyCalendar>(`/companies/${companyId}/calendars/${calendarId}/sync`),
+}
+
+// Holiday Calendar API functions
+export const holidayCalendarsApi = {
+  /** Get all holiday calendar configurations for the current user */
+  getCalendars: () => api.get<HolidayCalendar[]>('/holiday-calendars'),
+
+  /** Get a specific holiday calendar configuration */
+  getCalendar: (calendarId: string) => api.get<HolidayCalendar>(`/holiday-calendars/${calendarId}`),
+
+  /** Create a new holiday calendar configuration */
+  createCalendar: (data: HolidayCalendarCreate) =>
+    api.post<HolidayCalendar>('/holiday-calendars', data),
+
+  /** Update a holiday calendar configuration */
+  updateCalendar: (calendarId: string, data: HolidayCalendarUpdate) =>
+    api.put<HolidayCalendar>(`/holiday-calendars/${calendarId}`, data),
+
+  /** Delete a holiday calendar configuration */
+  deleteCalendar: (calendarId: string) => api.delete<void>(`/holiday-calendars/${calendarId}`),
+
+  /** Get all supported countries with subdivisions */
+  getSupportedCountries: () => api.get<SupportedCountriesResponse>('/holiday-calendars/countries'),
+
+  /** Get holidays for a date range (uses user's configured calendars) */
+  getHolidays: (startDate: string, endDate: string) =>
+    api.get<{ holidays: HolidayEntry[] }>(
+      `/holiday-calendars/holidays?start_date=${startDate}&end_date=${endDate}`,
+    ),
+
+  /** Preview holidays for a country/subdivision before adding it */
+  previewHolidays: (countryCode: string, subdivision?: string, year?: number) => {
+    const params = new URLSearchParams({ country_code: countryCode })
+    if (subdivision) params.append('subdivision', subdivision)
+    if (year) params.append('year', year.toString())
+    return api.get<HolidayEntry[]>(`/holiday-calendars/preview?${params.toString()}`)
+  },
 }

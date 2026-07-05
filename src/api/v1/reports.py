@@ -19,6 +19,7 @@ from src.services import (
     email_template_service,
     event_service,
     integration_service,
+    settings_service,
     submission_service,
     todo_service,
 )
@@ -48,6 +49,10 @@ class GenerateReportRequest(BaseModel):
     notes: str | None = Field(
         None,
         description="Optional notes about this submission.",
+    )
+    include_private: bool = Field(
+        False,
+        description="Include expenses marked as private (excluded by default).",
     )
 
 
@@ -137,10 +142,13 @@ async def generate_expense_report(
     mark_as_submitted = data.mark_as_submitted if data else True
     submission_method = data.submission_method if data else "download"
     notes = data.notes if data else None
+    include_private = data.include_private if data else False
 
     generator = await create_report_generator(db, event)
     try:
-        zip_bytes, included_expenses = await generator.generate(event, expense_ids)
+        zip_bytes, included_expenses = await generator.generate(
+            event, expense_ids, include_private=include_private
+        )
         filename = generator.get_filename(event)
 
         # Create submission record if marking as submitted
@@ -302,12 +310,14 @@ async def send_expense_report(
             if generator.paperless:
                 await generator.paperless.close()
 
-        # Build template context and render
+        # Build template context from the expenses actually included in the
+        # report (respects expense_ids selection and is_private exclusion)
         context = email_template_service.build_expense_report_context(
             event=event,
             company=event.company,
-            expenses=event.expenses,
+            expenses=included_expenses,
             user=current_user,
+            base_currency=settings_service.get_base_currency(db),
         )
         subject, body_html, body_text = email_template_service.render_template(
             template, context

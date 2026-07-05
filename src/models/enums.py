@@ -2,17 +2,17 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Enumeration types for database models."""
 
-from enum import Enum
+from enum import StrEnum
 
 
-class CompanyType(str, Enum):
+class CompanyType(StrEnum):
     """Company type enumeration."""
 
     EMPLOYER = "employer"
     THIRD_PARTY = "third_party"
 
 
-class EventStatus(str, Enum):
+class EventStatus(StrEnum):
     """Event status enumeration - computed from event dates."""
 
     UPCOMING = "upcoming"
@@ -20,7 +20,7 @@ class EventStatus(str, Enum):
     PAST = "past"
 
 
-class PaymentType(str, Enum):
+class PaymentType(StrEnum):
     """Payment type enumeration."""
 
     CASH = "cash"
@@ -32,7 +32,7 @@ class PaymentType(str, Enum):
     OTHER = "other"
 
 
-class ExpenseCategory(str, Enum):
+class ExpenseCategory(StrEnum):
     """Expense category enumeration."""
 
     TRAVEL = "travel"
@@ -44,7 +44,7 @@ class ExpenseCategory(str, Enum):
     OTHER = "other"
 
 
-class ExpenseStatus(str, Enum):
+class ExpenseStatus(StrEnum):
     """Expense status enumeration.
 
     Status flow:
@@ -59,7 +59,7 @@ class ExpenseStatus(str, Enum):
     REJECTED = "rejected"  # Needs correction
 
 
-class NoteType(str, Enum):
+class NoteType(StrEnum):
     """Note type enumeration."""
 
     OBSERVATION = "observation"
@@ -67,7 +67,7 @@ class NoteType(str, Enum):
     REPORT_SECTION = "report_section"
 
 
-class TodoCategory(str, Enum):
+class TodoCategory(StrEnum):
     """Todo category enumeration."""
 
     TRAVEL = "travel"
@@ -79,14 +79,14 @@ class TodoCategory(str, Enum):
     OTHER = "other"
 
 
-class OffsetReference(str, Enum):
+class OffsetReference(StrEnum):
     """Reference date for todo template due date calculation."""
 
     START_DATE = "start_date"
     END_DATE = "end_date"
 
 
-class IntegrationType(str, Enum):
+class IntegrationType(StrEnum):
     """Integration type enumeration."""
 
     PAPERLESS = "paperless"
@@ -95,7 +95,7 @@ class IntegrationType(str, Enum):
     UNSPLASH = "unsplash"
 
 
-class ContactType(str, Enum):
+class ContactType(StrEnum):
     """Contact type enumeration for company contacts."""
 
     BILLING = "billing"
@@ -108,7 +108,7 @@ class ContactType(str, Enum):
     OTHER = "other"
 
 
-class CalendarType(str, Enum):
+class CalendarType(StrEnum):
     """Calendar provider type enumeration."""
 
     GOOGLE = "google"

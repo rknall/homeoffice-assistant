@@ -119,6 +119,37 @@ async def test_generate_creates_zip_with_excel(db_session):
         assert any(name.startswith("documents/") for name in names)
 
 
+@pytest.mark.asyncio
+async def test_generate_private_expense_handling(db_session):
+    event = create_event_with_expenses(db_session)
+    private = expense_service.create_expense(
+        db_session,
+        event.id,
+        ExpenseCreate(
+            date=date(2025, 5, 3),
+            amount=Decimal("99.00"),
+            currency="EUR",
+            payment_type=PaymentType.CASH,
+            category=ExpenseCategory.OTHER,
+            description="Private taxi",
+            is_private=True,
+        ),
+    )
+    generator = report_generator.ExpenseReportGenerator(db_session)
+
+    # Excluded by default, even when explicitly listed
+    _, expenses = await generator.generate(event)
+    assert private.id not in [e.id for e in expenses]
+    _, expenses = await generator.generate(event, [private.id])
+    assert expenses == []
+
+    # Included when requested
+    _, expenses = await generator.generate(event, include_private=True)
+    assert private.id in [e.id for e in expenses]
+    _, expenses = await generator.generate(event, [private.id], include_private=True)
+    assert [e.id for e in expenses] == [private.id]
+
+
 def test_get_filename(db_session):
     event = create_event_with_expenses(db_session)
     generator = report_generator.ExpenseReportGenerator(db_session)

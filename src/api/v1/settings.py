@@ -7,7 +7,12 @@ from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user, get_db, require_permission
 from src.models import User
-from src.schemas.settings import LocaleSettingsResponse, LocaleSettingsUpdate
+from src.schemas.settings import (
+    CurrencySettingsResponse,
+    CurrencySettingsUpdate,
+    LocaleSettingsResponse,
+    LocaleSettingsUpdate,
+)
 from src.services import settings_service
 
 router = APIRouter()
@@ -37,3 +42,25 @@ def update_locale_settings(
         timezone=data.timezone,
     )
     return LocaleSettingsResponse(**settings)
+
+
+@router.get("/currency", response_model=CurrencySettingsResponse)
+def get_currency_settings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CurrencySettingsResponse:
+    """Get the system-wide base currency."""
+    return CurrencySettingsResponse(
+        base_currency=settings_service.get_base_currency(db)
+    )
+
+
+@router.put("/currency", response_model=CurrencySettingsResponse)
+def update_currency_settings(
+    data: CurrencySettingsUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("system.settings.write")),
+) -> CurrencySettingsResponse:
+    """Update the system-wide base currency. Admin only."""
+    currency = settings_service.set_base_currency(db, data.base_currency)
+    return CurrencySettingsResponse(base_currency=currency)

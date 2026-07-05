@@ -176,17 +176,27 @@ def test_build_expense_report_context():
     contact = SimpleNamespace(name="Main", is_main_contact=True)
     company = SimpleNamespace(name="Acme", contacts=[contact])
     expenses = [
-        SimpleNamespace(amount=Decimal("10.00"), currency="EUR"),
-        SimpleNamespace(amount=Decimal("5.50"), currency="EUR"),
+        SimpleNamespace(
+            amount=Decimal("10.00"), currency="EUR", converted_amount=Decimal("10.00")
+        ),
+        # Foreign-currency expense: converted amount must be used for the total
+        SimpleNamespace(
+            amount=Decimal("100.00"), currency="USD", converted_amount=Decimal("5.50")
+        ),
+        # Not yet converted: falls back to raw amount
+        SimpleNamespace(
+            amount=Decimal("2.00"), currency="EUR", converted_amount=None
+        ),
     ]
     user = SimpleNamespace(username="john", email="john@example.com")
 
     context = email_template_service.build_expense_report_context(
-        event, company, expenses, user
+        event, company, expenses, user, base_currency="EUR"
     )
 
     assert context["event"]["name"] == "Expo"
-    assert context["expense"]["total_amount"].startswith("15.50")
+    assert context["expense"]["total_amount"] == "17.50 EUR"
+    assert context["expense"]["currency"] == "EUR"
     assert context["company"]["recipient_name"] == "Main"
 
 

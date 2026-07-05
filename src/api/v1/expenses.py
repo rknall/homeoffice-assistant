@@ -19,7 +19,7 @@ from src.schemas.expense import (
     ExpenseStatusUpdate,
     ExpenseUpdate,
 )
-from src.services import event_service, expense_service
+from src.services import event_service, expense_service, settings_service
 from src.services.currency_service import CurrencyService, CurrencyServiceError
 
 router = APIRouter()
@@ -45,7 +45,7 @@ async def list_expenses(
     expenses = expense_service.get_expenses(db, event_id, expense_status)
 
     # Auto-convert any expenses missing conversion data
-    base_currency = event.company.base_currency if event.company else "EUR"
+    base_currency = settings_service.get_base_currency(db)
     await expense_service.ensure_expense_conversions(db, expenses, base_currency)
 
     return [ExpenseResponse.model_validate(e) for e in expenses]
@@ -72,8 +72,8 @@ async def create_expense(
 
     expense = expense_service.create_expense(db, event_id, data)
 
-    # Convert currency if different from company base currency
-    base_currency = event.company.base_currency
+    # Convert currency if different from the system base currency
+    base_currency = settings_service.get_base_currency(db)
     if expense.currency.upper() != base_currency.upper():
         currency_service = CurrencyService(db)
         try:
@@ -163,7 +163,7 @@ async def update_expense(
 
     # Re-convert if needed
     if needs_reconvert:
-        base_currency = event.company.base_currency
+        base_currency = settings_service.get_base_currency(db)
         if expense.currency.upper() != base_currency.upper():
             currency_service = CurrencyService(db)
             try:

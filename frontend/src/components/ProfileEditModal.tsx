@@ -223,7 +223,7 @@ export function ProfileEditModal({ isOpen, onClose, user, onUpdate }: ProfileEdi
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:underline"
               >
-                Learn more
+                Learn more about Gravatar
               </a>
             </p>
           </div>

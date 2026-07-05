@@ -4,6 +4,19 @@
 
 ### Major Features
 
+#### Global Currency Setting
+- System-wide currency is now configured in Settings > Regional (default: EUR), replacing the per-company base currency
+- All expenses entered in other currencies are converted to the system currency using the daily ECB exchange rate
+- Expense report emails now show the converted total in the system currency, matching the attached Excel report
+- Expense report emails only include the expenses actually contained in the report (respects selection and private-expense exclusion)
+- Dashboard expense overview and event expense totals are expressed in the system currency
+- Migration seeds the global setting from the most common existing company currency
+- Changing the system currency invalidates stored conversions; they are recomputed with the correct daily rates automatically
+
+#### Expense Report Improvements
+- "Include private expenses" switch in the export report dialog (private expenses remain excluded by default)
+- Fixed: creating an expense ignored the private flag (it could only be set via edit)
+
 #### Calendar Integration
 - Connect external calendars (Google Calendar, Outlook, iCal/CalDAV) to companies
 - Calendar page with week and month views for visualizing events
@@ -12,6 +25,15 @@
 - Connected Calendars tab on company detail page for managing calendar connections
 - Support for multiple calendars per company
 - Calendar sync status tracking and manual sync trigger
+
+#### National Holidays
+- Display national holidays in the calendar with visual highlighting (gray background like weekends)
+- Configure multiple countries/regions for holiday display in Settings > Holidays
+- Holiday labels show country prefix (e.g., "AT - Neujahr", "DE-BY - Karfreitag")
+- Filter holidays on/off in calendar view
+- Preview holidays before adding a country configuration
+- Support for 100+ countries via Python `holidays` library
+- Regional subdivision support (e.g., German federal states, US states)
 
 ---
 

@@ -62,6 +62,15 @@ from src.schemas.expense import (
     ExpenseResponse,
     ExpenseUpdate,
 )
+from src.schemas.holiday_calendar import (
+    CountryInfo,
+    HolidayCalendarCreate,
+    HolidayCalendarResponse,
+    HolidayCalendarUpdate,
+    HolidayEntry,
+    HolidaysResponse,
+    SupportedCountriesResponse,
+)
 from src.schemas.integration import (
     IntegrationConfigCreate,
     IntegrationConfigResponse,
@@ -130,6 +139,8 @@ __all__ = [
     "ContactCreate",
     "ContactResponse",
     "ContactUpdate",
+    # Holiday Calendar
+    "CountryInfo",
     # Document Reference
     "DocumentReferenceCreate",
     "DocumentReferenceResponse",
@@ -149,6 +160,11 @@ __all__ = [
     "ExpenseResponse",
     "ExpenseUpdate",
     "HealthResponse",
+    "HolidayCalendarCreate",
+    "HolidayCalendarResponse",
+    "HolidayCalendarUpdate",
+    "HolidayEntry",
+    "HolidaysResponse",
     # Integration
     "IntegrationConfigCreate",
     "IntegrationConfigResponse",
@@ -175,6 +191,7 @@ __all__ = [
     "PhotoReferenceUpdate",
     "RegisterRequest",
     "StoragePathResponse",
+    "SupportedCountriesResponse",
     "TagResponse",
     "TemplateContactValidation",
     "TemplatePreviewRequest",

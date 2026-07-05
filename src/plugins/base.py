@@ -5,7 +5,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import DeclarativeBase
 
 
-class PluginCapability(str, Enum):
+class PluginCapability(StrEnum):
     """Capabilities a plugin can declare."""
 
     BACKEND = "backend"
@@ -21,7 +21,7 @@ class PluginCapability(str, Enum):
     CONFIG = "config"
 
 
-class Permission(str, Enum):
+class Permission(StrEnum):
     """Available plugin permissions."""
 
     # User permissions

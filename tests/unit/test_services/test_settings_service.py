@@ -42,8 +42,11 @@ def test_changing_base_currency_invalidates_conversions(db_session):
 
     from src.models import Company, Event, Expense, User
     from src.models.enums import CompanyType, ExpenseCategory, PaymentType
+    from src.security import get_password_hash
 
-    user = User(username="u1", email="u1@example.com", hashed_password="x")
+    user = User(
+        username="u1", email="u1@example.com", hashed_password=get_password_hash("x")
+    )
     company = Company(name="Acme", type=CompanyType.EMPLOYER)
     db_session.add_all([user, company])
     db_session.flush()

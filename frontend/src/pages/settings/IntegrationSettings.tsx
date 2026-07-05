@@ -59,11 +59,20 @@ const unsplashSchema = z.object({
   secret_key: z.string().optional(),
 })
 
+const llmSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100),
+  integration_type: z.literal('llm'),
+  base_url: z.string().url('Invalid URL'),
+  api_key: z.string().min(1, 'API key is required'),
+  model: z.string().min(1, 'Model is required'),
+})
+
 const integrationSchema = z.discriminatedUnion('integration_type', [
   paperlessSchema,
   smtpSchema,
   immichSchema,
   unsplashSchema,
+  llmSchema,
 ])
 
 type IntegrationForm = z.infer<typeof integrationSchema>
@@ -104,6 +113,14 @@ export function IntegrationSettings() {
 
   const watchedType = watch('integration_type')
 
+  // Prefill sensible defaults when creating a new LLM integration
+  useEffect(() => {
+    if (watchedType === 'llm' && !editingIntegration) {
+      setValue('base_url', 'https://api.openai.com/v1')
+      setValue('model', 'gpt-4o-mini')
+    }
+  }, [watchedType, editingIntegration, setValue])
+
   useEffect(() => {
     setBreadcrumb([{ label: 'Settings', href: '/settings' }, { label: 'Integrations' }])
   }, [setBreadcrumb])
@@ -139,7 +156,7 @@ export function IntegrationSettings() {
       setValue('name', detail.name)
       setValue(
         'integration_type',
-        detail.integration_type as 'paperless' | 'smtp' | 'immich' | 'unsplash',
+        detail.integration_type as 'paperless' | 'smtp' | 'immich' | 'unsplash' | 'llm',
       )
       if (detail.integration_type === 'paperless') {
         setValue('url', (detail.config.url as string) || '')
@@ -161,6 +178,10 @@ export function IntegrationSettings() {
       } else if (detail.integration_type === 'unsplash') {
         setValue('access_key', '')
         setValue('secret_key', '')
+      } else if (detail.integration_type === 'llm') {
+        setValue('base_url', (detail.config.base_url as string) || '')
+        setValue('api_key', '')
+        setValue('model', (detail.config.model as string) || '')
       }
     } catch {
       setError('Failed to load integration configuration')
@@ -207,6 +228,12 @@ export function IntegrationSettings() {
         config = {
           access_key: data.access_key,
           secret_key: data.secret_key || '',
+        }
+      } else if (data.integration_type === 'llm') {
+        config = {
+          base_url: data.base_url,
+          api_key: data.api_key,
+          model: data.model,
         }
       } else {
         throw new Error('Unknown integration type')
@@ -556,6 +583,30 @@ export function IntegrationSettings() {
                   {...register('secret_key')}
                   error={'secret_key' in errors ? errors.secret_key?.message : undefined}
                   description="Unsplash API Secret Key (only needed for OAuth flows)"
+                />
+              </>
+            )}
+
+            {watchedType === 'llm' && (
+              <>
+                <Input
+                  label="Base URL"
+                  {...register('base_url')}
+                  error={'base_url' in errors ? errors.base_url?.message : undefined}
+                  description="OpenAI-compatible API base URL, e.g. a LiteLLM proxy or https://api.openai.com/v1"
+                />
+                <Input
+                  label="API Key"
+                  type="password"
+                  {...register('api_key')}
+                  error={'api_key' in errors ? errors.api_key?.message : undefined}
+                  description="API key for the LLM service"
+                />
+                <Input
+                  label="Model"
+                  {...register('model')}
+                  error={'model' in errors ? errors.model?.message : undefined}
+                  description="Model name, e.g. gpt-4o-mini"
                 />
               </>
             )}

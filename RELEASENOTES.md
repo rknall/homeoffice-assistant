@@ -1,8 +1,15 @@
 # Release Notes
 
-## Version 0.4.0
+## Version 0.5.0 (in development)
 
 ### Major Features
+
+#### AI Expense Scanning
+- New LLM integration type (Settings > Integrations): any OpenAI-compatible API (OpenAI, LiteLLM proxy, ...) with base URL, API key, and model
+- "Scan Document with AI" button when creating an expense from a Paperless document or editing an expense with a linked document
+- The LLM reads the document's OCR text and autofills date, amount, currency, category, payment type, and description
+- Values the model cannot determine are left untouched and reported as warnings; scanned values stay editable and nothing is saved without user review
+- Credentials are stored encrypted like all other integrations
 
 #### Global Currency Setting
 - System-wide currency is now configured in Settings > Regional (default: EUR), replacing the per-company base currency
@@ -13,9 +20,35 @@
 - Migration seeds the global setting from the most common existing company currency
 - Changing the system currency invalidates stored conversions; they are recomputed with the correct daily rates automatically
 
+#### National Holidays
+- Display national holidays in the calendar with visual highlighting (gray background like weekends)
+- Configure multiple countries/regions for holiday display in Settings > Holidays
+- Holiday labels show country prefix (e.g., "AT - Neujahr", "DE-BY - Karfreitag")
+- Filter holidays on/off in calendar view
+- Preview holidays before adding a country configuration
+- Support for 100+ countries via Python `holidays` library
+- Regional subdivision support (e.g., German federal states, US states)
+
 #### Expense Report Improvements
 - "Include private expenses" switch in the export report dialog (private expenses remain excluded by default)
+- Excel report: no total for the original-amount column when currencies are mixed, currency label when uniform, rate columns only for actual conversions, separator before totals
 - Fixed: creating an expense ignored the private flag (it could only be set via edit)
+
+### Bug Fixes
+- Fixed currency conversion being broken by the Frankfurter API move to api.frankfurter.dev/v1 (rate fetching and currency list failed)
+- Fixed expense report email totals using raw amounts, a wrong currency label, and leaking private expenses into the total
+
+### Maintenance
+- All frontend dependencies upgraded to latest (React 19.2.7, Tailwind 4.3.2, Biome 2.5.2, lucide-react 1.x, ...)
+- Biome version pinned in CI to match the project (no more drift between local and CI lint)
+- Python environment fully managed by uv (`uv.lock` committed); stale `.venv` setups replaced
+- Accessibility lint fixes (ambiguous link texts, label without control)
+
+---
+
+## Version 0.4.0
+
+### Major Features
 
 #### Calendar Integration
 - Connect external calendars (Google Calendar, Outlook, iCal/CalDAV) to companies
@@ -25,15 +58,6 @@
 - Connected Calendars tab on company detail page for managing calendar connections
 - Support for multiple calendars per company
 - Calendar sync status tracking and manual sync trigger
-
-#### National Holidays
-- Display national holidays in the calendar with visual highlighting (gray background like weekends)
-- Configure multiple countries/regions for holiday display in Settings > Holidays
-- Holiday labels show country prefix (e.g., "AT - Neujahr", "DE-BY - Karfreitag")
-- Filter holidays on/off in calendar view
-- Preview holidays before adding a country configuration
-- Support for 100+ countries via Python `holidays` library
-- Regional subdivision support (e.g., German federal states, US states)
 
 ---
 

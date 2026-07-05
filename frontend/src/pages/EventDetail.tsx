@@ -22,6 +22,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import type { UseFormSetValue } from 'react-hook-form'
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { z } from 'zod'
@@ -57,6 +58,7 @@ import type {
   EventStatus,
   Expense,
   ExpenseReportPreview,
+  ExpenseScanResult,
   ExpenseStatus,
   LocationImage,
   TemplatePreviewResponse,
@@ -183,6 +185,11 @@ export function EventDetail() {
   const [docRefIncludeInReport, setDocRefIncludeInReport] = useState(false)
   const [isLinkingDocument, setIsLinkingDocument] = useState(false)
   const [isAvailableDocsOpen, setIsAvailableDocsOpen] = useState(true)
+  // LLM document scan state
+  const [hasLlmIntegration, setHasLlmIntegration] = useState(false)
+  const [isScanning, setIsScanning] = useState(false)
+  const [scanWarnings, setScanWarnings] = useState<string[]>([])
+  const [scanError, setScanError] = useState<string | null>(null)
 
   const {
     register,
@@ -204,6 +211,7 @@ export function EventDetail() {
     handleSubmit: handleDocExpenseSubmit,
     reset: resetDocExpense,
     watch: watchDocExpense,
+    setValue: setDocExpenseValue,
     formState: { errors: docExpenseErrors },
   } = useForm<ExpenseForm>({
     resolver: zodResolver(expenseSchema),
@@ -219,6 +227,7 @@ export function EventDetail() {
     handleSubmit: handleEditExpenseSubmit,
     reset: resetEditExpense,
     watch: watchEditExpense,
+    setValue: setEditExpenseValue,
     formState: { errors: editExpenseErrors },
   } = useForm<ExpenseForm>({
     resolver: zodResolver(expenseSchema),
@@ -322,6 +331,14 @@ export function EventDetail() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  // Check whether an active LLM integration exists (enables document scanning)
+  useEffect(() => {
+    api
+      .get<{ is_active: boolean }[]>('/integrations?integration_type=llm')
+      .then((configs) => setHasLlmIntegration(configs.some((c) => c.is_active)))
+      .catch(() => setHasLlmIntegration(false))
+  }, [])
 
   // Set breadcrumb when event data is loaded
   useEffect(() => {
@@ -494,6 +511,8 @@ export function EventDetail() {
     setDocumentForExpense(doc)
     setIsDocExpenseModalOpen(true)
     setIsLoadingPreview(true)
+    setScanWarnings([])
+    setScanError(null)
 
     // Pre-fill form with document data
     resetDocExpense({
@@ -529,7 +548,32 @@ export function EventDetail() {
       URL.revokeObjectURL(documentPreviewUrl)
       setDocumentPreviewUrl(null)
     }
+    setScanWarnings([])
+    setScanError(null)
     resetDocExpense()
+  }
+
+  const scanDocumentForExpense = async (docId: number, setValue: UseFormSetValue<ExpenseForm>) => {
+    if (!id) return
+    setIsScanning(true)
+    setScanWarnings([])
+    setScanError(null)
+    try {
+      const result = await api.post<ExpenseScanResult>(
+        `/events/${id}/documents/${docId}/scan-expense`,
+      )
+      if (result.date) setValue('date', result.date)
+      if (result.amount != null) setValue('amount', String(result.amount))
+      if (result.currency) setValue('currency', result.currency)
+      if (result.category) setValue('category', result.category)
+      if (result.payment_type) setValue('payment_type', result.payment_type)
+      if (result.description) setValue('description', result.description)
+      setScanWarnings(result.warnings)
+    } catch (e) {
+      setScanError(e instanceof Error ? e.message : 'Scan failed')
+    } finally {
+      setIsScanning(false)
+    }
   }
 
   const onDocExpenseSubmit = async (data: ExpenseForm) => {
@@ -557,6 +601,8 @@ export function EventDetail() {
     setExpenseToEdit(expense)
     setEditIsPrivate(expense.is_private)
     setIsEditExpenseModalOpen(true)
+    setScanWarnings([])
+    setScanError(null)
 
     // Pre-fill form with expense data
     resetEditExpense({
@@ -598,6 +644,8 @@ export function EventDetail() {
       URL.revokeObjectURL(editExpensePreviewUrl)
       setEditExpensePreviewUrl(null)
     }
+    setScanWarnings([])
+    setScanError(null)
     resetEditExpense()
   }
 
@@ -1662,6 +1710,27 @@ export function EventDetail() {
                 </p>
               </div>
             )}
+            {hasLlmIntegration && documentForExpense && (
+              <div className="mb-4">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  isLoading={isScanning}
+                  onClick={() => scanDocumentForExpense(documentForExpense.id, setDocExpenseValue)}
+                >
+                  Scan Document with AI
+                </Button>
+                {scanError && <p className="mt-2 text-sm text-red-600">{scanError}</p>}
+                {scanWarnings.length > 0 && (
+                  <ul className="mt-2 text-xs text-amber-700 space-y-0.5">
+                    {scanWarnings.map((w) => (
+                      <li key={w}>{w}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
             <form onSubmit={handleDocExpenseSubmit(onDocExpenseSubmit)} className="space-y-4">
               <Input
                 label="Date"
@@ -1760,6 +1829,31 @@ export function EventDetail() {
                 >
                   {expenseToEdit.original_filename}
                 </p>
+              </div>
+            )}
+            {hasLlmIntegration && expenseToEdit?.paperless_doc_id && (
+              <div className="mb-4">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  isLoading={isScanning}
+                  onClick={() => {
+                    if (expenseToEdit?.paperless_doc_id) {
+                      scanDocumentForExpense(expenseToEdit.paperless_doc_id, setEditExpenseValue)
+                    }
+                  }}
+                >
+                  Scan Document with AI
+                </Button>
+                {scanError && <p className="mt-2 text-sm text-red-600">{scanError}</p>}
+                {scanWarnings.length > 0 && (
+                  <ul className="mt-2 text-xs text-amber-700 space-y-0.5">
+                    {scanWarnings.map((w) => (
+                      <li key={w}>{w}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
             <form onSubmit={handleEditExpenseSubmit(onEditExpenseSubmit)} className="space-y-4">

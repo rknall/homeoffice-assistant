@@ -93,6 +93,7 @@ class IntegrationType(StrEnum):
     IMMICH = "immich"
     SMTP = "smtp"
     UNSPLASH = "unsplash"
+    LLM = "llm"
 
 
 class ContactType(StrEnum):

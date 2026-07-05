@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """SMTP email integration provider."""
 
+import logging
 import smtplib
 from email import encoders
 from email.mime.base import MIMEBase
@@ -11,6 +12,8 @@ from typing import Any
 
 from src.integrations.base import EmailProvider
 from src.integrations.registry import IntegrationRegistry
+
+logger = logging.getLogger(__name__)
 
 
 @IntegrationRegistry.register
@@ -190,5 +193,8 @@ class SmtpProvider(EmailProvider):
             server.quit()
 
             return True
-        except Exception:
-            return False
+        except Exception as e:
+            # Surface the real reason instead of a silent False; callers
+            # translate the exception into their error responses.
+            logger.error(f"Failed to send email via {self.host}: {e}")
+            raise

@@ -126,6 +126,16 @@ def get_active_document_provider(db: Session) -> IntegrationConfig | None:
     return configs[0] if configs else None
 
 
+def get_active_llm_provider(db: Session) -> IntegrationConfig | None:
+    """Get the active LLM provider configuration."""
+    configs = get_integration_configs(
+        db,
+        integration_type=IntegrationType.LLM,
+        active_only=True,
+    )
+    return configs[0] if configs else None
+
+
 def get_masked_config(config: IntegrationConfig) -> dict[str, Any]:
     """Get the decrypted configuration with sensitive fields masked."""
     decrypted = get_decrypted_config(config)

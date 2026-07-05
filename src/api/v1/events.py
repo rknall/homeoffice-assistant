@@ -10,7 +10,8 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user, get_db
-from src.integrations.base import DocumentProvider
+from src.integrations.base import DocumentProvider, LlmProvider
+from src.integrations.llm import LlmError
 from src.models import DocumentReference, User
 from src.models.enums import EventStatus
 from src.schemas.document_reference import (
@@ -25,8 +26,14 @@ from src.schemas.event import (
     EventUpdate,
     EventWithSummary,
 )
+from src.schemas.expense import ExpenseScanResult
 from src.schemas.integration import DocumentResponse
-from src.services import company_service, event_service, integration_service
+from src.services import (
+    company_service,
+    event_service,
+    expense_scan_service,
+    integration_service,
+)
 
 router = APIRouter()
 
@@ -348,6 +355,79 @@ async def get_document_preview(
         ) from e
     finally:
         await provider.close()
+
+
+@router.post(
+    "/{event_id}/documents/{document_id}/scan-expense",
+    response_model=ExpenseScanResult,
+)
+async def scan_document_for_expense(
+    event_id: uuid.UUID,
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ExpenseScanResult:
+    """Extract expense fields from a document's OCR text via the LLM integration."""
+    event = event_service.get_event_for_user(db, event_id, current_user.id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    llm_config = integration_service.get_active_llm_provider(db)
+    if not llm_config:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No LLM integration configured",
+        )
+
+    paperless_config = integration_service.get_active_document_provider(db)
+    if not paperless_config:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No Paperless integration configured",
+        )
+
+    paperless = integration_service.create_provider_instance(paperless_config)
+    if not paperless or not isinstance(paperless, DocumentProvider):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create Paperless provider",
+        )
+    try:
+        content = await paperless.get_document_content(document_id)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to fetch document text: {e!s}",
+        ) from e
+    finally:
+        await paperless.close()
+
+    if not content.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Document has no OCR text to scan",
+        )
+
+    llm = integration_service.create_provider_instance(llm_config)
+    if not llm or not isinstance(llm, LlmProvider):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create LLM provider",
+        )
+    try:
+        raw = await llm.extract_expense(content)
+    except LlmError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(e),
+        ) from e
+    finally:
+        await llm.close()
+
+    return expense_scan_service.validate_extraction(raw)
 
 
 # Document Reference endpoints (non-expense documents linked to events)

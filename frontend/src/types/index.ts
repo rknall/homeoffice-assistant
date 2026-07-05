@@ -146,7 +146,6 @@ export interface Company {
   address: string | null
   country: string | null
   logo_path: string | null
-  base_currency: string
   contacts: CompanyContact[]
   created_at: string
   updated_at: string
@@ -160,7 +159,6 @@ export interface CompanyCreate {
   webpage?: string | null
   address?: string | null
   country?: string | null
-  base_currency?: string
 }
 
 export interface CompanyUpdate {
@@ -171,7 +169,6 @@ export interface CompanyUpdate {
   webpage?: string | null
   address?: string | null
   country?: string | null
-  base_currency?: string
 }
 
 // Event types

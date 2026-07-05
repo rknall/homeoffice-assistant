@@ -267,15 +267,12 @@ def get_expense_summary(db: Session, event_id: uuid.UUID) -> dict:
     """Get expense summary for an event.
 
     Uses converted_amount for proper multi-currency totals.
-    Returns the event's company base_currency and conversion info.
+    Returns the system base currency and conversion info.
     """
-    from src.models import Event
+    from src.services import settings_service
 
     expenses = get_expenses(db, event_id)
-
-    # Get the event's company base currency
-    event = db.query(Event).filter(Event.id == event_id).first()
-    base_currency = event.company.base_currency if event and event.company else "EUR"
+    base_currency = settings_service.get_base_currency(db)
 
     # Sum converted amounts (or raw amount if no conversion yet)
     total = sum(

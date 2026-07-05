@@ -10,11 +10,13 @@ from src.models import SystemSettings
 DEFAULT_DATE_FORMAT = "YYYY-MM-DD"
 DEFAULT_TIME_FORMAT = "24h"
 DEFAULT_TIMEZONE = "UTC"
+DEFAULT_BASE_CURRENCY = "EUR"
 
 # Setting keys
 SETTING_DATE_FORMAT = "locale_date_format"
 SETTING_TIME_FORMAT = "locale_time_format"
 SETTING_TIMEZONE = "locale_timezone"
+SETTING_BASE_CURRENCY = "base_currency"
 
 
 def get_setting(db: Session, key: str) -> str | None:
@@ -37,6 +39,33 @@ def set_setting(
     db.commit()
     db.refresh(setting)
     return setting
+
+
+def get_base_currency(db: Session) -> str:
+    """Get the system-wide base currency (target for all conversions)."""
+    return get_setting(db, SETTING_BASE_CURRENCY) or DEFAULT_BASE_CURRENCY
+
+
+def set_base_currency(db: Session, currency: str) -> str:
+    """Set the system-wide base currency.
+
+    Changing the currency invalidates all stored expense conversions, since
+    converted_amount/exchange_rate were computed against the old base
+    currency. They are lazily recomputed with daily rates on next access.
+    """
+    from src.models import Expense
+
+    currency = currency.upper()
+    if currency != get_base_currency(db):
+        db.query(Expense).update(
+            {
+                Expense.converted_amount: None,
+                Expense.exchange_rate: None,
+                Expense.rate_date: None,
+            }
+        )
+    set_setting(db, SETTING_BASE_CURRENCY, currency)
+    return get_base_currency(db)
 
 
 def get_locale_settings(db: Session) -> dict:

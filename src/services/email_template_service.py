@@ -377,13 +377,18 @@ def build_expense_report_context(
     company: Company,
     expenses: list[Expense],
     user: User,
+    base_currency: str = "EUR",
 ) -> dict:
-    """Build context dictionary for expense_report templates."""
-    # Calculate totals
-    total = sum(e.amount for e in expenses if e.amount) or Decimal("0")
+    """Build context dictionary for expense_report templates.
 
-    # Get currency from first expense or default
-    currency = expenses[0].currency if expenses else "EUR"
+    Totals use converted amounts (daily-rate conversion to the system base
+    currency), matching the attached Excel report.
+    """
+    total = sum(
+        (e.converted_amount if e.converted_amount is not None else e.amount)
+        for e in expenses
+    ) or Decimal("0")
+    currency = base_currency
 
     # Format dates
     date_format = "%d.%m.%Y"

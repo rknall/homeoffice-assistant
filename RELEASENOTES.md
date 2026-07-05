@@ -4,6 +4,14 @@
 
 ### Major Features
 
+#### Global Currency Setting
+- System-wide currency is now configured in Settings > Regional (default: EUR), replacing the per-company base currency
+- All expenses entered in other currencies are converted to the system currency using the daily ECB exchange rate
+- Expense report emails now show the converted total in the system currency, matching the attached Excel report
+- Expense report emails only include the expenses actually contained in the report (respects selection and private-expense exclusion)
+- Dashboard expense overview and event expense totals are expressed in the system currency
+- Migration seeds the global setting from the most common existing company currency
+
 #### Calendar Integration
 - Connect external calendars (Google Calendar, Outlook, iCal/CalDAV) to companies
 - Calendar page with week and month views for visualizing events

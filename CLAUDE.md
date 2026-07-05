@@ -76,7 +76,7 @@ DATABASE_URL=sqlite:///./data/homeoffice_assistant.db # Optional
 ### Shell Command Rules
 - **Never** use `git -C <repo>` — always assume the shell is already in the correct repo. If there is no git repository, STOP and ask the user how to proceed
 - **Never** prefix shell commands with `cd <cwd>` — always assume the correct working directory
-- **Always** run python and pip through `uv run` (e.g. `uv run python ...`, `uv run pip ...`)
+- **Always** run python and pip through `uv run` (e.g. `uv run python ...`, `uv run pytest`). NEVER source or activate a virtualenv (`source .venv/bin/activate`) — `uv run` handles the environment automatically
 
 ### Do
 - Use `/skill frontend-design` before UI work

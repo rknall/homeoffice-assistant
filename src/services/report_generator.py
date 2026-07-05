@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from src.integrations.base import DocumentProvider
 from src.models import Event, Expense
-from src.services import expense_service, integration_service
+from src.services import expense_service, integration_service, settings_service
 
 
 def _slugify_filename(name: str, max_length: int = 50) -> str:
@@ -51,8 +51,7 @@ class ExpenseReportGenerator:
 
     async def get_preview(self, event: Event) -> dict[str, Any]:
         """Return summary without generating files."""
-        # Get base currency from company
-        base_currency = event.company.base_currency if event.company else "EUR"
+        base_currency = settings_service.get_base_currency(self.db)
 
         expenses = expense_service.get_expenses(self.db, event.id)
 
@@ -123,8 +122,7 @@ class ExpenseReportGenerator:
         ws = wb.active
         ws.title = "Expenses"
 
-        # Get base currency from company
-        base_currency = event.company.base_currency if event.company else "EUR"
+        base_currency = settings_service.get_base_currency(self.db)
 
         # Styles
         header_font = Font(bold=True, color="FFFFFF")

@@ -242,8 +242,7 @@ export const holidayCalendarsApi = {
   getCalendars: () => api.get<HolidayCalendar[]>('/holiday-calendars'),
 
   /** Get a specific holiday calendar configuration */
-  getCalendar: (calendarId: string) =>
-    api.get<HolidayCalendar>(`/holiday-calendars/${calendarId}`),
+  getCalendar: (calendarId: string) => api.get<HolidayCalendar>(`/holiday-calendars/${calendarId}`),
 
   /** Create a new holiday calendar configuration */
   createCalendar: (data: HolidayCalendarCreate) =>
@@ -254,12 +253,10 @@ export const holidayCalendarsApi = {
     api.put<HolidayCalendar>(`/holiday-calendars/${calendarId}`, data),
 
   /** Delete a holiday calendar configuration */
-  deleteCalendar: (calendarId: string) =>
-    api.delete<void>(`/holiday-calendars/${calendarId}`),
+  deleteCalendar: (calendarId: string) => api.delete<void>(`/holiday-calendars/${calendarId}`),
 
   /** Get all supported countries with subdivisions */
-  getSupportedCountries: () =>
-    api.get<SupportedCountriesResponse>('/holiday-calendars/countries'),
+  getSupportedCountries: () => api.get<SupportedCountriesResponse>('/holiday-calendars/countries'),
 
   /** Get holidays for a date range (uses user's configured calendars) */
   getHolidays: (startDate: string, endDate: string) =>

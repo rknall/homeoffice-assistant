@@ -3,13 +3,19 @@
 
 import { Globe } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { api } from '@/api/client'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { CurrencySelect } from '@/components/ui/CurrencySelect'
 import { Select } from '@/components/ui/Select'
 import { useBreadcrumb } from '@/stores/breadcrumb'
 import { useLocale } from '@/stores/locale'
 import type { LocaleSettings } from '@/types'
+
+interface CurrencySettings {
+  base_currency: string
+}
 
 const dateFormatOptions = [
   { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD (2025-11-29)' },
@@ -74,6 +80,14 @@ export function RegionalSettings() {
   const [localeDateFormat, setLocaleDateFormat] = useState(localeSettings.date_format)
   const [localeTimeFormat, setLocaleTimeFormat] = useState(localeSettings.time_format)
   const [localeTimezone, setLocaleTimezone] = useState(localeSettings.timezone)
+  const [baseCurrency, setBaseCurrency] = useState('EUR')
+
+  useEffect(() => {
+    api
+      .get<CurrencySettings>('/settings/currency')
+      .then((data) => setBaseCurrency(data.base_currency))
+      .catch(() => setBaseCurrency('EUR'))
+  }, [])
 
   useEffect(() => {
     setBreadcrumb([{ label: 'Settings', href: '/settings' }, { label: 'Regional' }])
@@ -103,6 +117,7 @@ export function RegionalSettings() {
         time_format: localeTimeFormat,
         timezone: localeTimezone,
       })
+      await api.put<CurrencySettings>('/settings/currency', { base_currency: baseCurrency })
       setSuccess('Settings saved successfully')
       setTimeout(() => setSuccess(null), 3000)
     } catch (e) {
@@ -170,6 +185,15 @@ export function RegionalSettings() {
               value={localeTimezone}
               onChange={(e) => setLocaleTimezone(e.target.value)}
             />
+            <CurrencySelect
+              label="Currency"
+              value={baseCurrency}
+              onChange={(e) => setBaseCurrency(e.target.value)}
+            />
+            <p className="text-sm text-gray-500">
+              All expenses in other currencies are converted to this currency using the daily
+              exchange rate.
+            </p>
             <div className="flex justify-end pt-2">
               <Button onClick={saveSettings} isLoading={isSaving}>
                 Save Changes

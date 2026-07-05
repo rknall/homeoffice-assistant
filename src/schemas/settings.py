@@ -27,3 +27,17 @@ class LocaleSettingsUpdate(BaseModel):
     date_format: DateFormatType | None = None
     time_format: TimeFormatType | None = None
     timezone: str | None = Field(None, max_length=50)
+
+
+class CurrencySettingsResponse(BaseModel):
+    """Response schema for currency settings."""
+
+    base_currency: str = Field(default="EUR")
+
+
+class CurrencySettingsUpdate(BaseModel):
+    """Schema for updating currency settings."""
+
+    base_currency: str = Field(
+        ..., min_length=3, max_length=3, pattern=r"^[A-Za-z]{3}$"
+    )

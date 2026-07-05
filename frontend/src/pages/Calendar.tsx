@@ -557,7 +557,11 @@ function WeekView({ currentDate, events, holidays, getWeekBoundaries }: WeekView
             <div
               key={day.toISOString()}
               className={`border-r border-gray-200 relative ${
-                isToday(day) ? 'bg-blue-50/50' : isWeekend(day) || isHoliday(day) ? 'bg-gray-50' : ''
+                isToday(day)
+                  ? 'bg-blue-50/50'
+                  : isWeekend(day) || isHoliday(day)
+                    ? 'bg-gray-50'
+                    : ''
               }`}
             >
               {hours.map((hour) => (

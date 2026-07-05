@@ -9,7 +9,7 @@ from decimal import Decimal
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session, joinedload
 
-from src.models import Company, Event, Expense, Todo
+from src.models import Event, Expense, Todo
 from src.schemas.dashboard import (
     DashboardSummary,
     EventNeedingReport,
@@ -19,6 +19,7 @@ from src.schemas.dashboard import (
     IncompleteTodo,
     UpcomingEvent,
 )
+from src.services import settings_service
 
 
 def get_events_by_status(db: Session, user_id: uuid.UUID) -> EventsByStatus:
@@ -102,24 +103,22 @@ def get_events_needing_reports(
     Uses converted_amount for proper multi-currency totals.
     """
     today = date.today()
+    base_currency = settings_service.get_base_currency(db)
 
     # Query past events with expense aggregates using converted amounts
-    # Join Company to get base_currency for the total
     results = (
         db.query(
             Event.id,
             Event.name,
             Event.company_id,
-            Company.base_currency,
             func.count(Expense.id).label("expense_count"),
             func.sum(Expense.converted_amount).label("total_amount"),
         )
         .join(Expense, Event.id == Expense.event_id)
-        .join(Company, Event.company_id == Company.id)
         .filter(Event.user_id == user_id)
         .filter(Event.end_date < today)  # Past events: end_date < today
         .filter(Event.report_sent_at.is_(None))  # Report not yet sent
-        .group_by(Event.id, Event.name, Event.company_id, Company.base_currency)
+        .group_by(Event.id, Event.name, Event.company_id)
         .having(func.count(Expense.id) > 0)
         .order_by(Event.end_date.desc())
         .limit(limit)
@@ -145,7 +144,7 @@ def get_events_needing_reports(
             company_name=company_names.get(r.id),
             expense_count=r.expense_count,
             total_amount=r.total_amount or Decimal(0),
-            currency=r.base_currency or "EUR",
+            currency=base_currency,
         )
         for r in results
     ]
@@ -202,11 +201,11 @@ def get_expense_summary(
 ) -> ExpenseSummary:
     """Get expense summary for the last N days.
 
-    Uses converted_amount for proper multi-currency totals.
-    Note: If events belong to companies with different base currencies,
-    totals will be in mixed currencies (limitation for dashboard overview).
+    Uses converted_amount for proper multi-currency totals, expressed in
+    the system-wide base currency.
     """
     cutoff_date = date.today() - timedelta(days=period_days)
+    base_currency = settings_service.get_base_currency(db)
 
     # Get expenses grouped by category using converted amounts
     results = (
@@ -220,26 +219,6 @@ def get_expense_summary(
         .group_by(Expense.category)
         .all()
     )
-
-    # Find the dominant base currency from companies
-    currency_counts = (
-        db.query(Company.base_currency, func.count(Expense.id).label("cnt"))
-        .join(Event, Event.company_id == Company.id)
-        .join(Expense, Expense.event_id == Event.id)
-        .filter(Event.user_id == user_id)
-        .filter(Expense.date >= cutoff_date)
-        .group_by(Company.base_currency)
-        .order_by(func.count(Expense.id).desc())
-        .all()
-    )
-
-    if len(currency_counts) == 0:
-        base_currency = "EUR"
-    elif len(currency_counts) == 1:
-        base_currency = currency_counts[0].base_currency
-    else:
-        # Multiple currencies - show the dominant one
-        base_currency = currency_counts[0].base_currency
 
     # Calculate totals
     grand_total = sum((r.total or Decimal(0)) for r in results)

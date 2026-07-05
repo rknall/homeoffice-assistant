@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from src.models import Event, Expense, ExpenseSubmission, ExpenseSubmissionItem
 from src.models.enums import ExpenseStatus
+from src.services import settings_service
 
 
 def get_submissions(db: Session, event_id: uuid.UUID) -> list[ExpenseSubmission]:
@@ -67,7 +68,7 @@ def create_submission(
     if not event:
         raise ValueError(f"Event {event_id} not found")
 
-    base_currency = event.company.base_currency if event.company else "EUR"
+    base_currency = settings_service.get_base_currency(db)
 
     # Fetch the expenses to include
     expenses = (
@@ -176,9 +177,7 @@ def get_submission_summary(db: Session, event_id: uuid.UUID) -> dict:
         for e in submitted_expenses
     )
 
-    # Get event currency
-    event = db.query(Event).filter(Event.id == event_id).first()
-    currency = event.company.base_currency if event and event.company else "EUR"
+    currency = settings_service.get_base_currency(db)
 
     return {
         "submission_count": submission_count,

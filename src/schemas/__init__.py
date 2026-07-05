@@ -139,6 +139,8 @@ __all__ = [
     "ContactCreate",
     "ContactResponse",
     "ContactUpdate",
+    # Holiday Calendar
+    "CountryInfo",
     # Document Reference
     "DocumentReferenceCreate",
     "DocumentReferenceResponse",
@@ -158,14 +160,11 @@ __all__ = [
     "ExpenseResponse",
     "ExpenseUpdate",
     "HealthResponse",
-    # Holiday Calendar
-    "CountryInfo",
     "HolidayCalendarCreate",
     "HolidayCalendarResponse",
     "HolidayCalendarUpdate",
     "HolidayEntry",
     "HolidaysResponse",
-    "SupportedCountriesResponse",
     # Integration
     "IntegrationConfigCreate",
     "IntegrationConfigResponse",
@@ -192,6 +191,7 @@ __all__ = [
     "PhotoReferenceUpdate",
     "RegisterRequest",
     "StoragePathResponse",
+    "SupportedCountriesResponse",
     "TagResponse",
     "TemplateContactValidation",
     "TemplatePreviewRequest",

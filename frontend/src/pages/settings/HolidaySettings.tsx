@@ -279,9 +279,9 @@ export function HolidaySettings() {
           {/* Holiday Preview */}
           {selectedCountry && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <p className="block text-sm font-medium text-gray-700 mb-2">
                 Holiday Preview ({new Date().getFullYear()})
-              </label>
+              </p>
               <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md p-2 bg-gray-50">
                 {isLoadingPreview ? (
                   <div className="flex justify-center py-4">

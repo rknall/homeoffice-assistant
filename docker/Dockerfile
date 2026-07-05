@@ -25,14 +25,16 @@ FROM python:3.14-slim AS python-builder
 
 WORKDIR /app
 
-# Install build dependencies
+# Install build dependencies. Not version-pinned: Debian rotates point
+# releases out of the archive, which breaks pinned builds within weeks.
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    dpkg-dev=1.22.21 \
-    gcc=4:14.2.0-1 \
-    g++=4:14.2.0-1 \
-    libc6-dev=2.41-12 \
-    make=4.4.1-2 \
-    curl=8.14.1-2+deb13u2 \
+    dpkg-dev \
+    gcc \
+    g++ \
+    libc6-dev \
+    make \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python project files
@@ -50,8 +52,9 @@ FROM python:3.14-slim
 WORKDIR /app
 
 # Install runtime dependencies (curl for healthcheck)
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl=8.14.1-2+deb13u2\
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user

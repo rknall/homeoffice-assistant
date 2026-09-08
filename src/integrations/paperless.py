@@ -2,12 +2,34 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Paperless-ngx integration provider."""
 
+import mimetypes
 from typing import Any
 
 import httpx
 
 from src.integrations.base import DocumentProvider
 from src.integrations.registry import IntegrationRegistry
+
+# Content types that say nothing about the format, so the served filename
+# stays as-is rather than becoming something like receipt.bin
+_GENERIC_CONTENT_TYPES = {"application/octet-stream", "binary/octet-stream"}
+
+
+def _match_extension_to_content(filename: str, content_type: str) -> str:
+    """Give a filename the extension matching the bytes actually served.
+
+    Paperless serves the archived PDF from /download/, so its stored
+    original_file_name can carry the wrong extension (receipt.jpg for PDF
+    bytes), producing downloads and ZIP entries no viewer can open.
+    """
+    media_type = content_type.split(";")[0].strip().lower()
+    if media_type in _GENERIC_CONTENT_TYPES:
+        return filename
+    ext = mimetypes.guess_extension(media_type)
+    if not ext:
+        return filename
+    stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+    return f"{stem}{ext}"
 
 
 @IntegrationRegistry.register
@@ -202,7 +224,8 @@ class PaperlessProvider(DocumentProvider):
         resp.raise_for_status()
 
         content_type = resp.headers.get("content-type", "application/pdf")
-        return resp.content, original_filename, content_type
+        filename = _match_extension_to_content(original_filename, content_type)
+        return resp.content, filename, content_type
 
     async def list_custom_fields(self) -> list[dict[str, Any]]:
         """List all custom fields from Paperless-ngx."""

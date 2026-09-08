@@ -8,7 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_admin, get_current_user, get_db, require_permission
-from src.integrations.base import DocumentProvider, EmailProvider, ImageSearchProvider
+from src.integrations.base import (
+    DocumentProvider,
+    EmailProvider,
+    ImageSearchProvider,
+    LlmProvider,
+)
+from src.integrations.registry import IntegrationRegistry
 from src.models import User
 from src.models.enums import IntegrationType
 from src.schemas.integration import (
@@ -22,6 +28,7 @@ from src.schemas.integration import (
     IntegrationConfigUpdate,
     IntegrationTestResult,
     IntegrationTypeInfo,
+    LlmModelsRequest,
     StoragePathResponse,
     TagResponse,
     TestEmailRequest,
@@ -93,6 +100,38 @@ def list_integration_types(
     """List all available integration types with their config schemas."""
     types = integration_service.list_integration_types()
     return [IntegrationTypeInfo(**t) for t in types]
+
+
+@router.post("/llm/models", response_model=list[str])
+async def list_llm_models(
+    data: LlmModelsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[str]:
+    """List the models an OpenAI-compatible LLM endpoint offers."""
+    config = data.model_dump(exclude={"config_id"})
+    if data.config_id:
+        # The edit form blanks out saved secrets, so fill them back in
+        stored = integration_service.get_integration_config(db, data.config_id)
+        if stored and stored.integration_type == IntegrationType.LLM:
+            saved = integration_service.get_decrypted_config(stored)
+            config = {key: value or saved.get(key, "") for key, value in config.items()}
+
+    provider = IntegrationRegistry.create_provider("llm", config)
+    if not isinstance(provider, LlmProvider):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create provider instance",
+        )
+    try:
+        return await provider.list_models()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(e),
+        ) from e
+    finally:
+        await provider.close()
 
 
 @router.get("", response_model=list[IntegrationConfigResponse])

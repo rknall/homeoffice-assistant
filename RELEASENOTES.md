@@ -6,6 +6,8 @@
 
 #### AI Expense Scanning
 - New LLM integration type (Settings > Integrations): any OpenAI-compatible API (OpenAI, LiteLLM proxy, ...) with base URL, API key, and model
+- LLM integration supports optional HTTP basic authentication (username/password) for APIs behind a gateway such as Pangolin or nginx; the API key then moves to the `x-api-key` header, which requires the upstream API to read it from there (for LiteLLM: `general_settings.litellm_key_header_name`) or the gateway to strip the `Authorization` header after authenticating
+- "Fetch models" button in the LLM integration form lists the models the endpoint offers, so the model name can be picked instead of typed; works before the integration is saved
 - "Scan Document with AI" button when creating an expense from a Paperless document or editing an expense with a linked document
 - The LLM reads the document's OCR text and autofills date, amount, currency, category, payment type, and description
 - Values the model cannot determine are left untouched and reported as warnings; scanned values stay editable and nothing is saved without user review
@@ -37,6 +39,9 @@
 ### Bug Fixes
 - Fixed currency conversion being broken by the Frankfurter API move to api.frankfurter.dev/v1 (rate fetching and currency list failed)
 - Fixed expense report email totals using raw amounts, a wrong currency label, and leaking private expenses into the total
+- Fixed report ZIP attachments being unopenable when a Paperless document was scanned from an image: Paperless serves the archived PDF, but the file was named with the original image extension
+- Fixed the submitted total counting an expense once per submission, so emailing a report and then downloading it doubled the amount
+- Logout now invalidates the server-side session, not just the browser cookie (a leaked session token could previously stay valid until expiry)
 
 ### Maintenance
 - All frontend dependencies upgraded to latest (React 19.2.7, Tailwind 4.3.2, Biome 2.5.2, lucide-react 1.x, ...)

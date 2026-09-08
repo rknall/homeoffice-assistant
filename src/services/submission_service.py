@@ -131,9 +131,23 @@ def get_submission_summary(db: Session, event_id: uuid.UUID) -> dict:
         Dict with total_submitted, total_reimbursed, pending totals
     """
     submissions = get_submissions(db, event_id)
-
-    total_submitted = sum(s.total_amount for s in submissions)
     submission_count = len(submissions)
+
+    # An expense can sit in several submissions (emailed, then downloaded), so
+    # summing submission totals double-counts it. Sum the expenses instead,
+    # each at the amount it carried in its most recent submission.
+    items = (
+        db.query(ExpenseSubmissionItem)
+        .join(ExpenseSubmission)
+        .filter(ExpenseSubmission.event_id == event_id)
+        .order_by(ExpenseSubmission.submitted_at)
+        .all()
+    )
+    latest_item_per_expense = {item.expense_id: item for item in items}
+    total_submitted = sum(
+        item.converted_amount if item.converted_amount is not None else item.amount
+        for item in latest_item_per_expense.values()
+    )
 
     # Get reimbursed expenses to calculate reimbursed total
     reimbursed_expenses = (

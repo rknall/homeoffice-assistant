@@ -118,6 +118,20 @@ class AddChoiceRequest(BaseModel):
     choice: str = Field(..., min_length=1, max_length=200)
 
 
+class LlmModelsRequest(BaseModel):
+    """Schema for listing the models an LLM endpoint offers.
+
+    Carries the form values so models can be fetched before the integration is
+    saved. Blank secrets fall back to the stored config when config_id is set.
+    """
+
+    base_url: str = Field(..., min_length=1, max_length=500)
+    api_key: str = ""
+    username: str = ""
+    password: str = ""
+    config_id: uuid.UUID | None = None
+
+
 class TestEmailRequest(BaseModel):
     """Schema for sending a test email."""
 

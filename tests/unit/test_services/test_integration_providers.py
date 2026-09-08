@@ -12,7 +12,10 @@ import httpx
 import pytest
 
 from src.integrations.immich import ImmichProvider
-from src.integrations.paperless import PaperlessProvider
+from src.integrations.paperless import (
+    PaperlessProvider,
+    _match_extension_to_content,
+)
 from src.integrations.smtp import SmtpProvider
 
 
@@ -445,3 +448,43 @@ async def test_smtp_health_auth_failure(monkeypatch):
     success, message = await provider.health_check()
     assert success is False
     assert message == "Authentication failed"
+
+
+@pytest.mark.asyncio
+async def test_download_document_names_file_after_served_content(monkeypatch):
+    """Paperless serves the archived PDF even when the original was an image."""
+    client = FakeClient(
+        get_responses=[
+            FakeResponse(json_data={"original_file_name": "receipt.jpg"}),
+            FakeResponse(
+                content=b"%PDF-1.4",
+                headers={"content-type": "application/pdf"},
+            ),
+        ]
+    )
+    monkeypatch.setattr(
+        "src.integrations.paperless.httpx.AsyncClient",
+        lambda **kwargs: client,
+    )
+    provider = PaperlessProvider({"url": "https://paperless.local", "token": "t"})
+
+    _content, filename, content_type = await provider.download_document(99)
+
+    assert filename == "receipt.pdf"
+    assert content_type == "application/pdf"
+
+
+@pytest.mark.parametrize(
+    ("filename", "content_type", "expected"),
+    [
+        ("receipt.jpg", "application/pdf", "receipt.pdf"),
+        ("receipt.jpg", "image/jpeg", "receipt.jpg"),
+        ("scan.pdf", "application/pdf; charset=utf-8", "scan.pdf"),
+        ("noext", "application/pdf", "noext.pdf"),
+        # Nothing to learn from a generic type, so the name is left alone
+        ("receipt.jpg", "application/octet-stream", "receipt.jpg"),
+        ("receipt.jpg", "application/x-nonsense", "receipt.jpg"),
+    ],
+)
+def test_match_extension_to_content(filename, content_type, expected):
+    assert _match_extension_to_content(filename, content_type) == expected

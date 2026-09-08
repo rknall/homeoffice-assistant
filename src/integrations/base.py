@@ -157,6 +157,11 @@ class LlmProvider(IntegrationProvider):
     """Interface for LLM services (OpenAI-compatible APIs, LiteLLM, etc.)."""
 
     @abstractmethod
+    async def list_models(self) -> list[str]:
+        """List the model identifiers the endpoint offers."""
+        ...
+
+    @abstractmethod
     async def extract_expense(self, text: str) -> dict[str, Any]:
         """Extract expense fields from document text.
 

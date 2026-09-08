@@ -144,8 +144,11 @@ class OpenAiCompatibleLlmProvider(LlmProvider):
         self.model = config.get("model", "gpt-4o-mini")
         username = config.get("username") or ""
         # A gateway in front of the API (Pangolin, nginx, ...) takes the
-        # Authorization header for basic auth, so the API key has to move to
-        # x-api-key, which OpenAI-compatible servers such as LiteLLM accept.
+        # Authorization header for basic auth, so the API key moves to
+        # x-api-key. The upstream must be told to read it from there
+        # (LiteLLM: general_settings.litellm_key_header_name) or the gateway
+        # must strip Authorization after authenticating - otherwise LiteLLM
+        # reads Authorization first and chokes on the basic auth blob.
         # ponytail: x-api-key hardcoded, make the header name configurable if
         # a backend shows up that wants something else.
         auth = (
@@ -183,6 +186,29 @@ class OpenAiCompatibleLlmProvider(LlmProvider):
             return False, "Connection timeout"
         except Exception as e:
             return False, str(e)
+
+    async def list_models(self) -> list[str]:
+        """List the model identifiers the endpoint offers, sorted by name.
+
+        Raises:
+            LlmError: If the request fails or the reply is not a model list.
+        """
+        try:
+            resp = await self._client.get("/models")
+            resp.raise_for_status()
+            entries = resp.json()["data"]
+        except httpx.HTTPStatusError as e:
+            raise LlmError(
+                f"Could not list models ({e.response.status_code}): "
+                f"{e.response.text[:200]}"
+            ) from e
+        except (httpx.HTTPError, KeyError, TypeError, ValueError) as e:
+            raise LlmError(f"Could not list models: {e}") from e
+        return sorted(
+            str(entry["id"])
+            for entry in entries
+            if isinstance(entry, dict) and entry.get("id")
+        )
 
     async def extract_expense(self, text: str) -> dict[str, Any]:
         """Extract expense fields from document text via chat completions.

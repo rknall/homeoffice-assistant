@@ -216,3 +216,41 @@ async def test_bearer_token_used_without_username():
     headers = route.calls.last.request.headers
     assert headers["Authorization"] == "Bearer sk-test"
     assert "x-api-key" not in headers
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_models_returns_sorted_ids():
+    respx.get("https://llm.example.com/v1/models").mock(
+        return_value=Response(
+            200,
+            json={
+                "data": [
+                    {"id": "gpt-4o-mini"},
+                    {"id": "claude-sonnet-5"},
+                    {"object": "model"},
+                ]
+            },
+        )
+    )
+    provider = OpenAiCompatibleLlmProvider(CONFIG)
+    try:
+        models = await provider.list_models()
+    finally:
+        await provider.close()
+
+    assert models == ["claude-sonnet-5", "gpt-4o-mini"]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_list_models_raises_on_error():
+    respx.get("https://llm.example.com/v1/models").mock(
+        return_value=Response(401, text="no key")
+    )
+    provider = OpenAiCompatibleLlmProvider(CONFIG)
+    try:
+        with pytest.raises(LlmError, match="401"):
+            await provider.list_models()
+    finally:
+        await provider.close()

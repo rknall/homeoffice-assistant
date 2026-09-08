@@ -64,6 +64,7 @@ const llmSchema = z.object({
   integration_type: z.literal('llm'),
   base_url: z.string().url('Invalid URL'),
   api_key: z.string().optional(),
+  use_basic_auth: z.boolean().optional(),
   username: z.string().optional(),
   password: z.string().optional(),
   model: z.string().min(1, 'Model is required'),
@@ -97,6 +98,10 @@ export function IntegrationSettings() {
   >({})
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [llmModels, setLlmModels] = useState<string[]>([])
+  const [isFetchingModels, setIsFetchingModels] = useState(false)
+  // Kept out of the page-level error Alert, which renders behind the modal
+  const [modelsError, setModelsError] = useState<string | null>(null)
 
   const {
     register,
@@ -104,6 +109,7 @@ export function IntegrationSettings() {
     reset,
     watch,
     setValue,
+    getValues,
     formState: { errors },
   } = useForm<IntegrationForm>({
     resolver: zodResolver(integrationSchema),
@@ -114,6 +120,12 @@ export function IntegrationSettings() {
   })
 
   const watchedType = watch('integration_type')
+  const useBasicAuth = watch('use_basic_auth')
+  const currentModel = watch('model')
+  // Keep the saved model selectable even if the endpoint no longer lists it
+  const modelOptions = [...new Set([...llmModels, currentModel].filter(Boolean))]
+    .sort()
+    .map((model) => ({ value: model as string, label: model as string }))
 
   // Prefill sensible defaults when creating a new LLM integration
   useEffect(() => {
@@ -183,6 +195,7 @@ export function IntegrationSettings() {
       } else if (detail.integration_type === 'llm') {
         setValue('base_url', (detail.config.base_url as string) || '')
         setValue('api_key', '')
+        setValue('use_basic_auth', Boolean(detail.config.username))
         setValue('username', (detail.config.username as string) || '')
         setValue('password', '')
         setValue('model', (detail.config.model as string) || '')
@@ -197,7 +210,32 @@ export function IntegrationSettings() {
   const closeModal = () => {
     setIsModalOpen(false)
     setEditingIntegration(null)
+    setLlmModels([])
+    setModelsError(null)
     reset()
+  }
+
+  const fetchLlmModels = async () => {
+    const values = getValues()
+    if (values.integration_type !== 'llm') return
+    setIsFetchingModels(true)
+    setModelsError(null)
+    try {
+      const models = await api.post<string[]>('/integrations/llm/models', {
+        base_url: values.base_url,
+        api_key: values.api_key || '',
+        username: values.use_basic_auth ? values.username || '' : '',
+        password: values.use_basic_auth ? values.password || '' : '',
+        config_id: editingIntegration?.id ?? null,
+      })
+      setLlmModels(models)
+      if (models.length === 0) setModelsError('The endpoint returned no models')
+    } catch (e) {
+      setLlmModels([])
+      setModelsError(e instanceof Error ? e.message : 'Failed to fetch models')
+    } finally {
+      setIsFetchingModels(false)
+    }
   }
 
   const onSubmit = async (data: IntegrationForm) => {
@@ -237,8 +275,8 @@ export function IntegrationSettings() {
         config = {
           base_url: data.base_url,
           api_key: data.api_key || '',
-          username: data.username || '',
-          password: data.password || '',
+          username: data.use_basic_auth ? data.username || '' : '',
+          password: data.use_basic_auth ? data.password || '' : '',
           model: data.model,
         }
       } else {
@@ -428,7 +466,14 @@ export function IntegrationSettings() {
       <Modal
         isOpen={isModalOpen}
         onClose={closeModal}
-        title={editingIntegration ? 'Edit Integration' : 'Add Integration'}
+        title={
+          editingIntegration
+            ? `Edit Integration: ${
+                types.find((t) => t.type === editingIntegration.integration_type)?.name ??
+                editingIntegration.integration_type
+              }`
+            : 'Add Integration'
+        }
         size="lg"
       >
         {isLoadingConfig ? (
@@ -443,12 +488,7 @@ export function IntegrationSettings() {
               error={errors.name?.message}
               description="A friendly name for this integration"
             />
-            {editingIntegration ? (
-              <div>
-                <span className="block text-sm font-medium text-gray-700 mb-1">Type</span>
-                <p className="text-gray-900 capitalize">{editingIntegration.integration_type}</p>
-              </div>
-            ) : (
+            {!editingIntegration && (
               <Select
                 label="Type"
                 options={typeOptions}
@@ -606,28 +646,62 @@ export function IntegrationSettings() {
                   type="password"
                   {...register('api_key')}
                   error={'api_key' in errors ? errors.api_key?.message : undefined}
-                  description="API key for the LLM service. Sent as a Bearer token, or as an x-api-key header when basic auth is used."
+                  description="Sent as a Bearer token, or as x-api-key with basic auth"
                 />
-                <div className="grid grid-cols-2 gap-4">
-                  <Input
-                    label="Basic Auth Username (optional)"
-                    {...register('username')}
-                    error={'username' in errors ? errors.username?.message : undefined}
-                    description="Set when the API sits behind a gateway requiring HTTP basic auth"
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    {...register('use_basic_auth')}
+                    className="rounded border-gray-300"
                   />
-                  <Input
-                    label="Basic Auth Password"
-                    type="password"
-                    {...register('password')}
-                    error={'password' in errors ? errors.password?.message : undefined}
-                  />
+                  <span className="text-sm text-gray-700">
+                    Use basic authentication (API behind a gateway)
+                  </span>
+                </label>
+                {useBasicAuth && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input
+                      label="Username"
+                      {...register('username')}
+                      error={'username' in errors ? errors.username?.message : undefined}
+                    />
+                    <Input
+                      label="Password"
+                      type="password"
+                      {...register('password')}
+                      error={'password' in errors ? errors.password?.message : undefined}
+                    />
+                  </div>
+                )}
+                <div className="flex items-start gap-2">
+                  <div className="flex-1">
+                    {llmModels.length > 0 ? (
+                      <Select
+                        label="Model"
+                        options={modelOptions}
+                        {...register('model')}
+                        error={'model' in errors ? errors.model?.message : undefined}
+                      />
+                    ) : (
+                      <Input
+                        label="Model"
+                        {...register('model')}
+                        error={'model' in errors ? errors.model?.message : undefined}
+                        description="Model name, e.g. gpt-4o-mini"
+                      />
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="mt-6"
+                    onClick={fetchLlmModels}
+                    isLoading={isFetchingModels}
+                  >
+                    Fetch models
+                  </Button>
                 </div>
-                <Input
-                  label="Model"
-                  {...register('model')}
-                  error={'model' in errors ? errors.model?.message : undefined}
-                  description="Model name, e.g. gpt-4o-mini"
-                />
+                {modelsError && <p className="-mt-2 text-sm text-red-600">{modelsError}</p>}
               </>
             )}
 

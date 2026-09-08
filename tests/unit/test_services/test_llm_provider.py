@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Tests for the OpenAI-compatible LLM provider and expense scan validation."""
 
+import base64
 import json
 from decimal import Decimal
 
@@ -90,9 +91,7 @@ async def test_extract_expense_markdown_fenced_json():
 @pytest.mark.asyncio
 @respx.mock
 async def test_extract_expense_json_wrapped_in_prose():
-    wrapped = (
-        'Here is the extracted data:\n{"amount": 12.5, "currency": "USD"}\nDone!'
-    )
+    wrapped = 'Here is the extracted data:\n{"amount": 12.5, "currency": "USD"}\nDone!'
     respx.post("https://llm.example.com/v1/chat/completions").mock(
         return_value=chat_response(wrapped)
     )
@@ -150,9 +149,11 @@ async def test_health_check_auth_failure():
 
 
 def test_validate_extraction_all_null():
-    result = validate_extraction(dict.fromkeys(
-        ["date", "amount", "currency", "category", "payment_type", "description"]
-    ))
+    result = validate_extraction(
+        dict.fromkeys(
+            ["date", "amount", "currency", "category", "payment_type", "description"]
+        )
+    )
     assert result.date is None
     assert result.amount is None
     assert any("no expense data" in w for w in result.warnings)
@@ -176,3 +177,42 @@ def test_validate_extraction_drops_invalid_values():
     assert result.payment_type is None
     assert result.description == "Taxi"
     assert len(result.warnings) == 5
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_basic_auth_and_api_key_are_sent_together():
+    """A gateway takes Authorization, so the API key moves to x-api-key."""
+    route = respx.get("https://llm.example.com/v1/models").mock(
+        return_value=Response(200, json={"data": []})
+    )
+    provider = OpenAiCompatibleLlmProvider(
+        {**CONFIG, "username": "alice", "password": "s3cret"}
+    )
+    try:
+        ok, message = await provider.health_check()
+    finally:
+        await provider.close()
+
+    assert (ok, message) == (True, "Connected")
+    headers = route.calls.last.request.headers
+    expected = base64.b64encode(b"alice:s3cret").decode()
+    assert headers["Authorization"] == f"Basic {expected}"
+    assert headers["x-api-key"] == "sk-test"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_bearer_token_used_without_username():
+    route = respx.get("https://llm.example.com/v1/models").mock(
+        return_value=Response(200, json={"data": []})
+    )
+    provider = OpenAiCompatibleLlmProvider(CONFIG)
+    try:
+        await provider.health_check()
+    finally:
+        await provider.close()
+
+    headers = route.calls.last.request.headers
+    assert headers["Authorization"] == "Bearer sk-test"
+    assert "x-api-key" not in headers

@@ -63,7 +63,9 @@ const llmSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
   integration_type: z.literal('llm'),
   base_url: z.string().url('Invalid URL'),
-  api_key: z.string().min(1, 'API key is required'),
+  api_key: z.string().optional(),
+  username: z.string().optional(),
+  password: z.string().optional(),
   model: z.string().min(1, 'Model is required'),
 })
 
@@ -181,6 +183,8 @@ export function IntegrationSettings() {
       } else if (detail.integration_type === 'llm') {
         setValue('base_url', (detail.config.base_url as string) || '')
         setValue('api_key', '')
+        setValue('username', (detail.config.username as string) || '')
+        setValue('password', '')
         setValue('model', (detail.config.model as string) || '')
       }
     } catch {
@@ -232,7 +236,9 @@ export function IntegrationSettings() {
       } else if (data.integration_type === 'llm') {
         config = {
           base_url: data.base_url,
-          api_key: data.api_key,
+          api_key: data.api_key || '',
+          username: data.username || '',
+          password: data.password || '',
           model: data.model,
         }
       } else {
@@ -600,8 +606,22 @@ export function IntegrationSettings() {
                   type="password"
                   {...register('api_key')}
                   error={'api_key' in errors ? errors.api_key?.message : undefined}
-                  description="API key for the LLM service"
+                  description="API key for the LLM service. Sent as a Bearer token, or as an x-api-key header when basic auth is used."
                 />
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="Basic Auth Username (optional)"
+                    {...register('username')}
+                    error={'username' in errors ? errors.username?.message : undefined}
+                    description="Set when the API sits behind a gateway requiring HTTP basic auth"
+                  />
+                  <Input
+                    label="Basic Auth Password"
+                    type="password"
+                    {...register('password')}
+                    error={'password' in errors ? errors.password?.message : undefined}
+                  />
+                </div>
                 <Input
                   label="Model"
                   {...register('model')}

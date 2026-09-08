@@ -94,7 +94,7 @@ class OpenAiCompatibleLlmProvider(LlmProvider):
         """Return JSON Schema for the configuration form."""
         return {
             "type": "object",
-            "required": ["base_url", "api_key", "model"],
+            "required": ["base_url", "model"],
             "properties": {
                 "base_url": {
                     "type": "string",
@@ -108,7 +108,24 @@ class OpenAiCompatibleLlmProvider(LlmProvider):
                 "api_key": {
                     "type": "string",
                     "title": "API Key",
-                    "description": "API key for the LLM service",
+                    "description": (
+                        "API key for the LLM service. Sent as a Bearer token, "
+                        "or as an x-api-key header when basic auth is used."
+                    ),
+                    "format": "password",
+                },
+                "username": {
+                    "type": "string",
+                    "title": "Basic Auth Username",
+                    "description": (
+                        "Optional. Set when the API sits behind a gateway "
+                        "that requires HTTP basic authentication."
+                    ),
+                },
+                "password": {
+                    "type": "string",
+                    "title": "Basic Auth Password",
+                    "description": "Password for HTTP basic authentication",
                     "format": "password",
                 },
                 "model": {
@@ -123,11 +140,28 @@ class OpenAiCompatibleLlmProvider(LlmProvider):
     def __init__(self, config: dict[str, Any]) -> None:
         """Initialize the provider with decrypted configuration."""
         self.base_url = config["base_url"].rstrip("/")
-        self.api_key = config["api_key"]
+        self.api_key = config.get("api_key") or ""
         self.model = config.get("model", "gpt-4o-mini")
+        username = config.get("username") or ""
+        # A gateway in front of the API (Pangolin, nginx, ...) takes the
+        # Authorization header for basic auth, so the API key has to move to
+        # x-api-key, which OpenAI-compatible servers such as LiteLLM accept.
+        # ponytail: x-api-key hardcoded, make the header name configurable if
+        # a backend shows up that wants something else.
+        auth = (
+            httpx.BasicAuth(username, config.get("password") or "")
+            if username
+            else None
+        )
+        headers: dict[str, str] = {}
+        if self.api_key:
+            key_header = "x-api-key" if auth else "Authorization"
+            key_value = self.api_key if auth else f"Bearer {self.api_key}"
+            headers[key_header] = key_value
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
-            headers={"Authorization": f"Bearer {self.api_key}"},
+            headers=headers,
+            auth=auth,
             timeout=60.0,
         )
 
@@ -140,7 +174,7 @@ class OpenAiCompatibleLlmProvider(LlmProvider):
         try:
             resp = await self._client.get("/models")
             if resp.status_code == 401:
-                return False, "Authentication failed (invalid API key)"
+                return False, "Authentication failed (invalid credentials)"
             resp.raise_for_status()
             return True, "Connected"
         except httpx.ConnectError:

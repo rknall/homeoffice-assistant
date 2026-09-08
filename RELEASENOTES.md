@@ -6,6 +6,7 @@
 
 #### AI Expense Scanning
 - New LLM integration type (Settings > Integrations): any OpenAI-compatible API (OpenAI, LiteLLM proxy, ...) with base URL, API key, and model
+- LLM integration supports optional HTTP basic authentication (username/password) for APIs behind a gateway such as Pangolin or nginx; the API key is then sent as `x-api-key` so both authentications pass
 - "Scan Document with AI" button when creating an expense from a Paperless document or editing an expense with a linked document
 - The LLM reads the document's OCR text and autofills date, amount, currency, category, payment type, and description
 - Values the model cannot determine are left untouched and reported as warnings; scanned values stay editable and nothing is saved without user review

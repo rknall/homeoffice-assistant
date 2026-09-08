@@ -129,6 +129,19 @@ class TestAuthAPI:
 
         assert response.status_code == 204
 
+    def test_logout_invalidates_session(self, authenticated_client):
+        """Logout must invalidate the server-side session, not just the cookie."""
+        token = authenticated_client.cookies.get("session")
+        assert token
+
+        authenticated_client.post("/api/v1/auth/logout")
+
+        # Replaying the old token must be rejected even though the client
+        # cleared its cookie jar on logout.
+        authenticated_client.cookies.set("session", token)
+        response = authenticated_client.get("/api/v1/auth/me")
+        assert response.status_code == 401
+
 
 class TestCompaniesAPI:
     """Test companies API endpoints."""

@@ -38,6 +38,7 @@
 ### Bug Fixes
 - Fixed currency conversion being broken by the Frankfurter API move to api.frankfurter.dev/v1 (rate fetching and currency list failed)
 - Fixed expense report email totals using raw amounts, a wrong currency label, and leaking private expenses into the total
+- Logout now invalidates the server-side session, not just the browser cookie (a leaked session token could previously stay valid until expiry)
 
 ### Maintenance
 - All frontend dependencies upgraded to latest (React 19.2.7, Tailwind 4.3.2, Biome 2.5.2, lucide-react 1.x, ...)

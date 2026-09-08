@@ -5,7 +5,15 @@
 import os
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Cookie,
+    Depends,
+    HTTPException,
+    Response,
+    UploadFile,
+    status,
+)
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user, get_db
@@ -169,10 +177,11 @@ def logout(
     response: Response,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    session: str | None = Cookie(default=None),
 ) -> None:
     """Logout current user."""
-    # Delete all sessions for this user would be more secure
-    # but for now we just clear the cookie
+    if session:
+        auth_service.delete_session(db, session)
     response.delete_cookie(key="session")
 
 

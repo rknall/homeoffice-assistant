@@ -82,6 +82,7 @@ class TemplatePreviewRequest(BaseModel):
     body_text: str
     reason: str
     event_id: uuid.UUID | None = None  # If provided, use real event data
+    expense_ids: list[uuid.UUID] | None = None  # Report selection; None means all
 
 
 class TemplatePreviewResponse(BaseModel):

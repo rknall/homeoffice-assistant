@@ -34,8 +34,8 @@ class GenerateReportRequest(BaseModel):
     expense_ids: list[uuid.UUID] | None = Field(
         None,
         description=(
-            "Specific expense IDs to include. "
-            "If not provided, includes all expenses."
+            "Specific expense IDs to include. If not provided, includes all "
+            "expenses. Reimbursed expenses are always excluded."
         ),
     )
     mark_as_submitted: bool = Field(
@@ -62,8 +62,8 @@ class SendReportRequest(BaseModel):
     expense_ids: list[uuid.UUID] | None = Field(
         None,
         description=(
-            "Specific expense IDs to include. "
-            "If not provided, includes all expenses."
+            "Specific expense IDs to include. If not provided, includes all "
+            "expenses. Reimbursed expenses are always excluded."
         ),
     )
     mark_as_submitted: bool = Field(
@@ -309,6 +309,13 @@ async def send_expense_report(
         finally:
             if generator.paperless:
                 await generator.paperless.close()
+
+        if not included_expenses:
+            return SendReportResponse(
+                success=False,
+                message="No open (non-reimbursed) expenses to report",
+                recipients=[],
+            )
 
         # Build template context from the expenses actually included in the
         # report (respects expense_ids selection and is_private exclusion)

@@ -171,6 +171,8 @@ export function EventDetail() {
   const [imagePosition, setImagePosition] = useState<number>(50)
   const [statusFilter, setStatusFilter] = useState<ExpenseStatus | 'all'>('all')
   const [selectedExpenses, setSelectedExpenses] = useState<Set<string>>(new Set())
+  // Reports cover the selected expenses, or all open ones when nothing is selected
+  const reportExpenseIds = selectedExpenses.size > 0 ? Array.from(selectedExpenses) : null
   const [isUpdatingBulkStatus, setIsUpdatingBulkStatus] = useState(false)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
   const [isRejectionModalOpen, setIsRejectionModalOpen] = useState(false)
@@ -488,6 +490,7 @@ export function EventDetail() {
         body_text: template.body_text,
         reason: template.reason,
         event_id: id,
+        expense_ids: reportExpenseIds,
       })
       setEmailPreview(result)
     } catch {
@@ -677,8 +680,9 @@ export function EventDetail() {
       const result = await api.post<{ success: boolean; message: string }>(
         `/events/${id}/expense-report/send`,
         {
-          recipient_email: emailAddress || null,
+          recipient_emails: emailAddress ? [emailAddress] : null,
           template_id: selectedTemplateId,
+          expense_ids: reportExpenseIds,
         },
       )
       setEmailResult(result)
@@ -1930,6 +1934,7 @@ export function EventDetail() {
         eventName={event?.name || ''}
         expenses={expenses}
         baseCurrency={preview?.currency || 'EUR'}
+        preselectedIds={selectedExpenses}
         onReportGenerated={handleReportGenerated}
       />
 

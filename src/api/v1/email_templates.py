@@ -18,8 +18,14 @@ from src.schemas.email_template import (
     TemplatePreviewResponse,
     TemplateReason,
 )
-from src.services import company_service, email_template_service, event_service
+from src.services import (
+    company_service,
+    email_template_service,
+    event_service,
+    settings_service,
+)
 from src.services.company_contact_service import get_contacts
+from src.services.report_generator import select_report_expenses
 
 router = APIRouter()
 
@@ -117,14 +123,15 @@ def preview_template(
                 detail="Event not found",
             )
 
-        company = event.company
-        expenses = event.expenses
+        # Same selection as the report itself, so the preview totals match
+        expenses = select_report_expenses(db, event, data.expense_ids)
 
         context = email_template_service.build_expense_report_context(
             event=event,
-            company=company,
+            company=event.company,
             expenses=expenses,
             user=current_user,
+            base_currency=settings_service.get_base_currency(db),
         )
     else:
         # Use sample data

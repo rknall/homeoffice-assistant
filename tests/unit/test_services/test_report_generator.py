@@ -11,7 +11,13 @@ import pytest
 
 from src.integrations.base import DocumentProvider
 from src.models import Company, Event, User
-from src.models.enums import CompanyType, EventStatus, ExpenseCategory, PaymentType
+from src.models.enums import (
+    CompanyType,
+    EventStatus,
+    ExpenseCategory,
+    ExpenseStatus,
+    PaymentType,
+)
 from src.schemas.event import EventCreate
 from src.schemas.expense import ExpenseCreate
 from src.security import get_password_hash
@@ -148,6 +154,20 @@ async def test_generate_private_expense_handling(db_session):
     assert private.id in [e.id for e in expenses]
     _, expenses = await generator.generate(event, [private.id], include_private=True)
     assert [e.id for e in expenses] == [private.id]
+
+
+@pytest.mark.asyncio
+async def test_generate_excludes_reimbursed(db_session):
+    event = create_event_with_expenses(db_session)
+    taxi = next(e for e in event.expenses if e.description == "Taxi")
+    taxi.status = ExpenseStatus.REIMBURSED
+    db_session.commit()
+    generator = report_generator.ExpenseReportGenerator(db_session)
+
+    _, expenses = await generator.generate(event)
+    assert [e.description for e in expenses] == ["Dinner"]
+    _, expenses = await generator.generate(event, [taxi.id])
+    assert expenses == []
 
 
 def test_get_filename(db_session):

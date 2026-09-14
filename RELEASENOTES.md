@@ -18,6 +18,8 @@
 - All expenses entered in other currencies are converted to the system currency using the daily ECB exchange rate
 - Expense report emails now show the converted total in the system currency, matching the attached Excel report
 - Expense report emails only include the expenses actually contained in the report (respects selection and private-expense exclusion)
+- Expense reports (download, email, and email preview) never include reimbursed expenses; when expenses are selected in the list only those are reported, otherwise all open expenses
+- Fixed the optional recipient address in the email report dialog being ignored
 - Dashboard expense overview and event expense totals are expressed in the system currency
 - Migration seeds the global setting from the most common existing company currency
 - Changing the system currency invalidates stored conversions; they are recomputed with the correct daily rates automatically

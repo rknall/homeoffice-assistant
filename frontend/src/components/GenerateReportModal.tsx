@@ -17,6 +17,8 @@ interface GenerateReportModalProps {
   eventName: string
   expenses: Expense[]
   baseCurrency: string
+  // Expenses selected on the page; if non-empty the modal starts with exactly these
+  preselectedIds: Set<string>
   onReportGenerated?: () => void
 }
 
@@ -27,6 +29,7 @@ export function GenerateReportModal({
   eventName,
   expenses,
   baseCurrency,
+  preselectedIds,
   onReportGenerated,
 }: GenerateReportModalProps) {
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('pending')
@@ -36,9 +39,13 @@ export function GenerateReportModal({
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Private expenses are excluded from official reports unless explicitly included
-  const privateCount = expenses.filter((e) => e.is_private).length
-  const reportableExpenses = includePrivate ? expenses : expenses.filter((e) => !e.is_private)
+  // Reimbursed expenses never go into a report (the backend enforces this too).
+  // Private expenses are excluded from official reports unless explicitly included.
+  const openExpenses = expenses.filter((e) => e.status !== 'reimbursed')
+  const privateCount = openExpenses.filter((e) => e.is_private).length
+  const reportableExpenses = includePrivate
+    ? openExpenses
+    : openExpenses.filter((e) => !e.is_private)
 
   // Categorize expenses by status (only non-private expenses)
   const pendingExpenses = reportableExpenses.filter((e) => e.status === 'pending')
@@ -73,13 +80,14 @@ export function GenerateReportModal({
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setSelectionMode('pending')
-      setSelectedExpenses(new Set())
+      // Page selection wins; otherwise default to all open expenses
+      setSelectionMode(preselectedIds.size > 0 ? 'selected' : 'all')
+      setSelectedExpenses(new Set(preselectedIds))
       setMarkAsSubmitted(true)
       setIncludePrivate(false)
       setError(null)
     }
-  }, [isOpen])
+  }, [isOpen, preselectedIds])
 
   const toggleExpense = (expenseId: string) => {
     setSelectedExpenses((prev) => {
@@ -188,7 +196,7 @@ export function GenerateReportModal({
                 className="text-blue-600 focus:ring-blue-500"
               />
               <div className="flex-1">
-                <span className="font-medium">All expenses</span>
+                <span className="font-medium">All open expenses</span>
                 <span className="text-gray-500 ml-2">({reportableExpenses.length})</span>
               </div>
             </label>
@@ -221,7 +229,7 @@ export function GenerateReportModal({
             <div className="max-h-64 overflow-y-auto">
               {reportableExpenses.length === 0 ? (
                 <p className="p-4 text-center text-gray-500">
-                  No expenses available (private expenses are excluded)
+                  No expenses available (reimbursed and private expenses are excluded)
                 </p>
               ) : (
                 reportableExpenses.map((expense) => (

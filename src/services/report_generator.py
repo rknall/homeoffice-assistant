@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from src.integrations.base import DocumentProvider
 from src.models import Event, Expense
+from src.models.enums import ExpenseStatus
 from src.services import expense_service, integration_service, settings_service
 
 
@@ -23,6 +24,29 @@ def _slugify_filename(name: str, max_length: int = 50) -> str:
     """Create a slug suitable for filenames."""
     slug = slugify(name, lowercase=True, separator="_")
     return slug[:max_length]
+
+
+def select_report_expenses(
+    db: Session,
+    event: Event,
+    expense_ids: list | None = None,
+    include_private: bool = False,
+) -> list[Expense]:
+    """Select the expenses a report covers, sorted by date.
+
+    Uses the given IDs (or all event expenses if none are given). Reimbursed
+    expenses are always excluded; private ones unless include_private is set.
+    """
+    if expense_ids:
+        expenses = expense_service.get_expenses_by_ids(db, expense_ids)
+        expenses = [e for e in expenses if e.event_id == event.id]
+    else:
+        expenses = expense_service.get_expenses(db, event.id)
+
+    expenses = [e for e in expenses if e.status != ExpenseStatus.REIMBURSED]
+    if not include_private:
+        expenses = [e for e in expenses if not e.is_private]
+    return sorted(expenses, key=lambda e: e.date)
 
 
 def _format_date(d: Any) -> str:
@@ -280,16 +304,9 @@ class ExpenseReportGenerator:
         Returns:
             Tuple of (zip_bytes, included_expenses)
         """
-        if expense_ids:
-            expenses = expense_service.get_expenses_by_ids(self.db, expense_ids)
-            expenses = [e for e in expenses if e.event_id == event.id]
-        else:
-            expenses = expense_service.get_expenses(self.db, event.id)
-
-        if not include_private:
-            expenses = [e for e in expenses if not e.is_private]
-
-        expenses.sort(key=lambda e: e.date)
+        expenses = select_report_expenses(
+            self.db, event, expense_ids, include_private=include_private
+        )
 
         # Create the Excel file
         excel_bytes = self._create_excel(event, expenses)

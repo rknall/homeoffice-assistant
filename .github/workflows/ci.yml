@@ -23,6 +23,9 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: test-secret-key-for-ci-testing-only-32!
+      DATABASE_URL: sqlite:///./test.db
     steps:
       - uses: actions/checkout@v4
 
@@ -41,9 +44,6 @@ jobs:
         run: mkdir -p static/assets
 
       - name: Run tests
-        env:
-          SECRET_KEY: test-secret-key-for-ci-testing-only-32!
-          DATABASE_URL: sqlite:///./test.db
         run: uv run --extra dev pytest --cov=src --cov-report=xml
 
       - name: Upload coverage
@@ -129,6 +129,7 @@ jobs:
           SECRET_KEY: test-secret-key-for-ci-testing-only-32!
           DATABASE_URL: sqlite:///./test.db
         run: |
+          mkdir -p ../static/assets
           bun run gen:types
           git diff --exit-code src/types/api.generated.ts
         working-directory: frontend

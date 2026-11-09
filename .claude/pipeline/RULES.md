@@ -100,8 +100,15 @@ Extra gates by touched files:
   CI builds it without push on PRs touching these paths).
 - `.github/workflows/`: `actionlint` when installed, otherwise a careful read.
 
-Remove `test.db` after test runs. Pre-existing failures outside the task are
-recorded in the work document as baseline, not fixed.
+The root `conftest.py` gives every pytest process its own temporary SQLite
+database, so test databases never collide. Coverage files do: `--cov` writes
+`./.coverage` and `./coverage.xml`, and parallel runs crash on them. An agent
+that runs pytest while other agents may run it too either drops `--cov`
+(slice checks) or sets its own paths:
+`COVERAGE_FILE=.coverage.<id> uv run --extra dev pytest --cov=src --cov-report=xml:coverage-<id>.xml`,
+and deletes both files afterwards. Only the single verify or review run uses
+the plain gate command. Pre-existing failures outside the task are recorded in
+the work document as baseline, not fixed.
 
 ## Repository rules
 

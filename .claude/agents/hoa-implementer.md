@@ -24,7 +24,8 @@ Read `.claude/pipeline/RULES.md` first and follow it exactly.
    against a scratch DB, then review and edit the generated file.
 5. Run only fast, local checks for your files (`ruff check`/`ruff format`
    on them, the slice's own test file). No full test suite, no Docker build,
-   no frontend build: parallel runs collide on `test.db` and `dist/`.
+   no frontend build, no `--cov`: parallel runs collide on `.coverage`,
+   `coverage.xml` and `dist/`.
 6. If the plan is wrong or incomplete for this slice, stop with INCOMPLETE
    and the exact problem. Never improvise beyond the plan.
 

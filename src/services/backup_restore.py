@@ -19,16 +19,15 @@ from pathlib import Path
 from typing import Any
 
 from alembic.config import Config
-from sqlalchemy import Column, UniqueConstraint, create_engine, delete, inspect
-from sqlalchemy import update as sql_update
+from sqlalchemy import create_engine, delete
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
 from alembic import command
 from src.database import SessionLocal
-from src.models import Base, User
 from src.models import Session as UserSession
+from src.models import User
 from src.plugins.registry import PluginRegistry
 from src.rbac.roles import GLOBAL_ADMIN_ROLE
 from src.services import rbac_service
@@ -43,6 +42,7 @@ from src.services.backup_archive import (
     read_integration_configs,
     read_legacy_secret_key,
 )
+from src.services.restore_user_refs import find_user_orphans, reassign_user_rows
 
 logger = logging.getLogger(__name__)
 
@@ -134,62 +134,6 @@ def upgrade_core(db_path: Path) -> None:
     command.upgrade(core_alembic_config(f"sqlite:///{db_path}"), "head")
 
 
-def _is_unique(column: Column) -> bool:
-    """Tell whether a column is part of a primary key or unique constraint."""
-    if column.primary_key or column.unique:
-        return True
-    table = column.table
-    for constraint in table.constraints:
-        if isinstance(constraint, UniqueConstraint) and any(
-            col is column for col in constraint.columns
-        ):
-            return True
-    return any(
-        index.unique and any(col is column for col in index.columns)
-        for index in table.indexes
-    )
-
-
-def _user_fk_columns(db: Session) -> list[Column]:
-    """List every column of an existing table that references ``users.id``."""
-    existing = set(inspect(db.get_bind()).get_table_names())
-    return [
-        fk.parent
-        for table in Base.metadata.sorted_tables
-        if table.name in existing
-        for fk in table.foreign_keys
-        if fk.column is User.__table__.c.id
-    ]
-
-
-def _reassign_user_rows(db: Session, admin_id: uuid.UUID) -> None:
-    """Point every reference to a backup user at the admin, or drop the row.
-
-    A column that must be unique per user (role assignments, per-user
-    preferences) cannot take the admin for every row, so rows not belonging
-    to the admin are deleted. Everything else is data the admin takes over.
-    NULL stays NULL.
-
-    Args:
-        db: Session on the restored database.
-        admin_id: The preserved admin.
-    """
-    for column in _user_fk_columns(db):
-        table = column.table
-        if _is_unique(column):
-            stmt = delete(table).where(column != admin_id)
-            action = "deleted"
-        else:
-            stmt = (
-                sql_update(table)
-                .where(column.is_not(None), column != admin_id)
-                .values({column.key: admin_id})
-            )
-            action = "re-pointed"
-        count = db.execute(stmt).rowcount
-        logger.info(f"{table.name}.{column.name}: {count} rows {action}")
-
-
 def _grant_global_admin(db: Session, admin_id: uuid.UUID) -> None:
     """Give the admin the global Global Admin role unless it holds it.
 
@@ -216,6 +160,9 @@ def _preserve_admin(db_path: Path, admin_row: dict[str, Any]) -> None:
     Args:
         db_path: The restored database.
         admin_row: The admin's ``User.__table__`` column values.
+
+    Raises:
+        RuntimeError: Rows would still reference a removed user.
     """
     users = User.__table__
     admin_id = admin_row["id"]
@@ -225,8 +172,11 @@ def _preserve_admin(db_path: Path, admin_row: dict[str, Any]) -> None:
             db.execute(delete(UserSession.__table__))
             db.execute(delete(users))
             db.execute(users.insert().values(**admin_row))
-            _reassign_user_rows(db, admin_id)
+            reassign_user_rows(db, admin_id)
             _grant_global_admin(db, admin_id)
+            orphans = find_user_orphans(db)
+            if orphans:
+                raise RuntimeError(f"Rows still reference removed users: {orphans}")
             db.commit()
     finally:
         engine.dispose()

@@ -7,16 +7,18 @@ root ``conftest.py``.
 """
 
 from collections.abc import Callable, Generator, Sequence
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from alembic import command
 from src.models import Company, User
 from src.models.enums import CompanyType
 from src.rbac.roles import GLOBAL_ADMIN_ROLE, MEMBER_ROLE
 from src.security import get_password_hash
-from src.services import rbac_service
+from src.services import backup_restore, rbac_service
 from src.services.rbac_seed_service import seed_rbac_data
 
 # Login secret shared by every user built with ``user_factory``.
@@ -24,6 +26,19 @@ FACTORY_LOGIN = "factory-login-123"
 
 UserFactory = Callable[..., User]
 LoginHelper = Callable[[TestClient, User], TestClient]
+
+
+@pytest.fixture(scope="session")
+def migrated_db_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Build a database with the real schema by running ``alembic upgrade head``.
+
+    A restore migrates the backup to the current head before swapping it in,
+    so tests need an alembic-built schema. Built once per session; users only
+    copy it, never write to it.
+    """
+    template = tmp_path_factory.mktemp("backup-template") / "template.db"
+    command.upgrade(backup_restore.core_alembic_config(f"sqlite:///{template}"), "head")
+    return template
 
 
 @pytest.fixture

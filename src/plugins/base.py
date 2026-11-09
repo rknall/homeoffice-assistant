@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
+from src.rbac.permissions import CORE_PERMISSIONS
+
 if TYPE_CHECKING:
     from fastapi import APIRouter
     from sqlalchemy.orm import DeclarativeBase
@@ -21,38 +23,13 @@ class PluginCapability(StrEnum):
     CONFIG = "config"
 
 
-class Permission(StrEnum):
-    """Available plugin permissions."""
-
-    # User permissions
-    USER_READ = "user.read"
-    USER_WRITE_SELF = "user.write.self"
-    USER_WRITE_ALL = "user.write.all"
-
-    # Event permissions
-    EVENT_READ = "event.read"
-    EVENT_WRITE = "event.write"
-    EVENT_DELETE = "event.delete"
-
-    # Company permissions
-    COMPANY_READ = "company.read"
-    COMPANY_WRITE = "company.write"
-
-    # Expense permissions
-    EXPENSE_READ = "expense.read"
-    EXPENSE_WRITE = "expense.write"
-
-    # Calendar permissions (for future use)
-    CALENDAR_READ = "calendar.read"
-    CALENDAR_WRITE = "calendar.write"
-
-    # Integration permissions
-    INTEGRATION_USE = "integration.use"
-    INTEGRATION_CONFIG = "integration.config"
-
-    # System permissions
-    SYSTEM_SETTINGS_READ = "system.settings.read"
-    SYSTEM_SETTINGS_WRITE = "system.settings.write"
+# Core permissions a plugin manifest may require, one member per core code,
+# e.g. Permission.COMPANY_VIEW == "company.view". Built from CORE_PERMISSIONS so
+# a manifest can only name codes the role system knows.
+Permission = StrEnum(
+    "Permission",
+    [(p["code"].upper().replace(".", "_"), p["code"]) for p in CORE_PERMISSIONS],
+)
 
 
 @dataclass
@@ -66,6 +43,8 @@ class ProvidedPermission:
 
     code: str
     description: str
+    # Granted to the Member role when the permission is first registered
+    member_default: bool = False
 
 
 @dataclass
@@ -215,27 +194,37 @@ class BasePlugin(ABC):
         """
         return {}
 
-    async def on_install(self) -> None:  # noqa: B027
+    async def on_install(self) -> None:
         """Called when plugin is first installed.
 
         Use for one-time setup tasks like creating default data.
         Database migrations are run before this method is called.
         """
+        return None
 
-    async def on_uninstall(self) -> None:  # noqa: B027
+    async def on_enable(self) -> None:
+        """Called every time the plugin registry loads and enables the plugin.
+
+        The default does nothing; override it to set up runtime state.
+        """
+        return None
+
+    async def on_uninstall(self) -> None:
         """Called before plugin is uninstalled.
 
         Use for cleanup tasks. Note that database tables are NOT
         dropped automatically - use the drop_tables option when
         uninstalling to remove plugin tables.
         """
+        return None
 
-    async def on_upgrade(self, from_version: str) -> None:  # noqa: B027
+    async def on_upgrade(self, from_version: str) -> None:
         """Called when plugin is upgraded from a previous version.
 
         Args:
             from_version: Previous version string
         """
+        return None
 
     def has_permission(self, permission: Permission) -> bool:
         """Check if plugin has a specific required permission.

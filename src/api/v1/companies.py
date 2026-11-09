@@ -3,32 +3,44 @@
 """Company API endpoints."""
 
 import uuid
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_user, get_db
+from src.api.deps import require_permission
+from src.database import get_db
 from src.models import User
-from src.schemas.company import CompanyCreate, CompanyResponse, CompanyUpdate
-from src.services import company_service
+from src.schemas.company import (
+    CompanyCreate,
+    CompanyResponse,
+    CompanyUpdate,
+    LogoUploadResponse,
+)
+from src.services import company_service, file_storage_service, rbac_service
 
 router = APIRouter()
 
-# Logo storage directory (relative to data directory)
-LOGO_STORAGE_DIR = Path("data/logos")
-ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
-MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+# Reads need company.view and writes company.manage, both scoped to the
+# company in the path. Creating a company has no company scope yet, so it
+# needs company.manage from a global role.
+view_company = require_permission("company.view", company_id_param="company_id")
+manage_company = require_permission("company.manage", company_id_param="company_id")
+create_company_permission = require_permission("company.manage")
 
 
 @router.get("", response_model=list[CompanyResponse])
 def list_companies(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(view_company),
 ) -> list[CompanyResponse]:
-    """List all companies."""
-    companies = company_service.get_companies(db)
+    """List the companies the user may view."""
+    allowed = rbac_service.companies_with_permission(db, current_user, "company.view")
+    companies = [
+        c
+        for c in company_service.get_companies(db)
+        if allowed is None or c.id in allowed
+    ]
     return [
         CompanyResponse(**company_service.company_to_response_dict(c))
         for c in companies
@@ -39,7 +51,7 @@ def list_companies(
 def create_company(
     data: CompanyCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(create_company_permission),
 ) -> CompanyResponse:
     """Create a new company."""
     existing = company_service.get_company_by_name(db, data.name)
@@ -57,7 +69,7 @@ def create_company(
 def get_company(
     company_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(view_company),
 ) -> CompanyResponse:
     """Get a company by ID."""
     company = company_service.get_company(db, company_id)
@@ -74,7 +86,7 @@ def update_company(
     company_id: uuid.UUID,
     data: CompanyUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(manage_company),
 ) -> CompanyResponse:
     """Update a company."""
     company = company_service.get_company(db, company_id)
@@ -100,7 +112,7 @@ def update_company(
 def delete_company(
     company_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(manage_company),
 ) -> None:
     """Delete a company."""
     company = company_service.get_company(db, company_id)
@@ -109,16 +121,18 @@ def delete_company(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Company not found",
         )
+    logo_path = company.logo_path
     company_service.delete_company(db, company)
+    file_storage_service.remove_logo(logo_path)
 
 
-@router.post("/{company_id}/logo")
+@router.post("/{company_id}/logo", response_model=LogoUploadResponse)
 async def upload_company_logo(
     company_id: uuid.UUID,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
+    current_user: User = Depends(manage_company),
+) -> LogoUploadResponse:
     """Upload a logo for a company.
 
     Stores the logo locally and updates the company's logo_path field.
@@ -130,60 +144,27 @@ async def upload_company_logo(
             detail="Company not found",
         )
 
-    # Validate file extension
-    if not file.filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No filename provided",
-        )
-
-    ext = Path(file.filename).suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File type not allowed. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
-        )
-
-    # Read file content and validate size
     content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File too large. Maximum size: {MAX_FILE_SIZE // 1024 // 1024}MB",
+    try:
+        logo_path = file_storage_service.save_logo(
+            company_id, file.filename, content, company.logo_path
         )
+    except file_storage_service.FileValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
 
-    # Ensure logo directory exists
-    LOGO_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-
-    # Delete old logo if exists
-    if company.logo_path:
-        old_logo_path = LOGO_STORAGE_DIR / company.logo_path
-        if old_logo_path.exists():
-            old_logo_path.unlink()
-
-    # Generate unique filename
-    unique_filename = f"{company_id}_{uuid.uuid4().hex[:8]}{ext}"
-    logo_path = LOGO_STORAGE_DIR / unique_filename
-
-    # Save file
-    with open(logo_path, "wb") as f:
-        f.write(content)
-
-    # Update company record
-    company.logo_path = unique_filename
+    company.logo_path = logo_path
     db.commit()
 
-    return {
-        "message": "Logo uploaded successfully",
-        "logo_path": unique_filename,
-    }
+    return LogoUploadResponse(message="Logo uploaded successfully", logo_path=logo_path)
 
 
 @router.delete("/{company_id}/logo", status_code=status.HTTP_204_NO_CONTENT)
 def delete_company_logo(
     company_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(manage_company),
 ) -> None:
     """Delete a company's logo."""
     company = company_service.get_company(db, company_id)
@@ -194,10 +175,7 @@ def delete_company_logo(
         )
 
     if company.logo_path:
-        logo_path = LOGO_STORAGE_DIR / company.logo_path
-        if logo_path.exists():
-            logo_path.unlink()
-
+        file_storage_service.remove_logo(company.logo_path)
         company.logo_path = None
         db.commit()
 
@@ -206,7 +184,7 @@ def delete_company_logo(
 def get_company_logo(
     company_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(view_company),
 ) -> FileResponse:
     """Get a company's logo file."""
     company = company_service.get_company(db, company_id)
@@ -222,23 +200,13 @@ def get_company_logo(
             detail="No logo uploaded for this company",
         )
 
-    logo_path = LOGO_STORAGE_DIR / company.logo_path
-    if not logo_path.exists():
+    found = file_storage_service.logo_file(company.logo_path)
+    if found is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Logo file not found",
         )
-
-    # Determine media type
-    ext = logo_path.suffix.lower()
-    media_types = {
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".gif": "image/gif",
-        ".svg": "image/svg+xml",
-        ".webp": "image/webp",
-    }
-    media_type = media_types.get(ext, "application/octet-stream")
-
-    return FileResponse(logo_path, media_type=media_type)
+    logo_path, media_type = found
+    return FileResponse(
+        logo_path, media_type=media_type, headers=file_storage_service.LOGO_HEADERS
+    )

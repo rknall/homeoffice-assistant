@@ -2,35 +2,103 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 import { useCallback, useEffect, useState } from "react";
-import { companySettingsApi } from "../api";
+import { companySettingsApi, errorMessage } from "../api";
 import type { CompanyTimeSettings, CompanyTimeSettingsUpdate } from "../types";
 
 interface CompanyTimeSettingsWidgetProps {
 	companyId: string;
 }
 
+type SettingsForm = Required<
+	Omit<CompanyTimeSettingsUpdate, "default_timesheet_contact_id">
+>;
+
 const COUNTRY_OPTIONS = [
-	{
-		code: "AT",
-		name: "Austria",
-		regions: ["1", "2", "3", "4", "5", "6", "7", "8", "9"],
-	},
-	{ code: "DE", name: "Germany", regions: [] },
-	{ code: "CH", name: "Switzerland", regions: [] },
+	{ code: "AT", name: "Austria" },
+	{ code: "DE", name: "Germany" },
+	{ code: "CH", name: "Switzerland" },
 ];
 
-const AT_REGIONS: Record<string, string> = {
-	"1": "Burgenland",
-	"2": "Kärnten",
-	"3": "Niederösterreich",
-	"4": "Oberösterreich",
-	"5": "Salzburg",
-	"6": "Steiermark",
-	"7": "Tirol",
-	"8": "Vorarlberg",
-	"9": "Wien",
+// Defaults match CompanyTimeSettingsBase in the plugin backend schemas.
+const DEFAULT_FORM: SettingsForm = {
+	timezone: "Europe/Vienna",
+	country_code: "AT",
+	vacation_days_per_year: 25,
+	daily_overtime_threshold: 8,
+	weekly_overtime_threshold: 40,
+	overtime_threshold_hours: 0,
+	comp_time_warning_balance: 40,
+	lock_period_days: 7,
 };
 
+type NumericKey = Exclude<keyof SettingsForm, "timezone" | "country_code">;
+
+const NUMBER_FIELDS: {
+	key: NumericKey;
+	label: string;
+	unit: string;
+	step: string;
+}[] = [
+	{
+		key: "vacation_days_per_year",
+		label: "Vacation days per year",
+		unit: "days",
+		step: "0.5",
+	},
+	{
+		key: "daily_overtime_threshold",
+		label: "Daily overtime threshold",
+		unit: "h",
+		step: "0.5",
+	},
+	{
+		key: "weekly_overtime_threshold",
+		label: "Weekly overtime threshold",
+		unit: "h",
+		step: "0.5",
+	},
+	{
+		key: "overtime_threshold_hours",
+		label: "Overtime threshold hours",
+		unit: "h",
+		step: "0.5",
+	},
+	{
+		key: "comp_time_warning_balance",
+		label: "Comp time warning balance",
+		unit: "h",
+		step: "0.5",
+	},
+	{
+		key: "lock_period_days",
+		label: "Lock period",
+		unit: "days",
+		step: "1",
+	},
+];
+
+function toForm(settings: CompanyTimeSettings): SettingsForm {
+	return {
+		timezone: settings.timezone,
+		country_code: settings.country_code,
+		vacation_days_per_year: settings.vacation_days_per_year,
+		daily_overtime_threshold: settings.daily_overtime_threshold,
+		weekly_overtime_threshold: settings.weekly_overtime_threshold,
+		overtime_threshold_hours: settings.overtime_threshold_hours,
+		comp_time_warning_balance: settings.comp_time_warning_balance,
+		lock_period_days: settings.lock_period_days,
+	};
+}
+
+const INPUT_CLASS =
+	"w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500";
+
+/**
+ * CompanyTimeSettingsWidget - View and edit a company's time tracking settings.
+ *
+ * Rendered on the company detail page through the plugin's companyDetail
+ * widget slot. The fields mirror the plugin backend's company settings schema.
+ */
 export function CompanyTimeSettingsWidget({
 	companyId,
 }: CompanyTimeSettingsWidgetProps) {
@@ -39,9 +107,7 @@ export function CompanyTimeSettingsWidget({
 	const [isEditing, setIsEditing] = useState(false);
 	const [isSaving, setIsSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-
-	// Form state
-	const [formData, setFormData] = useState<CompanyTimeSettingsUpdate>({});
+	const [formData, setFormData] = useState<SettingsForm>(DEFAULT_FORM);
 
 	const loadSettings = useCallback(async () => {
 		setIsLoading(true);
@@ -49,34 +115,9 @@ export function CompanyTimeSettingsWidget({
 		try {
 			const data = await companySettingsApi.get(companyId);
 			setSettings(data);
-			if (data) {
-				setFormData({
-					country_code: data.country_code,
-					region: data.region,
-					standard_hours_per_day: data.standard_hours_per_day,
-					standard_hours_per_week: data.standard_hours_per_week,
-					default_break_minutes: data.default_break_minutes,
-					vacation_days_per_year: data.vacation_days_per_year,
-					max_carryover_days: data.max_carryover_days,
-					comp_time_enabled: data.comp_time_enabled,
-					time_rounding_enabled: data.time_rounding_enabled,
-				});
-			} else {
-				// Default values for new settings
-				setFormData({
-					country_code: "AT",
-					region: null,
-					standard_hours_per_day: 8,
-					standard_hours_per_week: 40,
-					default_break_minutes: 30,
-					vacation_days_per_year: 25,
-					max_carryover_days: 5,
-					comp_time_enabled: true,
-					time_rounding_enabled: true,
-				});
-			}
+			setFormData(data ? toForm(data) : DEFAULT_FORM);
 		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to load settings");
+			setError(errorMessage(err, "Failed to load settings"));
 		} finally {
 			setIsLoading(false);
 		}
@@ -90,42 +131,29 @@ export function CompanyTimeSettingsWidget({
 		setIsSaving(true);
 		setError(null);
 		try {
-			if (settings) {
-				const updated = await companySettingsApi.update(companyId, formData);
-				setSettings(updated);
-			} else {
-				const created = await companySettingsApi.create(companyId, formData);
-				setSettings(created);
-			}
+			const saved = settings
+				? await companySettingsApi.update(companyId, formData)
+				: await companySettingsApi.create(companyId, formData);
+			setSettings(saved);
+			setFormData(toForm(saved));
 			setIsEditing(false);
 		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to save settings");
+			setError(errorMessage(err, "Failed to save settings"));
 		} finally {
 			setIsSaving(false);
 		}
 	};
 
 	const handleCancel = () => {
-		if (settings) {
-			setFormData({
-				country_code: settings.country_code,
-				region: settings.region,
-				standard_hours_per_day: settings.standard_hours_per_day,
-				standard_hours_per_week: settings.standard_hours_per_week,
-				default_break_minutes: settings.default_break_minutes,
-				vacation_days_per_year: settings.vacation_days_per_year,
-				max_carryover_days: settings.max_carryover_days,
-				comp_time_enabled: settings.comp_time_enabled,
-				time_rounding_enabled: settings.time_rounding_enabled,
-			});
-		}
+		setFormData(settings ? toForm(settings) : DEFAULT_FORM);
 		setIsEditing(false);
 		setError(null);
 	};
 
-	const selectedCountry = COUNTRY_OPTIONS.find(
-		(c) => c.code === formData.country_code,
-	);
+	const setNumber = (key: NumericKey, raw: string) => {
+		const value = Number.parseFloat(raw);
+		setFormData({ ...formData, [key]: Number.isNaN(value) ? 0 : value });
+	};
 
 	if (isLoading) {
 		return (
@@ -173,26 +201,21 @@ export function CompanyTimeSettingsWidget({
 						}}
 						className="space-y-4"
 					>
-						{/* Country and Region */}
 						<div className="grid grid-cols-2 gap-4">
 							<div>
 								<label
-									htmlFor="country"
+									htmlFor="tt-country"
 									className="block text-sm font-medium text-gray-700 mb-1"
 								>
 									Country
 								</label>
 								<select
-									id="country"
-									value={formData.country_code || "AT"}
+									id="tt-country"
+									value={formData.country_code}
 									onChange={(e) =>
-										setFormData({
-											...formData,
-											country_code: e.target.value,
-											region: null,
-										})
+										setFormData({ ...formData, country_code: e.target.value })
 									}
-									className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+									className={INPUT_CLASS}
 								>
 									{COUNTRY_OPTIONS.map((country) => (
 										<option key={country.code} value={country.code}>
@@ -201,195 +224,47 @@ export function CompanyTimeSettingsWidget({
 									))}
 								</select>
 							</div>
-							{selectedCountry?.regions.length ? (
-								<div>
+							<div>
+								<label
+									htmlFor="tt-timezone"
+									className="block text-sm font-medium text-gray-700 mb-1"
+								>
+									Timezone
+								</label>
+								<input
+									type="text"
+									id="tt-timezone"
+									value={formData.timezone}
+									onChange={(e) =>
+										setFormData({ ...formData, timezone: e.target.value })
+									}
+									className={INPUT_CLASS}
+								/>
+							</div>
+						</div>
+
+						<div className="grid grid-cols-2 gap-4">
+							{NUMBER_FIELDS.map((field) => (
+								<div key={field.key}>
 									<label
-										htmlFor="region"
+										htmlFor={`tt-${field.key}`}
 										className="block text-sm font-medium text-gray-700 mb-1"
 									>
-										Region
+										{field.label} ({field.unit})
 									</label>
-									<select
-										id="region"
-										value={formData.region || ""}
-										onChange={(e) =>
-											setFormData({
-												...formData,
-												region: e.target.value || null,
-											})
-										}
-										className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-									>
-										<option value="">All regions</option>
-										{selectedCountry.regions.map((region) => (
-											<option key={region} value={region}>
-												{AT_REGIONS[region] || region}
-											</option>
-										))}
-									</select>
+									<input
+										type="number"
+										id={`tt-${field.key}`}
+										value={formData[field.key]}
+										onChange={(e) => setNumber(field.key, e.target.value)}
+										min="0"
+										step={field.step}
+										className={INPUT_CLASS}
+									/>
 								</div>
-							) : null}
+							))}
 						</div>
 
-						{/* Working hours */}
-						<div className="grid grid-cols-2 gap-4">
-							<div>
-								<label
-									htmlFor="hours-day"
-									className="block text-sm font-medium text-gray-700 mb-1"
-								>
-									Standard Hours/Day
-								</label>
-								<input
-									type="number"
-									id="hours-day"
-									value={formData.standard_hours_per_day || 8}
-									onChange={(e) =>
-										setFormData({
-											...formData,
-											standard_hours_per_day: parseFloat(e.target.value),
-										})
-									}
-									min="1"
-									max="12"
-									step="0.5"
-									className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-								/>
-							</div>
-							<div>
-								<label
-									htmlFor="hours-week"
-									className="block text-sm font-medium text-gray-700 mb-1"
-								>
-									Standard Hours/Week
-								</label>
-								<input
-									type="number"
-									id="hours-week"
-									value={formData.standard_hours_per_week || 40}
-									onChange={(e) =>
-										setFormData({
-											...formData,
-											standard_hours_per_week: parseFloat(e.target.value),
-										})
-									}
-									min="1"
-									max="60"
-									step="0.5"
-									className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-								/>
-							</div>
-						</div>
-
-						{/* Break and vacation */}
-						<div className="grid grid-cols-2 gap-4">
-							<div>
-								<label
-									htmlFor="break-mins"
-									className="block text-sm font-medium text-gray-700 mb-1"
-								>
-									Default Break (minutes)
-								</label>
-								<input
-									type="number"
-									id="break-mins"
-									value={formData.default_break_minutes || 30}
-									onChange={(e) =>
-										setFormData({
-											...formData,
-											default_break_minutes: parseInt(e.target.value, 10),
-										})
-									}
-									min="0"
-									max="120"
-									className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-								/>
-							</div>
-							<div>
-								<label
-									htmlFor="vacation-days"
-									className="block text-sm font-medium text-gray-700 mb-1"
-								>
-									Vacation Days/Year
-								</label>
-								<input
-									type="number"
-									id="vacation-days"
-									value={formData.vacation_days_per_year || 25}
-									onChange={(e) =>
-										setFormData({
-											...formData,
-											vacation_days_per_year: parseInt(e.target.value, 10),
-										})
-									}
-									min="0"
-									max="50"
-									className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-								/>
-							</div>
-						</div>
-
-						{/* Carryover */}
-						<div>
-							<label
-								htmlFor="carryover"
-								className="block text-sm font-medium text-gray-700 mb-1"
-							>
-								Max Carryover Days
-							</label>
-							<input
-								type="number"
-								id="carryover"
-								value={formData.max_carryover_days || 5}
-								onChange={(e) =>
-									setFormData({
-										...formData,
-										max_carryover_days: parseInt(e.target.value, 10),
-									})
-								}
-								min="0"
-								max="20"
-								className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-							/>
-						</div>
-
-						{/* Toggles */}
-						<div className="space-y-3">
-							<label className="flex items-center">
-								<input
-									type="checkbox"
-									checked={formData.comp_time_enabled ?? true}
-									onChange={(e) =>
-										setFormData({
-											...formData,
-											comp_time_enabled: e.target.checked,
-										})
-									}
-									className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-								/>
-								<span className="ml-2 text-sm text-gray-700">
-									Enable comp time accrual
-								</span>
-							</label>
-							<label className="flex items-center">
-								<input
-									type="checkbox"
-									checked={formData.time_rounding_enabled ?? true}
-									onChange={(e) =>
-										setFormData({
-											...formData,
-											time_rounding_enabled: e.target.checked,
-										})
-									}
-									className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-								/>
-								<span className="ml-2 text-sm text-gray-700">
-									Enable 5-minute rounding
-								</span>
-							</label>
-						</div>
-
-						{/* Actions */}
 						<div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
 							<button
 								type="button"
@@ -415,44 +290,20 @@ export function CompanyTimeSettingsWidget({
 							<dd className="text-gray-900 font-medium">
 								{COUNTRY_OPTIONS.find((c) => c.code === settings.country_code)
 									?.name || settings.country_code}
-								{settings.region &&
-									` (${AT_REGIONS[settings.region] || settings.region})`}
 							</dd>
 						</div>
 						<div>
-							<dt className="text-gray-500">Working Hours</dt>
-							<dd className="text-gray-900 font-medium">
-								{settings.standard_hours_per_day}h/day,{" "}
-								{settings.standard_hours_per_week}h/week
-							</dd>
+							<dt className="text-gray-500">Timezone</dt>
+							<dd className="text-gray-900 font-medium">{settings.timezone}</dd>
 						</div>
-						<div>
-							<dt className="text-gray-500">Default Break</dt>
-							<dd className="text-gray-900 font-medium">
-								{settings.default_break_minutes} min
-							</dd>
-						</div>
-						<div>
-							<dt className="text-gray-500">Vacation</dt>
-							<dd className="text-gray-900 font-medium">
-								{settings.vacation_days_per_year} days/year (max{" "}
-								{settings.max_carryover_days} carryover)
-							</dd>
-						</div>
-						<div>
-							<dt className="text-gray-500">Comp Time</dt>
-							<dd className="text-gray-900 font-medium">
-								{settings.comp_time_enabled ? "Enabled" : "Disabled"}
-							</dd>
-						</div>
-						<div>
-							<dt className="text-gray-500">Time Rounding</dt>
-							<dd className="text-gray-900 font-medium">
-								{settings.time_rounding_enabled
-									? "Enabled (5 min)"
-									: "Disabled"}
-							</dd>
-						</div>
+						{NUMBER_FIELDS.map((field) => (
+							<div key={field.key}>
+								<dt className="text-gray-500">{field.label}</dt>
+								<dd className="text-gray-900 font-medium">
+									{settings[field.key]} {field.unit}
+								</dd>
+							</div>
+						))}
 					</dl>
 				) : (
 					<p className="text-sm text-gray-500">

@@ -8,14 +8,21 @@ from typing import TYPE_CHECKING, ClassVar
 
 from src.plugins.base import BasePlugin, PluginConfig, PluginManifest
 from src.plugins.events import AppEvent, event_bus
-from src.plugins.loader import (
-    PluginLoader,
+from src.plugins.loader import PluginLoader
+from src.plugins.manifest import (
+    PLUGIN_MANIFEST_FILE,
+    PluginValidationError,
+    parse_manifest,
 )
+from src.plugins.migrations import PluginMigrationRunner
 from src.plugins.router_proxy import get_plugin_router_manager
+from src.services import config_secrets
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
     from sqlalchemy.orm import Session
+
+    from src.models.plugin_config import PluginConfigModel
 
 logger = logging.getLogger(__name__)
 
@@ -86,34 +93,94 @@ class PluginRegistry:
         """
         return plugin_id in self._plugins
 
+    def get_config_schema(self, plugin_id: str) -> dict:
+        """Return the config schema of a loaded plugin.
+
+        Args:
+            plugin_id: Plugin identifier
+
+        Returns:
+            The plugin's JSON schema, or an empty dict when it is not loaded
+        """
+        plugin = self._plugins.get(plugin_id)
+        return plugin.get_config_schema() if plugin else {}
+
+    def _registered_plugins(
+        self, db: Session
+    ) -> list[tuple[Path, PluginManifest, PluginConfigModel]]:
+        """Return the plugins found on disk that have a database record.
+
+        Args:
+            db: Database session
+
+        Returns:
+            Tuples of plugin path, manifest and database config
+        """
+        from src.models.plugin_config import PluginConfigModel
+
+        configs = {c.plugin_id: c for c in db.query(PluginConfigModel).all()}
+        registered = []
+        for plugin_path, manifest in self._loader.discover_plugins():
+            db_config = configs.get(manifest.id)
+            if db_config is None:
+                logger.info("Skipping unregistered plugin: %s", manifest.id)
+                continue
+            registered.append((plugin_path, manifest, db_config))
+        return registered
+
+    @staticmethod
+    def _migrate(plugin_path: Path, manifest: PluginManifest) -> bool:
+        """Bring one plugin's schema to its head revision.
+
+        Args:
+            plugin_path: Path to plugin directory
+            manifest: Plugin manifest
+
+        Returns:
+            True on success, False when the migrations failed (logged)
+        """
+        try:
+            PluginMigrationRunner(plugin_path, manifest.id, manifest).run_migrations()
+        except Exception:
+            logger.exception(
+                "Migrations failed for plugin %s; the plugin is not loaded",
+                manifest.id,
+            )
+            return False
+        return True
+
+    def run_plugin_migrations(self, db: Session) -> list[str]:
+        """Run pending migrations of every registered plugin.
+
+        A failing plugin is logged and skipped, the others still migrate.
+
+        Args:
+            db: Database session
+
+        Returns:
+            IDs of the plugins whose migrations failed
+        """
+        return [
+            manifest.id
+            for plugin_path, manifest, _config in self._registered_plugins(db)
+            if not self._migrate(plugin_path, manifest)
+        ]
+
     async def load_all_plugins(self, db: Session) -> None:
-        """Discover and load all installed plugins.
+        """Migrate and load all installed plugins.
+
+        Each registered plugin is brought to its migration head before it is
+        loaded, so a new image's bundled plugin migrations are applied at
+        startup. A plugin whose migrations fail is skipped.
 
         Args:
             db: Database session
         """
-        from src.models.plugin_config import PluginConfigModel
-
         if self._initialized:
             logger.warning("Plugin registry already initialized")
             return
 
-        discovered = self._loader.discover_plugins()
-        logger.info(f"Discovered {len(discovered)} plugins")
-
-        for plugin_path, manifest in discovered:
-            # Get config from database
-            db_config = (
-                db.query(PluginConfigModel)
-                .filter(PluginConfigModel.plugin_id == manifest.id)
-                .first()
-            )
-
-            if db_config is None:
-                # Plugin on disk but not in database - skip
-                logger.info(f"Skipping unregistered plugin: {manifest.id}")
-                continue
-
+        for plugin_path, manifest, db_config in self._registered_plugins(db):
             # Sync version from manifest to database if changed
             if db_config.plugin_version != manifest.version:
                 logger.info(
@@ -123,9 +190,10 @@ class PluginRegistry:
                 db_config.plugin_version = manifest.version
                 db.commit()
 
-            config = PluginConfig(
-                settings=db_config.get_decrypted_settings(),
-            )
+            if not self._migrate(plugin_path, manifest):
+                continue
+
+            config = PluginConfig(settings=db_config.get_decrypted_settings())
 
             try:
                 await self._load_single_plugin(plugin_path, manifest, config)
@@ -195,34 +263,91 @@ class PluginRegistry:
         Returns:
             Tuple of (installed plugin instance, old version if upgraded else None)
         """
-        from src.models.plugin_config import PluginConfigModel
-        from src.plugins.migrations import PluginMigrationRunner
-        from src.services.rbac_service import register_plugin_permissions
-
         # Extract and validate (may replace existing if upgrade=True)
         manifest, old_version = self._loader.install_from_zip(zip_path, db, upgrade)
 
         # If upgrading, we need to unload the old plugin first
-        if old_version and manifest.id in self._plugins:
-            old_plugin = self._plugins[manifest.id]
-            # Call lifecycle hook
-            await old_plugin.on_uninstall()
-            # Remove event handlers
-            event_bus.unsubscribe_plugin(manifest.id)
-            # Remove router
-            router_manager = get_plugin_router_manager()
-            router_manager.remove_plugin_router(manifest.id)
-            # Remove from registry
-            del self._plugins[manifest.id]
+        if old_version and await self._unload(manifest.id):
             logger.info(f"Unloaded old plugin {manifest.id} v{old_version}")
 
-        # Run migrations if plugin has them
         plugin_path = self._loader.plugins_dir / manifest.id
-        migration_runner = PluginMigrationRunner(plugin_path, manifest.id, manifest)
-        if migration_runner.has_migrations():
-            migration_runner.run_migrations()
+        plugin = await self._activate(plugin_path, manifest, db)
 
-        # Register plugin-provided permissions
+        payload = {"plugin_id": manifest.id, "version": manifest.version}
+        if old_version:
+            payload["upgraded_from"] = old_version
+        await event_bus.publish(AppEvent.PLUGIN_INSTALLED, payload)
+
+        return plugin, old_version
+
+    async def _unload(self, plugin_id: str) -> bool:
+        """Stop a loaded plugin: lifecycle hook, event handlers, routes.
+
+        Args:
+            plugin_id: Plugin identifier
+
+        Returns:
+            True if the plugin was loaded
+        """
+        plugin = self._plugins.pop(plugin_id, None)
+        if plugin is None:
+            return False
+        await plugin.on_uninstall()
+        event_bus.unsubscribe_plugin(plugin_id)
+        get_plugin_router_manager().remove_plugin_router(plugin_id)
+        return True
+
+    async def install_discovered(self, plugin_id: str, db: Session) -> BasePlugin:
+        """Install a plugin that is on disk but not registered yet.
+
+        Args:
+            plugin_id: Plugin identifier
+            db: Database session
+
+        Returns:
+            The loaded plugin instance
+
+        Raises:
+            PluginValidationError: The plugin is already installed.
+            LookupError: No plugin with this ID is in the plugins directory.
+        """
+        from src.models.plugin_config import PluginConfigModel
+
+        existing = (
+            db.query(PluginConfigModel)
+            .filter(PluginConfigModel.plugin_id == plugin_id)
+            .first()
+        )
+        if existing:
+            raise PluginValidationError(f"Plugin {plugin_id} is already installed")
+
+        for plugin_path, manifest in self._loader.discover_plugins():
+            if manifest.id == plugin_id:
+                return await self._activate(plugin_path, manifest, db)
+
+        raise LookupError(f"Plugin {plugin_id} not found in plugins directory")
+
+    async def _activate(
+        self, plugin_path: Path, manifest: PluginManifest, db: Session
+    ) -> BasePlugin:
+        """Migrate, register and load a plugin whose files are in place.
+
+        Runs the plugin's migrations, registers its permissions, creates or
+        updates its database record, loads it and calls ``on_install``.
+
+        Args:
+            plugin_path: Path to plugin directory
+            manifest: Plugin manifest
+            db: Database session
+
+        Returns:
+            The loaded plugin instance
+        """
+        from src.models.plugin_config import PluginConfigModel
+        from src.services.rbac_service import register_plugin_permissions
+
+        PluginMigrationRunner(plugin_path, manifest.id, manifest).run_migrations()
+
         if manifest.provided_permissions:
             register_plugin_permissions(db, manifest.id, manifest.provided_permissions)
             logger.info(
@@ -230,52 +355,32 @@ class PluginRegistry:
                 f"for plugin {manifest.id}"
             )
 
-        # Get or create database config record
         db_config = (
             db.query(PluginConfigModel)
             .filter(PluginConfigModel.plugin_id == manifest.id)
             .first()
         )
-
-        if db_config:
-            # Update existing config with new version
-            db_config.plugin_version = manifest.version
-        else:
-            # Create new config record
-            db_config = PluginConfigModel(
-                plugin_id=manifest.id,
-                plugin_version=manifest.version,
-                settings_encrypted=None,
-            )
+        created = db_config is None
+        if db_config is None:
+            db_config = PluginConfigModel(plugin_id=manifest.id)
             db.add(db_config)
-
+        db_config.plugin_version = manifest.version
         db.commit()
 
-        # Load the plugin
-        plugin_settings = db_config.get_decrypted_settings() if db_config else {}
-        config = PluginConfig(settings=plugin_settings)
-        plugin = await self._load_single_plugin(plugin_path, manifest, config)
-
-        # Call on_install lifecycle hook
-        await plugin.on_install()
-
-        # Publish event
-        if old_version:
-            await event_bus.publish(
-                AppEvent.PLUGIN_INSTALLED,
-                {
-                    "plugin_id": manifest.id,
-                    "version": manifest.version,
-                    "upgraded_from": old_version,
-                },
-            )
-        else:
-            await event_bus.publish(
-                AppEvent.PLUGIN_INSTALLED,
-                {"plugin_id": manifest.id, "version": manifest.version},
-            )
-
-        return plugin, old_version
+        config = PluginConfig(settings=db_config.get_decrypted_settings())
+        try:
+            plugin = await self._load_single_plugin(plugin_path, manifest, config)
+            await plugin.on_install()
+        except Exception:
+            # A new plugin that never started must not be listed as installed.
+            self._plugins.pop(manifest.id, None)
+            event_bus.unsubscribe_plugin(manifest.id)
+            get_plugin_router_manager().remove_plugin_router(manifest.id)
+            if created:
+                db.delete(db_config)
+                db.commit()
+            raise
+        return plugin
 
     async def uninstall_plugin(
         self,
@@ -295,31 +400,16 @@ class PluginRegistry:
             keep_files: If True, keep plugin files on disk (for dev workflow)
         """
         from src.models.plugin_config import PluginConfigModel
-        from src.plugins.migrations import PluginMigrationRunner
         from src.services.rbac_service import unregister_plugin_permissions
 
-        plugin = self._plugins.get(plugin_id)
+        await self._unload(plugin_id)
 
-        if plugin:
-            # Call lifecycle hook
-            await plugin.on_uninstall()
-            # Remove event handlers
-            event_bus.unsubscribe_plugin(plugin_id)
-            # Remove router
-            router_manager = get_plugin_router_manager()
-            router_manager.remove_plugin_router(plugin_id)
-            # Remove from registry
-            del self._plugins[plugin_id]
-
-        # Drop tables if requested
         if drop_tables:
             plugin_path = self._loader.plugins_dir / plugin_id
             if plugin_path.exists():
                 # Try to load manifest for table_prefix, but don't fail if not available
                 manifest = None
                 try:
-                    from src.plugins.loader import PLUGIN_MANIFEST_FILE, parse_manifest
-
                     manifest_path = plugin_path / PLUGIN_MANIFEST_FILE
                     if manifest_path.exists():
                         manifest = parse_manifest(manifest_path)
@@ -329,12 +419,8 @@ class PluginRegistry:
                         "Will use derived table prefix."
                     )
 
-                migration_runner = PluginMigrationRunner(
-                    plugin_path, plugin_id, manifest
-                )
-                migration_runner.downgrade_all()
+                PluginMigrationRunner(plugin_path, plugin_id, manifest).downgrade_all()
 
-        # Remove plugin-provided permissions if requested
         if remove_permissions:
             removed_count = unregister_plugin_permissions(db, plugin_id)
             if removed_count > 0:
@@ -342,7 +428,6 @@ class PluginRegistry:
                     f"Removed {removed_count} permissions for plugin {plugin_id}"
                 )
 
-        # Remove from database
         db.query(PluginConfigModel).filter(
             PluginConfigModel.plugin_id == plugin_id
         ).delete()
@@ -353,14 +438,11 @@ class PluginRegistry:
             self._loader.uninstall(plugin_id)
         else:
             logger.info(
-                "Keeping files for plugin %s (dev mode): plugin files remain on disk, "
-                "any previously installed Python dependencies are not removed, and "
-                "the plugin may be rediscovered on restart but will not be auto-loaded "
-                "because its database configuration was deleted.",
+                "Keeping files for plugin %s (dev mode); it is discovered again "
+                "but not loaded, its record is deleted",
                 plugin_id,
             )
 
-        # Publish event
         await event_bus.publish(
             AppEvent.PLUGIN_UNINSTALLED,
             {"plugin_id": plugin_id},
@@ -373,13 +455,23 @@ class PluginRegistry:
         plugin_id: str,
         settings: dict,
         db: Session,
-    ) -> None:
+    ) -> dict:
         """Update a plugin's settings.
+
+        Secret fields (``format: "password"`` in the plugin's config schema)
+        that arrive blank, as the masked value sent back by the edit form,
+        keep their stored value.
 
         Args:
             plugin_id: Plugin to update
             settings: New settings dictionary
             db: Database session
+
+        Returns:
+            The stored, unmasked settings
+
+        Raises:
+            ValueError: The plugin is not installed.
         """
         from src.models.plugin_config import PluginConfigModel
 
@@ -392,12 +484,17 @@ class PluginRegistry:
         if not db_config:
             raise ValueError(f"Plugin {plugin_id} not found")
 
-        db_config.set_encrypted_settings(settings)
+        merged = config_secrets.merge(
+            db_config.get_decrypted_settings(),
+            settings,
+            self.get_config_schema(plugin_id),
+        )
+        db_config.set_encrypted_settings(merged)
         db.commit()
 
-        # Update loaded plugin's config
         plugin = self._plugins.get(plugin_id)
         if plugin:
-            plugin.config.settings = settings
+            plugin.config.settings = merged
 
         logger.info(f"Updated settings for plugin {plugin_id}")
+        return merged

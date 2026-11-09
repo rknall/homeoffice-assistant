@@ -83,4 +83,4 @@ class Todo:
 ## Related
 - Todo management (implemented in v0.3.0)
 - Todo templates (implemented in v0.3.0)
-- [Calendar Integration](calendar-integration.md) - Similar external sync pattern
+- [Calendar Integration](done/calendar-integration.md) - Similar external sync pattern

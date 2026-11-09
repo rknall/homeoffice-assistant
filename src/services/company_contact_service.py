@@ -195,37 +195,6 @@ def get_contacts_by_type(
     return matching_contacts
 
 
-def validate_contact_types_exist(
-    db: Session, company_id: uuid.UUID, required_types: list[ContactType]
-) -> tuple[bool, list[ContactType]]:
-    """Check if company has contacts for all required types.
-
-    Returns:
-        Tuple of (is_valid, missing_types)
-        - is_valid: True if contacts exist for all required types
-        - missing_types: List of types that have no matching contacts
-    """
-    if not required_types:
-        return True, []
-
-    all_contacts = get_contacts(db, company_id)
-
-    # Collect all types that have at least one contact
-    covered_types = set()
-    for contact in all_contacts:
-        contact_type_values = json.loads(contact.contact_types)
-        for ct in contact_type_values:
-            covered_types.add(ct)
-
-    # Check which required types are missing
-    missing_types = []
-    for required_type in required_types:
-        if required_type.value not in covered_types:
-            missing_types.append(required_type)
-
-    return len(missing_types) == 0, missing_types
-
-
 def _unset_main_contact(db: Session, company_id: uuid.UUID) -> None:
     """Unset the main contact flag for all contacts of a company."""
     db.query(CompanyContact).filter(

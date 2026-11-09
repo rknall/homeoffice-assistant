@@ -72,12 +72,3 @@ class CompanyCalendarResponse(BaseModel):
     updated_at: datetime.datetime
 
     model_config = {"from_attributes": True}
-
-
-class CalendarSyncResult(BaseModel):
-    """Result of a calendar sync operation."""
-
-    calendar_id: uuid.UUID
-    success: bool
-    events_synced: int = 0
-    error_message: str | None = None

@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import date, datetime
 
-import holidays
+from src.services.holiday_calendar_service import get_public_holidays
 
 from .models import EntryType, TimeEntry
 from .schemas import ComplianceWarning
@@ -24,9 +24,7 @@ class ComplianceValidator(ABC):
     """Base class for country-specific labor law validation."""
 
     @abstractmethod
-    def validate_daily_hours(
-        self, entry: TimeEntry
-    ) -> list[ComplianceWarning]:
+    def validate_daily_hours(self, entry: TimeEntry) -> list[ComplianceWarning]:
         """Check daily hour limits."""
         ...
 
@@ -76,9 +74,7 @@ class AustrianComplianceValidator(ComplianceValidator):
     BREAK_THRESHOLD_HOURS = 6.0
     BREAK_MINUTES_REQUIRED = 30
 
-    def validate_daily_hours(
-        self, entry: TimeEntry
-    ) -> list[ComplianceWarning]:
+    def validate_daily_hours(self, entry: TimeEntry) -> list[ComplianceWarning]:
         """Check daily hour limits per Austrian law.
 
         Args:
@@ -225,8 +221,7 @@ class AustrianComplianceValidator(ComplianceValidator):
         Returns:
             Dictionary mapping dates to holiday names.
         """
-        at_holidays = holidays.Austria(years=year, subdiv=region)
-        return dict(at_holidays.items())
+        return get_public_holidays("AT", year, region)
 
     def is_public_holiday(
         self,
@@ -242,8 +237,7 @@ class AustrianComplianceValidator(ComplianceValidator):
         Returns:
             True if the date is a public holiday.
         """
-        at_holidays = holidays.Austria(years=check_date.year, subdiv=region)
-        return check_date in at_holidays
+        return check_date in get_public_holidays("AT", check_date.year, region)
 
     def get_holiday_name(
         self,
@@ -259,8 +253,7 @@ class AustrianComplianceValidator(ComplianceValidator):
         Returns:
             The holiday name, or None if not a holiday.
         """
-        at_holidays = holidays.Austria(years=check_date.year, subdiv=region)
-        return at_holidays.get(check_date)
+        return get_public_holidays("AT", check_date.year, region).get(check_date)
 
     def _calculate_rest_hours(
         self,

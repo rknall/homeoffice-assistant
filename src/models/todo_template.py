@@ -47,12 +47,15 @@ class TodoTemplate(Base, TimestampMixin):
         default=OffsetReference.START_DATE,
         nullable=False,
     )
-    template_set_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    template_set_name: Mapped[str] = mapped_column(
+        String(100), nullable=False, index=True
+    )
     is_global: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     user_id: Mapped[uuid_lib.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=True,
+        index=True,
     )
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 

@@ -86,9 +86,9 @@ def upgrade() -> None:
         ).fetchall()
 
         # Create company contacts from existing expense recipients
-        from datetime import datetime
+        from datetime import UTC, datetime
 
-        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now(UTC).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
 
         for company in companies:
             contact_id = str(uuid.uuid4())

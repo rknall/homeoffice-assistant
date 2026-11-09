@@ -10,28 +10,31 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_admin, get_current_user, get_db
+from src.api.deps import get_current_admin, get_current_user
+from src.database import get_db
 from src.models import PluginConfigModel, User
 from src.plugins import (
-    PluginCapability,
     PluginLoader,
     PluginLoadError,
+    PluginManifest,
     PluginRegistry,
     PluginValidationError,
 )
-from src.plugins.loader import PLUGIN_MANIFEST_FILE, parse_manifest
+from src.plugins.manifest import PLUGIN_MANIFEST_FILE, parse_manifest
 from src.schemas.plugin import (
     DiscoveredPlugin,
     DiscoveredPluginsResponse,
     PluginInfoResponse,
     PluginInstallResponse,
     PluginListResponse,
+    PluginManifestResponse,
     PluginSettingsResponse,
     PluginSettingsUpdate,
     PluginSummary,
     PluginUninstallResponse,
-    ProvidedPermissionResponse,
+    manifest_detail,
 )
+from src.services import config_secrets
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/plugins", tags=["plugins"])
@@ -40,6 +43,70 @@ router = APIRouter(prefix="/plugins", tags=["plugins"])
 def _get_loader() -> PluginLoader:
     """Get the plugin loader instance."""
     return PluginLoader()
+
+
+def _read_manifest(plugin_path: Path | None, plugin_id: str) -> PluginManifest | None:
+    """Parse a plugin's manifest from disk.
+
+    Args:
+        plugin_path: Plugin directory, or None when it is not on disk.
+        plugin_id: Plugin identifier, used in the log message.
+
+    Returns:
+        The parsed manifest, or None when it is missing or invalid.
+    """
+    if not plugin_path:
+        return None
+    manifest_path = plugin_path / PLUGIN_MANIFEST_FILE
+    if not manifest_path.exists():
+        return None
+    try:
+        return parse_manifest(manifest_path)
+    except PluginValidationError as e:
+        logger.warning(f"Could not load manifest for {plugin_id}: {e}")
+        return None
+
+
+def _masked_settings(plugin_id: str, settings: dict) -> dict:
+    """Mask a plugin's secret settings for a response.
+
+    Secrets are never sent back, not even to admins; the edit form sends the
+    blank mask back and the stored value is kept. A plugin that is registered
+    but not loaded has no config schema, so nothing tells which values are
+    secrets, and every value is masked.
+
+    Args:
+        plugin_id: Plugin identifier.
+        settings: Decrypted settings.
+
+    Returns:
+        The settings with secrets (or, without a schema, all values) masked.
+    """
+    registry = PluginRegistry.get_instance()
+    if not registry.is_plugin_loaded(plugin_id):
+        return dict.fromkeys(settings, config_secrets.MASK)
+    return config_secrets.mask(settings, registry.get_config_schema(plugin_id))
+
+
+def _secrets_set(plugin_id: str, settings: dict) -> list[str]:
+    """List the settings that hold a stored secret, without their values.
+
+    A plugin that is registered but not loaded has no config schema, so every
+    non-empty setting counts, matching ``_masked_settings``.
+
+    Args:
+        plugin_id: Plugin identifier.
+        settings: Decrypted settings.
+
+    Returns:
+        Sorted names of the settings that hold a secret value.
+    """
+    registry = PluginRegistry.get_instance()
+    if not registry.is_plugin_loaded(plugin_id):
+        return sorted(name for name, value in settings.items() if value)
+    return config_secrets.set_secret_fields(
+        settings, registry.get_config_schema(plugin_id)
+    )
 
 
 @router.get("", response_model=PluginListResponse)
@@ -53,61 +120,15 @@ async def list_plugins(
 
     plugins: list[PluginSummary] = []
     for config in configs:
-        # Try to get manifest for additional info
         plugin_path = loader.get_plugin_path(config.plugin_id)
+        manifest_data = _read_manifest(plugin_path, config.plugin_id)
         manifest = None
         has_frontend = False
         has_backend = False
-
-        if plugin_path:
-            manifest_path = plugin_path / PLUGIN_MANIFEST_FILE
-            if manifest_path.exists():
-                try:
-                    manifest_data = parse_manifest(manifest_path)
-                    has_frontend = loader.has_frontend(config.plugin_id)
-                    has_backend = loader.has_backend(config.plugin_id)
-
-                    # Convert to response format
-                    from src.schemas.plugin import (
-                        PluginCapabilitiesResponse,
-                        PluginManifestResponse,
-                    )
-
-                    manifest = PluginManifestResponse(
-                        id=manifest_data.id,
-                        name=manifest_data.name,
-                        version=manifest_data.version,
-                        description=manifest_data.description,
-                        author=manifest_data.author,
-                        homepage=manifest_data.homepage,
-                        license=manifest_data.license,
-                        capabilities=PluginCapabilitiesResponse(
-                            backend=PluginCapability.BACKEND
-                            in manifest_data.capabilities,
-                            frontend=PluginCapability.FRONTEND
-                            in manifest_data.capabilities,
-                            config=PluginCapability.CONFIG
-                            in manifest_data.capabilities,
-                        ),
-                        # Legacy field for backward compatibility
-                        permissions=[
-                            p.value for p in manifest_data.required_permissions
-                        ],
-                        # New split fields
-                        required_permissions=[
-                            p.value for p in manifest_data.required_permissions
-                        ],
-                        provided_permissions=[
-                            ProvidedPermissionResponse(
-                                code=p.code, description=p.description
-                            )
-                            for p in manifest_data.provided_permissions
-                        ],
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"Could not load manifest for {config.plugin_id}: {e}"
-                    )
+        if manifest_data:
+            manifest = PluginManifestResponse.from_manifest(manifest_data)
+            has_frontend = loader.has_frontend(config.plugin_id)
+            has_backend = loader.has_backend(config.plugin_id)
 
         plugins.append(
             PluginSummary(
@@ -169,86 +190,28 @@ async def install_discovered_plugin(
     This registers the plugin in the database and enables it.
     Requires admin privileges.
     """
-    loader = _get_loader()
-
-    # Check if already installed
-    existing = (
-        db.query(PluginConfigModel)
-        .filter(PluginConfigModel.plugin_id == plugin_id)
-        .first()
-    )
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Plugin {plugin_id} is already installed",
-        )
-
-    # Find the plugin in discovered list
-    discovered = loader.discover_plugins()
-    plugin_info = None
-    for plugin_path, manifest in discovered:
-        if manifest.id == plugin_id:
-            plugin_info = (plugin_path, manifest)
-            break
-
-    if not plugin_info:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Plugin {plugin_id} not found in plugins directory",
-        )
-
-    plugin_path, manifest = plugin_info
-
     try:
-        # Run migrations if plugin has them
-        from src.plugins.migrations import PluginMigrationRunner
-        from src.services.rbac_service import register_plugin_permissions
-
-        migration_runner = PluginMigrationRunner(plugin_path, manifest.id)
-        if migration_runner.has_migrations():
-            migration_runner.run_migrations()
-
-        # Register plugin-provided permissions
-        if manifest.provided_permissions:
-            register_plugin_permissions(db, manifest.id, manifest.provided_permissions)
-            logger.info(
-                f"Registered {len(manifest.provided_permissions)} permissions "
-                f"for plugin {manifest.id}"
-            )
-
-        # Create database config record
-        db_config = PluginConfigModel(
-            plugin_id=manifest.id,
-            plugin_version=manifest.version,
-            settings_encrypted=None,
-        )
-        db.add(db_config)
-        db.commit()
-
-        # Load the plugin into the registry
-        from src.plugins.base import PluginConfig
-
-        registry = PluginRegistry.get_instance()
-        config = PluginConfig(settings={})
-        plugin = await registry._load_single_plugin(plugin_path, manifest, config)
-
-        # Call on_install lifecycle hook
-        await plugin.on_install()
-
-        return PluginInstallResponse(
-            success=True,
-            plugin_id=manifest.id,
-            plugin_name=manifest.name,
-            version=manifest.version,
-            message=f"Plugin {manifest.name} installed successfully",
-        )
-
-    except Exception as e:
+        plugin = await PluginRegistry.get_instance().install_discovered(plugin_id, db)
+    except PluginValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    except (PluginLoadError, OSError, ImportError, RuntimeError) as e:
         logger.error(f"Failed to install discovered plugin {plugin_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to install plugin: {e}",
+            detail="Failed to install plugin",
         ) from e
+
+    return PluginInstallResponse(
+        success=True,
+        plugin_id=plugin.id,
+        plugin_name=plugin.name,
+        version=plugin.manifest.version,
+        message=f"Plugin {plugin.name} installed successfully",
+    )
 
 
 @router.get("/{plugin_id}", response_model=PluginInfoResponse)
@@ -272,55 +235,18 @@ async def get_plugin(
 
     loader = _get_loader()
     plugin_path = loader.get_plugin_path(plugin_id)
+    decrypted = config.get_decrypted_settings()
 
-    manifest_dict = None
-    config_schema: dict = {}
-
-    if plugin_path:
-        manifest_path = plugin_path / PLUGIN_MANIFEST_FILE
-        if manifest_path.exists():
-            try:
-                manifest_data = parse_manifest(manifest_path)
-                manifest_dict = {
-                    "id": manifest_data.id,
-                    "name": manifest_data.name,
-                    "version": manifest_data.version,
-                    "description": manifest_data.description,
-                    "author": manifest_data.author,
-                    "homepage": manifest_data.homepage,
-                    "license": manifest_data.license,
-                    "min_host_version": manifest_data.min_host_version,
-                    "max_host_version": manifest_data.max_host_version,
-                    "capabilities": [c.value for c in manifest_data.capabilities],
-                    # Legacy field for backward compatibility
-                    "permissions": [
-                        p.value for p in manifest_data.required_permissions
-                    ],
-                    # New split fields
-                    "required_permissions": [
-                        p.value for p in manifest_data.required_permissions
-                    ],
-                    "provided_permissions": [
-                        {"code": p.code, "description": p.description}
-                        for p in manifest_data.provided_permissions
-                    ],
-                    "dependencies": manifest_data.dependencies,
-                }
-            except Exception as e:
-                logger.warning(f"Could not load manifest for {plugin_id}: {e}")
-
-    # Try to get config schema from loaded plugin
-    registry = PluginRegistry.get_instance()
-    plugin = registry.get_plugin(plugin_id)
-    if plugin:
-        config_schema = plugin.get_config_schema()
+    manifest_data = _read_manifest(plugin_path, plugin_id)
+    config_schema = PluginRegistry.get_instance().get_config_schema(plugin_id)
 
     return PluginInfoResponse(
         plugin_id=config.plugin_id,
         plugin_version=config.plugin_version,
-        manifest=manifest_dict,
+        manifest=manifest_detail(manifest_data) if manifest_data else None,
         config_schema=config_schema,
-        settings=config.get_decrypted_settings(),
+        settings=_masked_settings(plugin_id, decrypted),
+        secrets_set=_secrets_set(plugin_id, decrypted),
         migration_version=config.migration_version,
         has_frontend=loader.has_frontend(plugin_id) if plugin_path else False,
         has_backend=loader.has_backend(plugin_id) if plugin_path else False,
@@ -382,9 +308,10 @@ async def install_plugin(
             detail=str(e),
         ) from e
     except PluginLoadError as e:
+        logger.error(f"Failed to load uploaded plugin: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to load plugin: {e}",
+            detail="Failed to load plugin: see server log",
         ) from e
     finally:
         tmp_path.unlink(missing_ok=True)
@@ -454,7 +381,8 @@ async def update_plugin_settings(
 ) -> PluginSettingsResponse:
     """Update plugin settings.
 
-    Requires admin privileges.
+    Requires admin privileges. A plugin that is registered but not loaded is
+    rejected with 409 and keeps its stored settings.
     """
     config = (
         db.query(PluginConfigModel)
@@ -469,11 +397,21 @@ async def update_plugin_settings(
         )
 
     registry = PluginRegistry.get_instance()
-    await registry.update_plugin_settings(plugin_id, settings_update.settings, db)
+    # Without a loaded plugin there is no config schema telling which fields
+    # are secrets; a blank (masked) secret would replace the stored value.
+    if not registry.is_plugin_loaded(plugin_id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Plugin {plugin_id} is not loaded; its settings cannot be changed",
+        )
+
+    stored = await registry.update_plugin_settings(
+        plugin_id, settings_update.settings, db
+    )
 
     return PluginSettingsResponse(
         success=True,
         plugin_id=plugin_id,
-        settings=config.get_decrypted_settings(),
+        settings=_masked_settings(plugin_id, stored),
         message="Settings updated successfully",
     )

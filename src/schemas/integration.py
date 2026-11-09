@@ -50,6 +50,7 @@ class IntegrationConfigDetailResponse(IntegrationConfigResponse):
     """Schema for integration config detail response (with masked secrets)."""
 
     config: dict[str, Any]
+    secrets_set: list[str] = []
 
 
 class IntegrationTypeInfo(BaseModel):
@@ -75,22 +76,6 @@ class StoragePathResponse(BaseModel):
     path: str
 
 
-class TagResponse(BaseModel):
-    """Schema for Paperless tag."""
-
-    id: int
-    name: str
-
-
-class CustomFieldResponse(BaseModel):
-    """Schema for Paperless custom field."""
-
-    id: int
-    name: str
-    data_type: str
-    extra_data: dict[str, Any] | None = None
-
-
 class CustomFieldChoicesResponse(BaseModel):
     """Schema for custom field choices."""
 
@@ -112,17 +97,13 @@ class EventCustomFieldChoicesResponse(BaseModel):
     choices: list[CustomFieldChoice]
 
 
-class AddChoiceRequest(BaseModel):
-    """Schema for adding a choice to a custom field."""
-
-    choice: str = Field(..., min_length=1, max_length=200)
-
-
 class LlmModelsRequest(BaseModel):
     """Schema for listing the models an LLM endpoint offers.
 
     Carries the form values so models can be fetched before the integration is
-    saved. Blank secrets fall back to the stored config when config_id is set.
+    saved. Blank secrets are filled from the stored config only when config_id is
+    set and base_url equals the stored base_url, so secrets never reach a
+    different host.
     """
 
     base_url: str = Field(..., min_length=1, max_length=500)
@@ -156,12 +137,6 @@ class DocumentResponse(BaseModel):
     correspondent: int | None = None
     document_type: int | None = None
     archive_serial_number: int | None = None
-
-
-class DeleteDocumentRequest(BaseModel):
-    """Schema for deleting a document."""
-
-    document_id: int
 
 
 # Unsplash schemas
@@ -209,3 +184,9 @@ class UnsplashSearchResponse(BaseModel):
     total: int
     total_pages: int
     results: list[UnsplashImage]
+
+
+class UnsplashDownloadResponse(BaseModel):
+    """Schema for the Unsplash download tracking response."""
+
+    download_url: str

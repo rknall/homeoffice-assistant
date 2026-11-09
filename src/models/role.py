@@ -1,4 +1,7 @@
-# src/models/role.py
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
+"""Role model."""
+
 import uuid as uuid_lib
 from typing import TYPE_CHECKING
 

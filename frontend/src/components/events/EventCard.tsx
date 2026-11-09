@@ -5,20 +5,8 @@ import { MapPin, Pencil, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Badge } from '@/components/ui/Badge'
 import { useLocale } from '@/stores/locale'
-import type { EventStatus, EventWithSummary } from '@/types'
-
-// Status is computed from dates on the backend, displayed as read-only
-const statusColors: Record<EventStatus, 'default' | 'warning' | 'info'> = {
-  upcoming: 'warning',
-  active: 'info',
-  past: 'default',
-}
-
-const statusLabels: Record<EventStatus, string> = {
-  upcoming: 'Upcoming',
-  active: 'Active',
-  past: 'Past',
-}
+import type { EventWithSummary } from '@/types'
+import { eventStatusColors, eventStatusLabels } from '@/utils/labels'
 
 interface EventCardProps {
   event: EventWithSummary
@@ -113,7 +101,7 @@ export function EventCard({ event, onEdit, onDelete, daysUntil }: EventCardProps
         </div>
         <div className="flex items-center gap-3 ml-4">
           {/* Status badge - computed from dates, read-only */}
-          <Badge variant={statusColors[event.status]}>{statusLabels[event.status]}</Badge>
+          <Badge variant={eventStatusColors[event.status]}>{eventStatusLabels[event.status]}</Badge>
           <button
             type="button"
             onClick={(e) => onEdit(e, event)}

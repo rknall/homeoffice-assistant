@@ -38,6 +38,13 @@ class ApiError extends Error {
 	}
 }
 
+/** Server error text: the `detail` string when present, else a generic message. */
+function detailText(error: { detail?: unknown }): string {
+	return typeof error.detail === "string" && error.detail
+		? error.detail
+		: "Request failed";
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	const response = await fetch(`${PLUGIN_API_BASE}${path}`, {
 		...options,
@@ -50,7 +57,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 	if (!response.ok) {
 		const error = await response.json().catch(() => ({}));
-		throw new ApiError(response.status, error.detail || "Request failed");
+		throw new ApiError(response.status, detailText(error));
 	}
 
 	// Handle 204 No Content (e.g., from DELETE requests)
@@ -214,6 +221,19 @@ export const companySettingsApi = {
 	},
 
 	/**
+	 * Create time settings for a company (fails when they already exist).
+	 */
+	create: (
+		companyId: Uuid,
+		data: CompanyTimeSettingsUpdate,
+	): Promise<CompanyTimeSettings> => {
+		return request<CompanyTimeSettings>(`/settings/company/${companyId}`, {
+			method: "POST",
+			body: JSON.stringify(data),
+		});
+	},
+
+	/**
 	 * Update time settings for a company.
 	 */
 	update: (
@@ -271,7 +291,7 @@ async function mainRequest<T>(path: string): Promise<T> {
 
 	if (!response.ok) {
 		const error = await response.json().catch(() => ({}));
-		throw new ApiError(response.status, error.detail || "Request failed");
+		throw new ApiError(response.status, detailText(error));
 	}
 
 	return response.json();
@@ -283,78 +303,17 @@ export interface Company {
 	name: string;
 }
 
+
 export const companiesApi = {
 	list: (): Promise<Company[]> => {
 		return mainRequest<Company[]>("/companies");
 	},
 };
 
-// Submission response types
-export interface SubmissionResponse {
-	id: string;
-	status: "pending" | "sent" | "failed";
-	sent_to: string;
-	period: string;
-	entry_count: number;
+/** Message to show for a failed call: the server detail when it sent one. */
+export function errorMessage(err: unknown, fallback: string): string {
+	return err instanceof Error && err.message ? err.message : fallback;
 }
-
-export interface SubmissionListItem {
-	id: string;
-	company_id: string;
-	period_start: string;
-	period_end: string;
-	period_type: string;
-	submitted_at: string;
-	sent_to_email: string;
-	status: string;
-	notes: string | null;
-}
-
-export interface SubmissionListResponse {
-	total: number;
-	submissions: SubmissionListItem[];
-}
-
-// Monthly Submission API
-export const submissionsApi = {
-	submit: (params: {
-		companyId: Uuid;
-		year: number;
-		month: number;
-		recipientEmail: string;
-		notes?: string;
-	}): Promise<SubmissionResponse> => {
-		const searchParams = new URLSearchParams();
-		searchParams.set("company_id", params.companyId);
-		searchParams.set("year", String(params.year));
-		searchParams.set("month", String(params.month));
-		searchParams.set("recipient_email", params.recipientEmail);
-		if (params.notes) searchParams.set("notes", params.notes);
-
-		return request<SubmissionResponse>(
-			`/submissions?${searchParams.toString()}`,
-			{ method: "POST" },
-		);
-	},
-
-	list: (params?: {
-		companyId?: Uuid;
-		skip?: number;
-		limit?: number;
-	}): Promise<SubmissionListResponse> => {
-		const searchParams = new URLSearchParams();
-		if (params?.companyId) searchParams.set("company_id", params.companyId);
-		if (params?.skip !== undefined)
-			searchParams.set("skip", String(params.skip));
-		if (params?.limit !== undefined)
-			searchParams.set("limit", String(params.limit));
-
-		const query = searchParams.toString();
-		return request<SubmissionListResponse>(
-			`/submissions${query ? `?${query}` : ""}`,
-		);
-	},
-};
 
 // Utility functions
 export function formatTime(timeStr: string | null): string {

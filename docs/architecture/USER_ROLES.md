@@ -1,5 +1,7 @@
 ### User & Role Management Concept (KISS-Friendly)
 
+> Status: implemented as the RBAC system in `src/rbac/` (roles, permissions, company scope); kept as the original concept.
+
 This document describes a simple, flexible user/role/permission system for your web application. It is designed to:
 
 - Stay as simple as possible (KISS).

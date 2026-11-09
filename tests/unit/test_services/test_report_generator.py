@@ -29,7 +29,6 @@ def create_user(db_session) -> User:
         username="reporter",
         email="report@example.com",
         hashed_password=get_password_hash("Secret123!"),
-        is_admin=True,
         is_active=True,
     )
     db_session.add(user)
@@ -170,6 +169,29 @@ async def test_generate_excludes_reimbursed(db_session):
     assert expenses == []
 
 
+class FailingPaperless(FakePaperless):
+    async def download_document(self, doc_id: int):
+        raise RuntimeError("paperless down")
+
+
+@pytest.mark.asyncio
+async def test_generate_reports_failed_download(db_session, caplog):
+    event = create_event_with_expenses(db_session)
+    with_doc = next(e for e in event.expenses if e.paperless_doc_id)
+    generator = report_generator.ExpenseReportGenerator(
+        db_session, paperless=FailingPaperless()
+    )
+
+    with caplog.at_level("WARNING"):
+        zip_bytes, expenses = await generator.generate(event)
+
+    assert len(expenses) == 2
+    assert generator.skipped_documents == [str(with_doc.id)]
+    assert "could not be downloaded" in caplog.text
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zip_file:
+        assert not any(n.startswith("documents/") for n in zip_file.namelist())
+
+
 def test_get_filename(db_session):
     event = create_event_with_expenses(db_session)
     generator = report_generator.ExpenseReportGenerator(db_session)
@@ -201,9 +223,6 @@ class DummyDocumentProvider(DocumentProvider):
         return None
 
     async def list_storage_paths(self):
-        return []
-
-    async def list_tags(self):
         return []
 
     async def create_tag(self, name: str):

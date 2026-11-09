@@ -3,10 +3,11 @@
 
 import { Pencil, Plus, Star, Trash2 } from 'lucide-react'
 import { useState } from 'react'
-import { api } from '@/api/client'
+import { api, errorMessage } from '@/api/client'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { confirmAction } from '@/stores/confirm'
 import type { CompanyContact } from '@/types'
 import { CompanyContactFormModal } from './CompanyContactFormModal'
 import { ContactTypeBadge } from './ContactTypeBadge'
@@ -42,12 +43,19 @@ export function CompanyContactsSection({
   }
 
   const deleteContact = async (contactId: string) => {
-    if (!confirm('Are you sure you want to delete this contact?')) return
+    if (
+      !(await confirmAction({
+        title: 'Delete contact',
+        message: 'Are you sure you want to delete this contact?',
+        confirmLabel: 'Delete',
+      }))
+    )
+      return
     try {
       await api.delete(`/companies/${companyId}/contacts/${contactId}`)
       onContactsChanged()
-    } catch {
-      setError('Failed to delete contact')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to delete contact'))
     }
   }
 
@@ -55,8 +63,8 @@ export function CompanyContactsSection({
     try {
       await api.post(`/companies/${companyId}/contacts/${contactId}/set-main`)
       onContactsChanged()
-    } catch {
-      setError('Failed to set main contact')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to set main contact'))
     }
   }
 

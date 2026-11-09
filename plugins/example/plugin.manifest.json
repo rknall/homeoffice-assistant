@@ -20,15 +20,18 @@
     "provided": [
       {
         "code": "example.notes.read",
-        "description": "View notes created by the example plugin"
+        "description": "View notes created by the example plugin",
+        "member_default": true
       },
       {
         "code": "example.notes.write",
-        "description": "Create and edit notes in the example plugin"
+        "description": "Create and edit notes in the example plugin",
+        "member_default": true
       },
       {
         "code": "example.notes.delete",
-        "description": "Delete notes in the example plugin"
+        "description": "Delete notes in the example plugin",
+        "member_default": true
       }
     ]
   },

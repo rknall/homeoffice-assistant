@@ -171,5 +171,5 @@ DELETE /api/v1/event-templates/{id}/instances  # Delete all future
 
 ## Related
 - Event management (core)
-- [Calendar Integration](calendar-integration.md) - Could sync recurring events
+- [Calendar Integration](done/calendar-integration.md) - Could sync recurring events
 - Todo templates (existing feature - similar concept)

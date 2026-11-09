@@ -1,4 +1,7 @@
-# src/models/user_role.py
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
+"""User role assignment model."""
+
 import uuid as uuid_lib
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -7,6 +10,7 @@ from sqlalchemy import DateTime, ForeignKey, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, TimestampMixin
+from src.utils.time import utc_now
 
 if TYPE_CHECKING:
     from src.models.company import Company
@@ -46,7 +50,7 @@ class UserRole(Base, TimestampMixin):
     )
     assigned_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=utc_now,
         nullable=False,
     )
 

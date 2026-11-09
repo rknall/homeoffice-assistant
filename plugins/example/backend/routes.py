@@ -5,7 +5,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_user, get_db, require_permission
+from src.api.deps import get_current_user, require_permission
+from src.database import get_db
 from src.models import User
 
 from .models import ExampleNote

@@ -4,7 +4,7 @@
 import { ChevronRight, Plus, User as UserIcon } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api } from '@/api/client'
+import { api, errorMessage } from '@/api/client'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -26,8 +26,8 @@ export function Users() {
     try {
       const data = await api.get<User[]>('/users')
       setUsers(data)
-    } catch {
-      setError('Failed to load users')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to load users'))
     } finally {
       setIsLoading(false)
     }

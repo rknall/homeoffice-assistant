@@ -5,15 +5,16 @@ import { Save, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { api } from '@/api/client'
+import { api, errorMessage } from '@/api/client'
+import { RolePermissionCards } from '@/components/settings/RolePermissionCards'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { Checkbox } from '@/components/ui/Checkbox'
 import { Input } from '@/components/ui/Input'
 import { Spinner } from '@/components/ui/Spinner'
 import { useBreadcrumb } from '@/stores/breadcrumb'
+import { confirmAction } from '@/stores/confirm'
 import type { Permission, RoleCreate, RoleUpdate, RoleWithPermissions, Uuid } from '@/types'
 
 export function RoleDetail() {
@@ -37,51 +38,6 @@ export function RoleDetail() {
   // Only Global Admin is fully immutable
   const isGlobalAdmin = role?.name === 'Global Admin'
 
-  // Separate core permissions from plugin permissions
-  const corePermissions = allPermissions.filter((p) => !p.plugin_id)
-  const pluginPermissions = allPermissions.filter((p) => p.plugin_id)
-
-  // Group core permissions by module
-  const corePermissionsByModule = corePermissions.reduce(
-    (acc, perm) => {
-      if (!acc[perm.module]) {
-        acc[perm.module] = []
-      }
-      acc[perm.module].push(perm)
-      return acc
-    },
-    {} as Record<string, Permission[]>,
-  )
-
-  // Sort core modules alphabetically
-  const sortedCoreModules = Object.keys(corePermissionsByModule).sort()
-
-  // Sort permissions within each core module
-  for (const module of sortedCoreModules) {
-    corePermissionsByModule[module].sort((a, b) => a.code.localeCompare(b.code))
-  }
-
-  // Group plugin permissions by plugin_id
-  const pluginPermissionsByPlugin = pluginPermissions.reduce(
-    (acc, perm) => {
-      const pluginId = perm.plugin_id || 'unknown'
-      if (!acc[pluginId]) {
-        acc[pluginId] = []
-      }
-      acc[pluginId].push(perm)
-      return acc
-    },
-    {} as Record<string, Permission[]>,
-  )
-
-  // Sort plugin IDs alphabetically
-  const sortedPluginIds = Object.keys(pluginPermissionsByPlugin).sort()
-
-  // Sort permissions within each plugin
-  for (const pluginId of sortedPluginIds) {
-    pluginPermissionsByPlugin[pluginId].sort((a, b) => a.code.localeCompare(b.code))
-  }
-
   const fetchRole = useCallback(async () => {
     if (!id || isCreateMode) return
     try {
@@ -90,8 +46,8 @@ export function RoleDetail() {
       setName(data.name)
       setDescription(data.description || '')
       setSelectedPermissions(new Set(data.permissions.map((p) => p.code)))
-    } catch {
-      setError('Failed to load role')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to load role'))
     }
   }, [id, isCreateMode])
 
@@ -99,8 +55,8 @@ export function RoleDetail() {
     try {
       const data = await api.get<Permission[]>('/rbac/permissions')
       setAllPermissions(data)
-    } catch {
-      setError('Failed to load permissions')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to load permissions'))
     }
   }, [])
 
@@ -178,7 +134,7 @@ export function RoleDetail() {
         setHasChanges(false)
       }
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to save role'
+      const message = errorMessage(e, 'Failed to save role')
       toast.error(message)
     } finally {
       setIsSaving(false)
@@ -186,15 +142,22 @@ export function RoleDetail() {
   }
 
   const deleteRole = async () => {
-    if (!role || !confirm('Are you sure you want to delete this role?')) {
+    if (
+      !role ||
+      !(await confirmAction({
+        title: 'Delete role',
+        message: 'Are you sure you want to delete this role?',
+        confirmLabel: 'Delete',
+      }))
+    ) {
       return
     }
     try {
       await api.delete(`/rbac/roles/${role.id}`)
       toast.success('Role deleted successfully')
       navigate('/settings/roles')
-    } catch {
-      toast.error('Failed to delete role')
+    } catch (e) {
+      toast.error(errorMessage(e, 'Failed to delete role'))
     }
   }
 
@@ -292,93 +255,12 @@ export function RoleDetail() {
         </CardContent>
       </Card>
 
-      {/* Core Permissions Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Core Permissions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            {sortedCoreModules.map((module) => (
-              <div key={module}>
-                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-                  {module.replace(/_/g, ' ')}
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {corePermissionsByModule[module].map((perm) => (
-                    <div
-                      key={perm.code}
-                      className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 hover:border-gray-300"
-                    >
-                      <Checkbox
-                        id={perm.code}
-                        checked={selectedPermissions.has(perm.code)}
-                        onCheckedChange={() => togglePermission(perm.code)}
-                        disabled={isGlobalAdmin}
-                      />
-                      <label htmlFor={perm.code} className="flex-1 cursor-pointer">
-                        <span className="block font-medium text-gray-900">{perm.code}</span>
-                        {perm.description && (
-                          <span className="block text-sm text-gray-500">{perm.description}</span>
-                        )}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Plugin Permissions Card - Only show if there are plugin permissions */}
-      {sortedPluginIds.length > 0 && (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Plugin Permissions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-500 mb-4">
-              These permissions are provided by installed plugins and can be assigned to roles.
-            </p>
-            <div className="space-y-6">
-              {sortedPluginIds.map((pluginId) => (
-                <div key={pluginId}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-                      {pluginId}
-                    </h3>
-                    <Badge variant="info" className="text-xs">
-                      Plugin
-                    </Badge>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {pluginPermissionsByPlugin[pluginId].map((perm) => (
-                      <div
-                        key={perm.code}
-                        className="flex items-start gap-3 p-3 rounded-lg border border-blue-100 bg-blue-50/30 hover:border-blue-200"
-                      >
-                        <Checkbox
-                          id={perm.code}
-                          checked={selectedPermissions.has(perm.code)}
-                          onCheckedChange={() => togglePermission(perm.code)}
-                          disabled={isGlobalAdmin}
-                        />
-                        <label htmlFor={perm.code} className="flex-1 cursor-pointer">
-                          <span className="block font-medium text-gray-900">{perm.code}</span>
-                          {perm.description && (
-                            <span className="block text-sm text-gray-500">{perm.description}</span>
-                          )}
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <RolePermissionCards
+        allPermissions={allPermissions}
+        selectedPermissions={selectedPermissions}
+        disabled={isGlobalAdmin}
+        onToggle={togglePermission}
+      />
 
       {/* Summary */}
       <Card className="mt-6">

@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 import { ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api } from '@/api/client'
+import { api, errorMessage, getCompanyLogoUrl } from '@/api/client'
 import { CompanyFormModal } from '@/components/CompanyFormModal'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
@@ -12,27 +12,18 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
 import { useBreadcrumb } from '@/stores/breadcrumb'
+import { useCompanies } from '@/stores/companies'
+import { confirmAction } from '@/stores/confirm'
 import type { Company } from '@/types'
+import { companyTypeLabels } from '@/utils/labels'
 
 export function Companies() {
   const navigate = useNavigate()
   const { setItems: setBreadcrumb } = useBreadcrumb()
-  const [companies, setCompanies] = useState<Company[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const { companies, isLoading, error: loadError, fetchCompanies } = useCompanies()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCompany, setEditingCompany] = useState<Company | null>(null)
   const [error, setError] = useState<string | null>(null)
-
-  const fetchCompanies = useCallback(async () => {
-    try {
-      const data = await api.get<Company[]>('/companies')
-      setCompanies(data)
-    } catch {
-      setError('Failed to load companies')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
 
   useEffect(() => {
     setBreadcrumb([{ label: 'Companies' }])
@@ -42,20 +33,21 @@ export function Companies() {
     fetchCompanies()
   }, [fetchCompanies])
 
-  const deleteCompany = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation()
-    if (!confirm('Are you sure you want to delete this company?')) return
+  const deleteCompany = async (id: string) => {
+    if (
+      !(await confirmAction({
+        title: 'Delete company',
+        message: 'Are you sure you want to delete this company?',
+        confirmLabel: 'Delete',
+      }))
+    )
+      return
     try {
       await api.delete(`/companies/${id}`)
       await fetchCompanies()
-    } catch {
-      setError('Failed to delete company')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to delete company'))
     }
-  }
-
-  const openEditModal = (e: React.MouseEvent, company: Company) => {
-    e.stopPropagation()
-    setEditingCompany(company)
   }
 
   const handleCompanyCreated = (company?: Company) => {
@@ -79,9 +71,9 @@ export function Companies() {
         </Button>
       </div>
 
-      {error && (
+      {(error || loadError) && (
         <Alert variant="error" className="mb-4">
-          {error}
+          {error || loadError}
         </Alert>
       )}
 
@@ -101,43 +93,55 @@ export function Companies() {
           ) : (
             <div className="divide-y divide-gray-200">
               {companies.map((company) => (
-                <button
-                  type="button"
+                <div
                   key={company.id}
-                  className="flex items-center justify-between py-4 cursor-pointer hover:bg-gray-50 -mx-4 px-4 rounded w-full text-left"
-                  onClick={() => navigate(`/companies/${company.id}`)}
+                  className="flex items-center justify-between hover:bg-gray-50 -mx-4 px-4 rounded"
                 >
-                  <div>
-                    <h3 className="font-medium text-gray-900">{company.name}</h3>
-                    <p className="text-sm text-gray-500">
-                      {company.contacts?.find((c) => c.is_main_contact)?.email || 'No main contact'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <Badge variant={company.type === 'employer' ? 'info' : 'default'}>
-                      {company.type === 'employer' ? 'Employer' : 'Third Party'}
-                    </Badge>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={(e) => openEditModal(e, company)}
-                        className="p-1 text-gray-400 hover:text-gray-600"
-                        title="Edit company"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => deleteCompany(e, company.id)}
-                        className="p-1 text-gray-400 hover:text-red-600"
-                        title="Delete company"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                      <ChevronRight className="h-4 w-4 text-gray-400" />
+                  <button
+                    type="button"
+                    className="flex flex-1 items-center justify-between py-4 cursor-pointer text-left"
+                    onClick={() => navigate(`/companies/${company.id}`)}
+                  >
+                    <div className="flex items-center gap-3">
+                      {company.logo_path && (
+                        <img
+                          src={getCompanyLogoUrl(company.id)}
+                          alt={`${company.name} logo`}
+                          className="h-10 w-10 object-contain rounded border border-gray-200"
+                        />
+                      )}
+                      <div>
+                        <h3 className="font-medium text-gray-900">{company.name}</h3>
+                        <p className="text-sm text-gray-500">
+                          {company.contacts?.find((c) => c.is_main_contact)?.email ||
+                            'No main contact'}
+                        </p>
+                      </div>
                     </div>
+                    <Badge variant={company.type === 'employer' ? 'info' : 'default'}>
+                      {companyTypeLabels[company.type]}
+                    </Badge>
+                  </button>
+                  <div className="flex items-center gap-2 ml-4">
+                    <button
+                      type="button"
+                      onClick={() => setEditingCompany(company)}
+                      className="p-1 text-gray-400 hover:text-gray-600"
+                      title="Edit company"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteCompany(company.id)}
+                      className="p-1 text-gray-400 hover:text-red-600"
+                      title="Delete company"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                    <ChevronRight className="h-4 w-4 text-gray-400" aria-hidden="true" />
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           )}

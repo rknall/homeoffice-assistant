@@ -163,9 +163,7 @@ class TimesheetReportGenerator:
         total_gross = sum(r.gross_hours or 0 for r in records)
         total_net = sum(r.net_hours or 0 for r in records)
         total_breaks = sum(r.break_minutes or 0 for r in records)
-        work_days = sum(
-            1 for r in records if r.day_type in ("work", "doctor_visit")
-        )
+        work_days = sum(1 for r in records if r.day_type in ("work", "doctor_visit"))
         vacation_days = sum(1 for r in records if r.day_type == "vacation")
         sick_days = sum(1 for r in records if r.day_type == "sick")
         holiday_days = sum(1 for r in records if r.day_type == "public_holiday")
@@ -224,9 +222,7 @@ class TimesheetReportGenerator:
             weekday = day_names[record.date.weekday()]
             day_type = day_type_labels.get(record.day_type, record.day_type)
             check_in = record.check_in.strftime("%H:%M") if record.check_in else "-"
-            check_out = (
-                record.check_out.strftime("%H:%M") if record.check_out else "-"
-            )
+            check_out = record.check_out.strftime("%H:%M") if record.check_out else "-"
             break_min = f"{record.break_minutes}" if record.break_minutes else "-"
             net_hours = f"{record.net_hours:.1f}" if record.net_hours else "-"
 
@@ -244,9 +240,7 @@ class TimesheetReportGenerator:
 
         # Add totals row
         total_net = sum(r.net_hours or 0 for r in records)
-        table_data.append(
-            ["", "", "", "", "", "Total:", f"{total_net:.1f}h"]
-        )
+        table_data.append(["", "", "", "", "", "Total:", f"{total_net:.1f}h"])
 
         col_widths = [2 * cm, 1.5 * cm, 2.5 * cm, 2 * cm, 2 * cm, 1.5 * cm, 2 * cm]
         table = Table(table_data, colWidths=col_widths)

@@ -10,9 +10,44 @@ from typing import Any
 import httpx
 
 from src.integrations.base import PhotoProvider
+from src.integrations.failure import failure_category
 from src.integrations.registry import IntegrationRegistry
+from src.models.enums import IntegrationType
 
 logger = logging.getLogger(__name__)
+
+
+def asset_distance_km(
+    asset: dict[str, Any], latitude: float, longitude: float
+) -> float | None:
+    """Return the distance of an Immich asset from a point in kilometres.
+
+    Uses the Haversine formula on the asset's EXIF coordinates.
+
+    Args:
+        asset: Immich asset dict, optionally holding ``exifInfo``.
+        latitude: Latitude of the reference point.
+        longitude: Longitude of the reference point.
+
+    Returns:
+        Distance in km, or None when the asset has no GPS coordinates.
+    """
+    exif = asset.get("exifInfo") or {}
+    lat = exif.get("latitude")
+    lon = exif.get("longitude")
+    if lat is None or lon is None:
+        return None
+
+    earth_radius_km = 6371
+    lat1_rad = math.radians(latitude)
+    lat2_rad = math.radians(lat)
+    delta_lat = math.radians(lat - latitude)
+    delta_lon = math.radians(lon - longitude)
+    a = (
+        math.sin(delta_lat / 2) ** 2
+        + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon / 2) ** 2
+    )
+    return earth_radius_km * 2 * math.asin(math.sqrt(a))
 
 
 @IntegrationRegistry.register
@@ -22,7 +57,7 @@ class ImmichProvider(PhotoProvider):
     @classmethod
     def get_type(cls) -> str:
         """Return the unique identifier for this integration type."""
-        return "immich"
+        return IntegrationType.IMMICH.value
 
     @classmethod
     def get_display_name(cls) -> str:
@@ -100,9 +135,9 @@ class ImmichProvider(PhotoProvider):
 
             return True, "Connected"
         except httpx.HTTPError as e:
-            return False, f"Connection error: {e}"
+            return False, f"Connection error: {failure_category(e)}"
         except Exception as e:
-            return False, str(e)
+            return False, failure_category(e)
 
     async def list_albums(self) -> list[dict[str, Any]]:
         """List all albums."""
@@ -201,13 +236,10 @@ class ImmichProvider(PhotoProvider):
         filtered_assets = []
         geotagged_count = 0
         for asset in items:
-            exif = asset.get("exifInfo", {})
-            lat = exif.get("latitude")
-            lon = exif.get("longitude")
+            distance = asset_distance_km(asset, latitude, longitude)
 
-            if lat is not None and lon is not None:
+            if distance is not None:
                 geotagged_count += 1
-                distance = self._haversine_distance(latitude, longitude, lat, lon)
                 if distance <= radius_km:
                     # Add computed fields
                     asset["_distance_km"] = round(distance, 2)
@@ -300,23 +332,3 @@ class ImmichProvider(PhotoProvider):
             json={"ids": asset_ids},
         )
         resp.raise_for_status()
-
-    @staticmethod
-    def _haversine_distance(
-        lat1: float, lon1: float, lat2: float, lon2: float
-    ) -> float:
-        """Calculate distance between two GPS points using Haversine formula."""
-        earth_radius_km = 6371
-
-        lat1_rad = math.radians(lat1)
-        lat2_rad = math.radians(lat2)
-        delta_lat = math.radians(lat2 - lat1)
-        delta_lon = math.radians(lon2 - lon1)
-
-        a = (
-            math.sin(delta_lat / 2) ** 2
-            + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon / 2) ** 2
-        )
-        c = 2 * math.asin(math.sqrt(a))
-
-        return earth_radius_km * c

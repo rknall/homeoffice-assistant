@@ -1,38 +1,18 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
 
-import { ChevronDown, ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { todoTemplatesApi } from '@/api/client'
+import { TemplateSetList } from '@/components/settings/TemplateSetList'
+import { TodoTemplateFormModal } from '@/components/settings/TodoTemplateFormModal'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { Input } from '@/components/ui/Input'
-import { Modal } from '@/components/ui/Modal'
-import { Select } from '@/components/ui/Select'
 import { Spinner } from '@/components/ui/Spinner'
 import { useBreadcrumb } from '@/stores/breadcrumb'
-import type {
-  OffsetReference,
-  TemplateSet,
-  TodoCategory,
-  TodoTemplate,
-  TodoTemplateCreate,
-  TodoTemplateUpdate,
-} from '@/types'
-import { OFFSET_REFERENCE_LABELS, TODO_CATEGORY_COLORS, TODO_CATEGORY_LABELS } from '@/types'
-
-const categoryOptions = (Object.keys(TODO_CATEGORY_LABELS) as TodoCategory[]).map((cat) => ({
-  value: cat,
-  label: TODO_CATEGORY_LABELS[cat],
-}))
-
-const offsetReferenceOptions = (Object.keys(OFFSET_REFERENCE_LABELS) as OffsetReference[]).map(
-  (ref) => ({
-    value: ref,
-    label: OFFSET_REFERENCE_LABELS[ref],
-  }),
-)
+import { confirmAction } from '@/stores/confirm'
+import type { TemplateSet, TodoTemplate, TodoTemplateCreate, TodoTemplateUpdate } from '@/types'
 
 export function TodoTemplateSettings() {
   const { setItems: setBreadcrumb } = useBreadcrumb()
@@ -154,7 +134,14 @@ export function TodoTemplateSettings() {
   }
 
   const handleDelete = async (template: TodoTemplate) => {
-    if (!confirm(`Are you sure you want to delete "${template.title}"?`)) return
+    if (
+      !(await confirmAction({
+        title: 'Delete todo template',
+        message: `Are you sure you want to delete "${template.title}"?`,
+        confirmLabel: 'Delete',
+      }))
+    )
+      return
 
     setError(null)
     setSuccess(null)
@@ -165,13 +152,6 @@ export function TodoTemplateSettings() {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to delete template')
     }
-  }
-
-  const formatDaysOffset = (days: number, reference: OffsetReference) => {
-    const refLabel = reference === 'start_date' ? 'start' : 'end'
-    if (days === 0) return `On event ${refLabel}`
-    if (days > 0) return `${days} day${days !== 1 ? 's' : ''} after ${refLabel}`
-    return `${Math.abs(days)} day${Math.abs(days) !== 1 ? 's' : ''} before ${refLabel}`
   }
 
   // Separate global and user templates
@@ -211,69 +191,11 @@ export function TodoTemplateSettings() {
               {globalSets.length === 0 ? (
                 <p className="text-gray-400 text-center py-4">No global templates available.</p>
               ) : (
-                <div className="space-y-3">
-                  {globalSets.map((set) => {
-                    const isExpanded = expandedSets.has(set.name)
-                    return (
-                      <div
-                        key={set.name}
-                        className="border border-gray-200 rounded-lg overflow-hidden"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => toggleSet(set.name)}
-                          className="flex items-center justify-between w-full p-3 bg-gray-50 text-left hover:bg-gray-100"
-                        >
-                          <span className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                            {isExpanded ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
-                            {set.name}
-                            <span className="text-xs text-gray-400 font-normal">
-                              ({set.templates.length} items)
-                            </span>
-                          </span>
-                        </button>
-
-                        {isExpanded && (
-                          <div className="divide-y divide-gray-100">
-                            {set.templates.map((template) => {
-                              const colors = TODO_CATEGORY_COLORS[template.category]
-                              return (
-                                <div
-                                  key={template.id}
-                                  className="flex items-center justify-between p-3"
-                                >
-                                  <div className="flex-1">
-                                    <p className="text-sm text-gray-900">{template.title}</p>
-                                    {template.description && (
-                                      <p className="text-xs text-gray-500 mt-0.5">
-                                        {template.description}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <span
-                                    className={`text-xs px-2 py-0.5 rounded ${colors.bg} ${colors.text} mr-3`}
-                                  >
-                                    {TODO_CATEGORY_LABELS[template.category]}
-                                  </span>
-                                  <span className="text-xs text-gray-500 w-32 text-right">
-                                    {formatDaysOffset(
-                                      template.days_offset,
-                                      template.offset_reference,
-                                    )}
-                                  </span>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
+                <TemplateSetList
+                  sets={globalSets}
+                  expandedSets={expandedSets}
+                  onToggle={toggleSet}
+                />
               )}
             </CardContent>
           </Card>
@@ -296,179 +218,28 @@ export function TodoTemplateSettings() {
                   No custom templates yet. Click "New Template" to create one.
                 </p>
               ) : (
-                <div className="space-y-3">
-                  {userSets.map((set) => {
-                    const isExpanded = expandedSets.has(set.name)
-                    return (
-                      <div
-                        key={set.name}
-                        className="border border-gray-200 rounded-lg overflow-hidden"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => toggleSet(set.name)}
-                          className="flex items-center justify-between w-full p-3 bg-gray-50 text-left hover:bg-gray-100"
-                        >
-                          <span className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                            {isExpanded ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
-                            {set.name}
-                            <span className="text-xs text-gray-400 font-normal">
-                              ({set.templates.length} items)
-                            </span>
-                          </span>
-                        </button>
-
-                        {isExpanded && (
-                          <div className="divide-y divide-gray-100">
-                            {set.templates.map((template) => {
-                              const colors = TODO_CATEGORY_COLORS[template.category]
-                              return (
-                                <div
-                                  key={template.id}
-                                  className="flex items-center justify-between p-3"
-                                >
-                                  <div className="flex-1">
-                                    <p className="text-sm text-gray-900">{template.title}</p>
-                                    {template.description && (
-                                      <p className="text-xs text-gray-500 mt-0.5">
-                                        {template.description}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <span
-                                    className={`text-xs px-2 py-0.5 rounded ${colors.bg} ${colors.text} mr-3`}
-                                  >
-                                    {TODO_CATEGORY_LABELS[template.category]}
-                                  </span>
-                                  <span className="text-xs text-gray-500 w-32 text-right mr-3">
-                                    {formatDaysOffset(
-                                      template.days_offset,
-                                      template.offset_reference,
-                                    )}
-                                  </span>
-                                  <div className="flex gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => openEditModal(template)}
-                                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                                      title="Edit template"
-                                    >
-                                      <Pencil className="h-4 w-4" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDelete(template)}
-                                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                                      title="Delete template"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </button>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
+                <TemplateSetList
+                  sets={userSets}
+                  expandedSets={expandedSets}
+                  onToggle={toggleSet}
+                  onEdit={openEditModal}
+                  onDelete={handleDelete}
+                />
               )}
             </CardContent>
           </Card>
         </>
       )}
 
-      {/* Create/Edit Modal */}
-      <Modal
+      <TodoTemplateFormModal
         isOpen={isModalOpen}
+        isEditing={editingTemplate !== null}
+        isSaving={isSaving}
+        formData={formData}
+        setFormData={setFormData}
+        onSubmit={handleSubmit}
         onClose={closeModal}
-        title={editingTemplate ? 'Edit Template' : 'New Template'}
-      >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="Title"
-            value={formData.title}
-            onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
-            required
-          />
-
-          <Input
-            label="Description (optional)"
-            value={formData.description || ''}
-            onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-          />
-
-          <Select
-            label="Category"
-            value={formData.category}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, category: e.target.value as TodoCategory }))
-            }
-            options={categoryOptions}
-          />
-
-          <Input
-            label="Template Set Name"
-            value={formData.template_set_name}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, template_set_name: e.target.value }))
-            }
-            required
-            placeholder="e.g., Client Visit, Team Meeting"
-          />
-
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              type="number"
-              label="Days Offset"
-              value={formData.days_offset}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  days_offset: parseInt(e.target.value, 10) || 0,
-                }))
-              }
-              description="Negative = before, Positive = after"
-            />
-
-            <Select
-              label="Relative To"
-              value={formData.offset_reference}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  offset_reference: e.target.value as OffsetReference,
-                }))
-              }
-              options={offsetReferenceOptions}
-            />
-          </div>
-
-          <p className="text-sm text-gray-500">
-            Due date:{' '}
-            <strong>
-              {formatDaysOffset(
-                formData.days_offset ?? 0,
-                formData.offset_reference ?? 'start_date',
-              )}
-            </strong>
-          </p>
-
-          <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="secondary" onClick={closeModal}>
-              Cancel
-            </Button>
-            <Button type="submit" isLoading={isSaving}>
-              {editingTemplate ? 'Save Changes' : 'Create Template'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      />
     </div>
   )
 }

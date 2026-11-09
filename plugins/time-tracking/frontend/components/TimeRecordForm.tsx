@@ -13,9 +13,10 @@ import type {
 } from "../types";
 import {
 	ENTRY_TYPE_LABELS,
-	WARNING_LEVEL_COLORS,
 	WORK_LOCATION_LABELS,
 } from "../types";
+import { ComplianceWarningList } from "./ComplianceWarningList";
+import { LeaveFields } from "./LeaveFields";
 
 interface TimeEntryFormProps {
 	entry?: TimeEntry | null;
@@ -240,56 +241,15 @@ export function TimeRecordForm({
 
 			{/* Leave-specific fields (vacation, sick) */}
 			{isLeaveType && (
-				<>
-					{/* End date for multi-day leave */}
-					<div>
-						<label
-							htmlFor="end-date"
-							className="block text-sm font-medium text-gray-700 mb-1"
-						>
-							End Date (for multi-day leave)
-						</label>
-						<input
-							type="date"
-							id="end-date"
-							value={endDate}
-							min={selectedDate}
-							onChange={(e) => setEndDate(e.target.value)}
-							className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-							disabled={entry?.is_locked || isLoading}
-						/>
-						<p className="mt-1 text-xs text-gray-500">
-							Leave empty for single-day entries
-						</p>
-					</div>
-
-					{/* Half-day checkbox (vacation only) */}
-					{supportsHalfDay && (
-						<div className="flex items-center gap-2">
-							<input
-								type="checkbox"
-								id="is-half-day"
-								checked={isHalfDay}
-								onChange={(e) => setIsHalfDay(e.target.checked)}
-								className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-								disabled={entry?.is_locked || isLoading}
-							/>
-							<label
-								htmlFor="is-half-day"
-								className="text-sm font-medium text-gray-700"
-							>
-								Half-day vacation (4 hours)
-							</label>
-						</div>
-					)}
-
-					{/* Warning about half-day overtime */}
-					{supportsHalfDay && isHalfDay && (
-						<p className="text-xs text-amber-600">
-							Note: Overtime is not permitted on half-vacation days
-						</p>
-					)}
-				</>
+				<LeaveFields
+					selectedDate={selectedDate}
+					endDate={endDate}
+					onEndDateChange={setEndDate}
+					supportsHalfDay={supportsHalfDay}
+					isHalfDay={isHalfDay}
+					onHalfDayChange={setIsHalfDay}
+					disabled={!!entry?.is_locked || isLoading}
+				/>
 			)}
 
 			{/* Time fields (only for work/doctor_visit) */}
@@ -392,28 +352,7 @@ export function TimeRecordForm({
 			</div>
 
 			{/* Compliance warnings */}
-			{warnings.length > 0 && (
-				<div className="space-y-2">
-					{warnings.map((warning, index) => {
-						const colors = WARNING_LEVEL_COLORS[warning.level];
-						return (
-							<div
-								key={index}
-								className={`p-3 rounded-md border ${colors.bg} ${colors.border}`}
-							>
-								<p className={`text-sm font-medium ${colors.text}`}>
-									{warning.message}
-								</p>
-								{warning.law_reference && (
-									<p className={`text-xs mt-1 ${colors.text} opacity-75`}>
-										Reference: {warning.law_reference}
-									</p>
-								)}
-							</div>
-						);
-					})}
-				</div>
-			)}
+			<ComplianceWarningList warnings={warnings} />
 
 			{/* Error message */}
 			{error && (

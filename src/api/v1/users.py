@@ -1,23 +1,44 @@
-# src/api/v1/users.py
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
 """User management API endpoints."""
 
-import os
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_db, require_permission
+from src.api.deps import permission_denied, require_permission
+from src.database import get_db
 from src.models import User
 from src.schemas.user import UserCreate, UserResponse, UserUpdate
 from src.security import get_password_hash
-from src.services import rbac_service
-
-AVATAR_DIR = "static/avatars"
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
-MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+from src.services import file_storage_service, rbac_service, user_service
+from src.services.user_service import build_user_response
 
 router = APIRouter()
+
+
+def _get_user_for_change(db: Session, user_id: uuid.UUID, current_user: User) -> User:
+    """Load a user that the current user is about to change.
+
+    Args:
+        db: Database session.
+        user_id: The user to change.
+        current_user: The user making the change.
+
+    Returns:
+        The user.
+
+    Raises:
+        HTTPException: 404 when the user does not exist, 403 when the user
+            holds system.admin and the current user does not.
+    """
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not rbac_service.can_manage_user(db, current_user, user):
+        raise permission_denied("system.admin")
+    return user
 
 
 @router.get(
@@ -35,36 +56,13 @@ def list_users(
     """
     users = db.query(User).order_by(User.username).all()
 
-    # Build response with permissions for each user
-    result = []
-    for user in users:
-        global_permissions = rbac_service.get_user_permissions(
-            db, user, company_id=None
-        )
-        all_permissions = rbac_service.get_user_all_permissions(db, user)
-
-        result.append(
-            UserResponse(
-                id=user.id,
-                username=user.username,
-                email=user.email,
-                is_active=user.is_active,
-                full_name=user.full_name,
-                avatar_url=user.avatar_url,
-                use_gravatar=user.use_gravatar,
-                created_at=user.created_at,
-                updated_at=user.updated_at,
-                permissions=list(global_permissions),
-                company_permissions=all_permissions.get("company_permissions", {}),
-            )
-        )
-
-    return result
+    return [build_user_response(db, user) for user in users]
 
 
 @router.post(
     "/users",
     response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
     summary="Create a new user",
 )
 def create_user(
@@ -72,7 +70,7 @@ def create_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("user.manage")),
 ) -> UserResponse:
-    """Create a new user.
+    """Create a new user with the default Member role.
 
     Requires user.manage permission.
     """
@@ -94,22 +92,12 @@ def create_user(
         is_active=True,
     )
     db.add(user)
+    db.flush()
+    rbac_service.assign_member_role(db, user.id)
     db.commit()
     db.refresh(user)
 
-    return UserResponse(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        is_active=user.is_active,
-        full_name=user.full_name,
-        avatar_url=user.avatar_url,
-        use_gravatar=user.use_gravatar,
-        created_at=user.created_at,
-        updated_at=user.updated_at,
-        permissions=[],
-        company_permissions={},
-    )
+    return build_user_response(db, user)
 
 
 @router.get(
@@ -130,22 +118,7 @@ def get_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    global_permissions = rbac_service.get_user_permissions(db, user, company_id=None)
-    all_permissions = rbac_service.get_user_all_permissions(db, user)
-
-    return UserResponse(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        is_active=user.is_active,
-        full_name=user.full_name,
-        avatar_url=user.avatar_url,
-        use_gravatar=user.use_gravatar,
-        created_at=user.created_at,
-        updated_at=user.updated_at,
-        permissions=list(global_permissions),
-        company_permissions=all_permissions.get("company_permissions", {}),
-    )
+    return build_user_response(db, user)
 
 
 @router.put(
@@ -161,11 +134,10 @@ def update_user(
 ) -> UserResponse:
     """Update a user's information.
 
-    Requires user.manage permission.
+    Requires user.manage permission; changing a user who holds system.admin
+    requires system.admin.
     """
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = _get_user_for_change(db, user_id, current_user)
 
     if user_in.username is not None:
         # Check for duplicate username
@@ -175,9 +147,7 @@ def update_user(
             .first()
         )
         if existing:
-            raise HTTPException(
-                status_code=400, detail="Username already taken"
-            )
+            raise HTTPException(status_code=400, detail="Username already taken")
         user.username = user_in.username
 
     if user_in.email is not None:
@@ -211,41 +181,7 @@ def update_user(
     db.commit()
     db.refresh(user)
 
-    global_permissions = rbac_service.get_user_permissions(db, user, company_id=None)
-    all_permissions = rbac_service.get_user_all_permissions(db, user)
-
-    return UserResponse(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        is_active=user.is_active,
-        full_name=user.full_name,
-        avatar_url=user.avatar_url,
-        use_gravatar=user.use_gravatar,
-        created_at=user.created_at,
-        updated_at=user.updated_at,
-        permissions=list(global_permissions),
-        company_permissions=all_permissions.get("company_permissions", {}),
-    )
-
-
-def _build_user_response(db: Session, user: User) -> UserResponse:
-    """Build a UserResponse with permissions."""
-    global_permissions = rbac_service.get_user_permissions(db, user, company_id=None)
-    all_permissions = rbac_service.get_user_all_permissions(db, user)
-    return UserResponse(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        is_active=user.is_active,
-        full_name=user.full_name,
-        avatar_url=user.avatar_url,
-        use_gravatar=user.use_gravatar,
-        created_at=user.created_at,
-        updated_at=user.updated_at,
-        permissions=list(global_permissions),
-        company_permissions=all_permissions.get("company_permissions", {}),
-    )
+    return build_user_response(db, user)
 
 
 @router.post(
@@ -263,55 +199,15 @@ async def upload_user_avatar(
 
     Requires user.manage permission.
     """
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # Validate file extension
-    if not file.filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No file provided",
-        )
-
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File type not allowed. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
-        )
-
-    # Read file content
+    user = _get_user_for_change(db, user_id, current_user)
     content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
+    try:
+        user = user_service.set_avatar(db, user, file.filename, content)
+    except file_storage_service.FileValidationError as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File too large. Max size: {MAX_FILE_SIZE // (1024 * 1024)}MB",
-        )
-
-    # Ensure avatar directory exists
-    os.makedirs(AVATAR_DIR, exist_ok=True)
-
-    # Delete old avatar if exists
-    if user.avatar_url:
-        old_path = user.avatar_url.lstrip("/")
-        if os.path.exists(old_path):
-            os.remove(old_path)
-
-    # Save new avatar with unique filename
-    filename = f"{user.id}_{uuid.uuid4().hex[:8]}{ext}"
-    filepath = os.path.join(AVATAR_DIR, filename)
-
-    with open(filepath, "wb") as f:
-        f.write(content)
-
-    # Update user
-    user.avatar_url = f"/{filepath}"
-    user.use_gravatar = False
-    db.commit()
-    db.refresh(user)
-
-    return _build_user_response(db, user)
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
+    return build_user_response(db, user)
 
 
 @router.delete(
@@ -328,18 +224,5 @@ def delete_user_avatar(
 
     Requires user.manage permission.
     """
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    if user.avatar_url:
-        old_path = user.avatar_url.lstrip("/")
-        if os.path.exists(old_path):
-            os.remove(old_path)
-
-    user.avatar_url = None
-    user.use_gravatar = True
-    db.commit()
-    db.refresh(user)
-
-    return _build_user_response(db, user)
+    user = _get_user_for_change(db, user_id, current_user)
+    return build_user_response(db, user_service.clear_avatar(db, user))

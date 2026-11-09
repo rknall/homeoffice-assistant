@@ -7,9 +7,9 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_user, get_db
+from src.api.deps import require_permission
+from src.database import get_db
 from src.models import User
-from src.models.enums import ContactType
 from src.schemas.company_contact import (
     CompanyContactCreate,
     CompanyContactResponse,
@@ -19,6 +19,10 @@ from src.services import company_contact_service, company_service
 
 router = APIRouter()
 
+# Reads need company.view and writes company.manage for the company in the path.
+view_company = require_permission("company.view", company_id_param="company_id")
+manage_company = require_permission("company.manage", company_id_param="company_id")
+
 
 @router.get(
     "/{company_id}/contacts",
@@ -27,7 +31,7 @@ router = APIRouter()
 def list_company_contacts(
     company_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(view_company),
 ) -> list[CompanyContactResponse]:
     """List all contacts for a company."""
     company = company_service.get_company(db, company_id)
@@ -49,7 +53,7 @@ def get_company_contact(
     company_id: uuid.UUID,
     contact_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(view_company),
 ) -> CompanyContactResponse:
     """Get a specific contact."""
     company = company_service.get_company(db, company_id)
@@ -78,7 +82,7 @@ def create_company_contact(
     company_id: uuid.UUID,
     data: CompanyContactCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(manage_company),
 ) -> CompanyContactResponse:
     """Create a new contact for a company.
 
@@ -105,7 +109,7 @@ def update_company_contact(
     contact_id: uuid.UUID,
     data: CompanyContactUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(manage_company),
 ) -> CompanyContactResponse:
     """Update a contact."""
     company = company_service.get_company(db, company_id)
@@ -134,7 +138,7 @@ def delete_company_contact(
     company_id: uuid.UUID,
     contact_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(manage_company),
 ) -> None:
     """Delete a contact.
 
@@ -166,7 +170,7 @@ def set_main_contact(
     company_id: uuid.UUID,
     contact_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(manage_company),
 ) -> CompanyContactResponse:
     """Set a contact as the main contact."""
     company = company_service.get_company(db, company_id)
@@ -185,27 +189,3 @@ def set_main_contact(
 
     contact = company_contact_service.set_main_contact(db, contact)
     return company_contact_service.contact_to_response(contact)
-
-
-@router.get(
-    "/{company_id}/contacts/by-type/{contact_type}",
-    response_model=list[CompanyContactResponse],
-)
-def get_contacts_by_type(
-    company_id: uuid.UUID,
-    contact_type: ContactType,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> list[CompanyContactResponse]:
-    """Get contacts by type."""
-    company = company_service.get_company(db, company_id)
-    if not company:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Company not found",
-        )
-
-    contacts = company_contact_service.get_contacts_by_type(
-        db, company_id, [contact_type]
-    )
-    return [company_contact_service.contact_to_response(c) for c in contacts]

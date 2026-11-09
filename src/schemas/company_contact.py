@@ -59,12 +59,3 @@ class CompanyContactResponse(BaseModel):
     updated_at: datetime.datetime
 
     model_config = {"from_attributes": True}
-
-
-class TemplateContactValidation(BaseModel):
-    """Validation result for template contacts."""
-
-    is_valid: bool
-    missing_types: list[ContactType]
-    available_contacts: list[CompanyContactResponse]
-    message: str

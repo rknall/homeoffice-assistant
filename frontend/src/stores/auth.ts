@@ -29,19 +29,21 @@ export const useAuth = create<AuthState>((set, get) => ({
   error: null,
 
   login: async (username: string, password: string) => {
-    set({ isLoading: true, error: null })
+    // Not the global isLoading: App swaps the whole tree for a spinner while it
+    // is set, which unmounts the form and clears the username field on failure.
+    set({ error: null })
     try {
       const response = await api.post<AuthResponse>('/auth/login', { username, password })
-      set({ user: response.user, isLoading: false })
+      set({ user: response.user })
     } catch (e) {
       const error = e instanceof ApiError ? e.message : 'Login failed'
-      set({ error, isLoading: false })
+      set({ error })
       throw e
     }
   },
 
   register: async (username: string, email: string, password: string, fullName?: string) => {
-    set({ isLoading: true, error: null })
+    set({ error: null })
     try {
       const response = await api.post<AuthResponse>('/auth/register', {
         username,
@@ -49,10 +51,10 @@ export const useAuth = create<AuthState>((set, get) => ({
         password,
         full_name: fullName || null,
       })
-      set({ user: response.user, isLoading: false, isFirstRun: false })
+      set({ user: response.user, isFirstRun: false })
     } catch (e) {
       const error = e instanceof ApiError ? e.message : 'Registration failed'
-      set({ error, isLoading: false })
+      set({ error })
       throw e
     }
   },

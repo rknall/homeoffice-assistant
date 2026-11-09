@@ -8,7 +8,6 @@ export { usePlugins } from './registry'
 export type {
   LoadedPlugin,
   PluginCapabilities,
-  PluginEnableResponse,
   PluginExports,
   PluginInfo,
   PluginInstallResponse,

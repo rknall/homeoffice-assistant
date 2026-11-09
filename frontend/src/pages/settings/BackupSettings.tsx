@@ -2,22 +2,17 @@
 // SPDX-License-Identifier: GPL-2.0-only
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, downloadBackup, performRestore, uploadBackupForValidation } from '@/api/client'
+import { formatBytes } from '@/components/settings/formatBytes'
+import { RestoreConfirmModal } from '@/components/settings/RestoreConfirmModal'
+import { RestoreResultAlert } from '@/components/settings/RestoreResultAlert'
+import { RestoreValidationAlert } from '@/components/settings/RestoreValidationAlert'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
-import { Modal } from '@/components/ui/Modal'
 import { Spinner } from '@/components/ui/Spinner'
 import { useBreadcrumb } from '@/stores/breadcrumb'
 import type { BackupInfo, RestoreResponse, RestoreValidationResponse } from '@/types'
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 Bytes'
-  const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`
-}
 
 export function BackupSettings() {
   const { setItems: setBreadcrumb } = useBreadcrumb()
@@ -264,28 +259,7 @@ export function BackupSettings() {
             automatically. Your current admin account will be preserved.
           </Alert>
 
-          {restoreResult && (
-            <Alert variant={restoreResult.success ? 'success' : 'error'} className="mb-4">
-              <div>{restoreResult.message}</div>
-              {restoreResult.success && (
-                <>
-                  {restoreResult.migrations_run && (
-                    <div className="mt-2 text-sm">{restoreResult.migrations_message}</div>
-                  )}
-                  {restoreResult.configs_imported > 0 && (
-                    <div className="mt-1 text-sm">
-                      {restoreResult.configs_imported} integration config(s) imported.
-                    </div>
-                  )}
-                  {restoreResult.requires_restart && (
-                    <div className="mt-2 font-medium">
-                      Please restart the application now to apply the restored data.
-                    </div>
-                  )}
-                </>
-              )}
-            </Alert>
-          )}
+          {restoreResult && <RestoreResultAlert result={restoreResult} />}
 
           {!restoreResult?.success && (
             <div className="space-y-4">
@@ -310,13 +284,11 @@ export function BackupSettings() {
                     hover:file:bg-blue-100"
                 />
               </div>
-
               {selectedFile && (
                 <div className="text-sm text-gray-600">
                   Selected: {selectedFile.name} ({formatBytes(selectedFile.size)})
                 </div>
               )}
-
               {/* Password field for encrypted backups */}
               {(needsPassword || selectedFile?.name.endsWith('.enc')) && (
                 <div>
@@ -334,41 +306,7 @@ export function BackupSettings() {
                   )}
                 </div>
               )}
-
-              {validationResult && (
-                <Alert variant={validationResult.valid ? 'success' : 'error'} className="mt-4">
-                  <div>{validationResult.message}</div>
-                  {validationResult.warnings.length > 0 && (
-                    <ul className="mt-2 list-disc list-inside">
-                      {validationResult.warnings.map((warning) => (
-                        <li key={warning}>{warning}</li>
-                      ))}
-                    </ul>
-                  )}
-                  {validationResult.metadata && validationResult.valid && (
-                    <div className="mt-2 text-xs">
-                      <p>Format: {validationResult.metadata.backup_format_version}</p>
-                      {validationResult.metadata.created_at && (
-                        <p>
-                          Created: {new Date(validationResult.metadata.created_at).toLocaleString()}
-                        </p>
-                      )}
-                      <p>Created by: {validationResult.metadata.created_by}</p>
-                      <p>Database size: {formatBytes(validationResult.metadata.db_size_bytes)}</p>
-                      <p>Avatars: {validationResult.metadata.avatar_count}</p>
-                      {validationResult.metadata.integration_config_count > 0 && (
-                        <p>
-                          Integration configs: {validationResult.metadata.integration_config_count}
-                        </p>
-                      )}
-                      {validationResult.metadata.is_password_protected && (
-                        <p className="text-green-600">Password verified</p>
-                      )}
-                    </div>
-                  )}
-                </Alert>
-              )}
-
+              {validationResult && <RestoreValidationAlert result={validationResult} />}
               <div className="flex gap-3">
                 <Button
                   onClick={handleValidate}
@@ -397,32 +335,11 @@ export function BackupSettings() {
         </CardContent>
       </Card>
 
-      {/* Confirmation Modal */}
-      <Modal
+      <RestoreConfirmModal
         isOpen={showConfirmModal}
         onClose={() => setShowConfirmModal(false)}
-        title="Confirm Restore"
-      >
-        <div className="space-y-4">
-          <p>Are you sure you want to restore from this backup? This will:</p>
-          <ul className="list-disc list-inside text-sm text-gray-600">
-            <li>Create a backup of current data</li>
-            <li>Replace the database with the backup version</li>
-            <li>Replace all avatar files</li>
-            <li>Preserve your current admin account</li>
-            <li>Run database migrations automatically</li>
-            <li>Require an application restart</li>
-          </ul>
-          <div className="flex justify-end gap-3 pt-4">
-            <Button variant="secondary" onClick={() => setShowConfirmModal(false)}>
-              Cancel
-            </Button>
-            <Button variant="danger" onClick={handleRestore}>
-              Yes, Restore
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        onConfirm={handleRestore}
+      />
     </div>
   )
 }

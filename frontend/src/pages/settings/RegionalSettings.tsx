@@ -3,7 +3,7 @@
 
 import { Globe } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { api } from '@/api/client'
+import { api, errorMessage } from '@/api/client'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -121,7 +121,7 @@ export function RegionalSettings() {
       setSuccess('Settings saved successfully')
       setTimeout(() => setSuccess(null), 3000)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save settings')
+      setError(errorMessage(e, 'Failed to save settings'))
     } finally {
       setIsSaving(false)
     }

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Tests for currency_service."""
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
@@ -16,6 +16,7 @@ from src.services.currency_service import (
     CurrencyService,
     CurrencyServiceError,
 )
+from src.utils.time import utc_now
 
 
 @pytest.fixture
@@ -102,7 +103,7 @@ class TestGetRate:
             target_currency="EUR",
             rate=Decimal("0.231"),
             rate_date=date(2025, 1, 15),
-            fetched_at=datetime.utcnow(),
+            fetched_at=utc_now(),
         )
         db_session.add(cache_entry)
         db_session.commit()
@@ -184,7 +185,9 @@ class TestGetRate:
         )
 
         rate, rate_date = await currency_service.get_rate(
-            "GBP", "EUR", date(2025, 1, 18)  # Saturday
+            "GBP",
+            "EUR",
+            date(2025, 1, 18),  # Saturday
         )
 
         assert rate == Decimal("1.19")
@@ -323,7 +326,7 @@ class TestCacheExpiry:
     async def test_expired_cache_triggers_api_call(self, currency_service, db_session):
         """Should fetch from API when cached rate is too old."""
         # Add stale cache entry (25 hours old)
-        stale_time = datetime.utcnow() - timedelta(hours=25)
+        stale_time = utc_now() - timedelta(hours=25)
         cache_entry = CurrencyCache(
             base_currency="USD",
             target_currency="EUR",
@@ -351,3 +354,25 @@ class TestCacheExpiry:
 
         # Should get the fresh rate from API
         assert rate == Decimal("0.92")
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_recent_cache_reloaded_from_database_is_used(
+        self, currency_service, db_session
+    ):
+        """Should use a cache row one hour old after it is reloaded."""
+        db_session.add(
+            CurrencyCache(
+                base_currency="USD",
+                target_currency="EUR",
+                rate=Decimal("0.90"),
+                rate_date=date(2025, 1, 15),
+                fetched_at=utc_now() - timedelta(hours=1),
+            )
+        )
+        db_session.commit()
+        db_session.expire_all()
+
+        rate, _ = await currency_service.get_rate("USD", "EUR", date(2025, 1, 15))
+
+        assert rate == Decimal("0.90")

@@ -5,7 +5,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_user, get_db, require_permission
+from src.api.deps import get_current_user, require_permission
+from src.database import get_db
 from src.models import User
 from src.schemas.settings import (
     CurrencySettingsResponse,
@@ -23,7 +24,10 @@ def get_locale_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> LocaleSettingsResponse:
-    """Get locale settings (date format, time format, timezone)."""
+    """Get locale settings (date format, time format, timezone).
+
+    Every page formats dates with these, so any logged-in user may read them.
+    """
     settings = settings_service.get_locale_settings(db)
     return LocaleSettingsResponse(**settings)
 
@@ -49,7 +53,10 @@ def get_currency_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> CurrencySettingsResponse:
-    """Get the system-wide base currency."""
+    """Get the system-wide base currency.
+
+    Expense amounts are shown in it, so any logged-in user may read it.
+    """
     return CurrencySettingsResponse(
         base_currency=settings_service.get_base_currency(db)
     )

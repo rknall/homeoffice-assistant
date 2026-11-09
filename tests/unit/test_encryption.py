@@ -1,12 +1,7 @@
 # SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
-import os
-
 import pytest
 from cryptography.fernet import InvalidToken
-
-# Set test environment
-os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only-32chars!"  # noqa: S105
 
 from src.encryption import decrypt_config, encrypt_config
 

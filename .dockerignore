@@ -19,3 +19,8 @@ tests/
 .github/
 .playwright-mcp/
 backups/
+docs/
+.claude/
+graphify-out/
+.ruff_cache/
+.mypy_cache/

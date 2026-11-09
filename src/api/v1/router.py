@@ -15,6 +15,7 @@ from src.api.v1 import (
     dashboard,
     email_templates,
     events,
+    events_documents,
     expenses,
     holiday_calendars,
     integrations,
@@ -67,6 +68,7 @@ api_router.include_router(
 
 # Event routes
 api_router.include_router(events.router, prefix="/events", tags=["events"])
+api_router.include_router(events_documents.router, prefix="/events", tags=["events"])
 
 # Expense routes (nested under events)
 api_router.include_router(expenses.router, prefix="/events", tags=["expenses"])
@@ -82,6 +84,7 @@ api_router.include_router(notes.router, prefix="/events", tags=["notes"])
 
 # Todo routes (nested under events)
 api_router.include_router(todos.router, prefix="/events", tags=["todos"])
+api_router.include_router(todos.due_router, prefix="/todos", tags=["todos"])
 
 # Todo template routes
 api_router.include_router(

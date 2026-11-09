@@ -1,10 +1,14 @@
-# src/api/v1/rbac.py
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
+"""Role and permission administration routes."""
+
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_user, get_db, require_permission
+from src.api.deps import get_current_user, permission_denied, require_permission
+from src.database import get_db
 from src.models import Permission, Role, RolePermission, User, UserRole
 from src.schemas.rbac import (
     PermissionSchema,
@@ -16,9 +20,29 @@ from src.schemas.rbac import (
     UserRoleAssignmentSchema,
     UserRoleSchema,
 )
-from src.services import rbac_service
+from src.services import rbac_service, role_admin_service
 
 router = APIRouter()
+
+
+def _check_role_change_allowed(
+    db: Session, actor: User, target: User, role: Role
+) -> None:
+    """Reject role changes that would let user.manage escalate privileges.
+
+    Args:
+        db: Database session.
+        actor: The user making the change.
+        target: The user whose roles change.
+        role: The role being assigned or removed.
+
+    Raises:
+        HTTPException: 403 when the change requires system.admin.
+    """
+    if not rbac_service.can_assign_role(
+        db, actor, role
+    ) or not rbac_service.can_manage_user(db, actor, target):
+        raise permission_denied("system.admin")
 
 
 @router.get(
@@ -101,36 +125,12 @@ def create_role(
 
     Requires system.admin permission.
     """
-    # Prevent creating a role named "Global Admin"
-    if role_in.name == "Global Admin":
-        raise HTTPException(
-            status_code=400, detail="Cannot use reserved role name 'Global Admin'"
+    try:
+        return role_admin_service.create_role(
+            db, role_in.name, role_in.description, role_in.permissions
         )
-
-    existing_role = rbac_service.get_role_by_name(db, role_in.name)
-    if existing_role:
-        raise HTTPException(
-            status_code=400, detail="Role with this name already exists"
-        )
-
-    role = Role(name=role_in.name, description=role_in.description, is_system=False)
-    db.add(role)
-    db.flush()  # To get role.id
-
-    for perm_code in role_in.permissions:
-        permission = db.query(Permission).filter(Permission.code == perm_code).first()
-        if not permission:
-            raise HTTPException(
-                status_code=400, detail=f"Permission '{perm_code}' not found"
-            )
-        role_permission = RolePermission(
-            role_id=role.id, permission_code=permission.code
-        )
-        db.add(role_permission)
-
-    db.commit()
-    db.refresh(role)
-    return role
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.put(
@@ -146,55 +146,24 @@ def update_role(
 ) -> Role:
     """Update an existing role's name, description, and permissions.
 
-    Only the Global Admin role cannot be modified.
+    System roles cannot be modified.
     Requires system.admin permission.
     """
-    role = db.query(Role).filter(Role.id == role_id).first()
+    role = db.get(Role, role_id)
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
-    if role.name == "Global Admin":
-        raise HTTPException(
-            status_code=403, detail="Global Admin role cannot be modified"
+    if role.is_system:
+        raise HTTPException(status_code=403, detail="System roles cannot be modified")
+    try:
+        return role_admin_service.update_role(
+            db,
+            role,
+            name=role_in.name,
+            description=role_in.description,
+            permission_codes=role_in.permissions,
         )
-
-    if role_in.name:
-        # Prevent renaming any role to "Global Admin"
-        if role_in.name == "Global Admin":
-            raise HTTPException(
-                status_code=400, detail="Cannot use reserved role name 'Global Admin'"
-            )
-        existing_role = rbac_service.get_role_by_name(db, role_in.name)
-        if existing_role and existing_role.id != role_id:
-            raise HTTPException(
-                status_code=400, detail="Role with this name already exists"
-            )
-        role.name = role_in.name
-
-    if role_in.description is not None:
-        role.description = role_in.description
-
-    if role_in.permissions is not None:
-        # Clear existing permissions
-        db.query(RolePermission).filter(RolePermission.role_id == role_id).delete()
-        db.flush()
-
-        # Add new permissions
-        for perm_code in role_in.permissions:
-            permission = (
-                db.query(Permission).filter(Permission.code == perm_code).first()
-            )
-            if not permission:
-                raise HTTPException(
-                    status_code=400, detail=f"Permission '{perm_code}' not found"
-                )
-            role_permission = RolePermission(
-                role_id=role.id, permission_code=permission.code
-            )
-            db.add(role_permission)
-
-    db.commit()
-    db.refresh(role)
-    return role
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.delete(
@@ -211,17 +180,13 @@ def delete_role(
 
     Requires system.admin permission.
     """
-    role = db.query(Role).filter(Role.id == role_id).first()
+    role = db.get(Role, role_id)
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
-    if role.is_system:
-        raise HTTPException(
-            status_code=403, detail="System roles cannot be deleted"
-        )
-
-    db.delete(role)
-    db.commit()
-    return
+    try:
+        role_admin_service.delete_role(db, role)
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
 
 
 @router.get(
@@ -256,7 +221,8 @@ def assign_role_to_user_api(
 ) -> UserRole:
     """Assign a role to a user, optionally scoped to a company.
 
-    Requires user.manage permission.
+    Requires user.manage permission. Assigning a role that grants system
+    administration, or changing a user who holds it, requires system.admin.
     """
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -264,6 +230,7 @@ def assign_role_to_user_api(
     role = db.query(Role).filter(Role.id == assignment.role_id).first()
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
+    _check_role_change_allowed(db, current_user, user, role)
 
     # Check for existing assignment
     existing_assignment = (
@@ -305,8 +272,13 @@ def remove_role_from_user_api(
 ) -> None:
     """Remove a role assignment from a user.
 
-    Requires user.manage permission.
+    Requires user.manage permission. Removing a role that grants system
+    administration, or changing a user who holds it, requires system.admin.
     """
+    user = db.get(User, user_id)
+    role = db.get(Role, role_id)
+    if user is not None and role is not None:
+        _check_role_change_allowed(db, current_user, user, role)
     success = rbac_service.remove_role_from_user(db, user_id, role_id, company_id)
     if not success:
         raise HTTPException(status_code=404, detail="Role assignment not found")

@@ -4,11 +4,11 @@
 
 # Import providers to register them
 from src.integrations import (
-    immich,  # noqa: F401
-    llm,  # noqa: F401
-    paperless,  # noqa: F401
-    smtp,  # noqa: F401
-    unsplash,  # noqa: F401
+    immich,
+    llm,
+    paperless,
+    smtp,
+    unsplash,
 )
 from src.integrations.base import (
     DocumentProvider,
@@ -28,4 +28,9 @@ __all__ = [
     "IntegrationRegistry",
     "LlmProvider",
     "PhotoProvider",
+    "immich",
+    "llm",
+    "paperless",
+    "smtp",
+    "unsplash",
 ]

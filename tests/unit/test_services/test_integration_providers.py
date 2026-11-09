@@ -2,21 +2,21 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Unit tests for integration providers (Paperless, Immich, SMTP)."""
 
-from __future__ import annotations
-
+import email
 import smtplib
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any, ClassVar
 
 import httpx
 import pytest
 
-from src.integrations.immich import ImmichProvider
+from src.integrations.immich import ImmichProvider, asset_distance_km
 from src.integrations.paperless import (
     PaperlessProvider,
     _match_extension_to_content,
 )
 from src.integrations.smtp import SmtpProvider
+from src.utils.time import utc_now
 
 
 class FakeResponse:
@@ -136,9 +136,6 @@ async def test_paperless_pagination_and_documents(monkeypatch):
             json_data={"results": [{"id": 10, "name": "Travel"}], "next": None}
         ),
         FakeResponse(
-            json_data={"results": [{"id": 10, "name": "Travel"}], "next": None}
-        ),
-        FakeResponse(
             json_data={
                 "results": [
                     {
@@ -176,9 +173,6 @@ async def test_paperless_pagination_and_documents(monkeypatch):
         {"id": 1, "name": "First", "path": "a"},
         {"id": 2, "name": "Second", "path": "b"},
     ]
-
-    tags = await provider.list_tags()
-    assert tags == [{"id": 10, "name": "Travel"}]
 
     created_tag = await provider.create_tag("New")
     assert created_tag == {"id": 11, "name": "New"}
@@ -305,16 +299,16 @@ async def test_immich_health_and_metadata(monkeypatch):
     filtered = await provider.search_by_location_and_date(
         latitude=48.2,
         longitude=16.37,
-        start_date=datetime.utcnow() - timedelta(days=1),
-        end_date=datetime.utcnow(),
+        start_date=utc_now() - timedelta(days=1),
+        end_date=utc_now(),
     )
     assert [asset["id"] for asset in filtered] == ["asset-1"]
     assert filtered[0]["_thumbnail_url"].endswith("/thumbnail?size=preview")
     assert filtered[0]["_distance_km"] == 0
 
     date_only = await provider.search_by_date_only(
-        datetime.utcnow() - timedelta(days=2),
-        datetime.utcnow(),
+        utc_now() - timedelta(days=2),
+        utc_now(),
     )
     assert date_only == [
         {
@@ -433,6 +427,47 @@ async def test_smtp_health_and_send_email(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_smtp_attachment_name_with_space_and_umlaut(monkeypatch):
+    FakeSMTP.instances.clear()
+    monkeypatch.setattr("smtplib.SMTP", FakeSMTP)
+    provider = SmtpProvider(
+        {
+            "host": "smtp.example.com",
+            "port": 25,
+            "from_email": "noreply@example.com",
+        }
+    )
+
+    await provider.send_email(
+        to=["dest@example.com"],
+        subject="Report",
+        body="Plain text",
+        attachments=[("Bericht März 2025.pdf", b"data", "application/pdf")],
+    )
+
+    raw = FakeSMTP.instances[-1].sent[0][2]
+    message = email.message_from_string(raw)
+    names = [part.get_filename() for part in message.walk() if part.get_filename()]
+    assert names == ["Bericht März 2025.pdf"]
+
+
+def test_asset_distance_km_known_distance():
+    asset = {"exifInfo": {"latitude": 47.0707, "longitude": 15.4395}}  # Graz
+
+    distance = asset_distance_km(asset, 48.2082, 16.3738)  # Vienna
+
+    assert distance is not None
+    assert abs(distance - 145) < 1
+
+
+@pytest.mark.parametrize(
+    "asset", [{}, {"exifInfo": None}, {"exifInfo": {"latitude": 1.0}}]
+)
+def test_asset_distance_km_without_gps(asset):
+    assert asset_distance_km(asset, 48.2, 16.4) is None
+
+
+@pytest.mark.asyncio
 async def test_smtp_health_auth_failure(monkeypatch):
     monkeypatch.setattr("smtplib.SMTP", AuthFailSMTP)
     provider = SmtpProvider(
@@ -488,3 +523,24 @@ async def test_download_document_names_file_after_served_content(monkeypatch):
 )
 def test_match_extension_to_content(filename, content_type, expected):
     assert _match_extension_to_content(filename, content_type) == expected
+
+
+@pytest.mark.asyncio
+async def test_health_check_unexpected_error_hides_raw_text(monkeypatch):
+    """A raw library exception is reported as a category, not its text."""
+
+    class BrokenClient:
+        async def get(self, *_args, **_kwargs):
+            raise RuntimeError("secret-host.internal exploded")
+
+    monkeypatch.setattr(
+        "src.integrations.immich.httpx.AsyncClient", lambda **kwargs: BrokenClient()
+    )
+    immich = ImmichProvider({"url": "https://immich.local", "api_key": "k"})
+    paperless = PaperlessProvider({"url": "https://paperless.local", "token": "t"})
+    paperless._client = BrokenClient()
+
+    for provider in (immich, paperless):
+        success, message = await provider.health_check()
+        assert success is False
+        assert message == "unexpected response"

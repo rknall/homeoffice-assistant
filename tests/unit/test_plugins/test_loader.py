@@ -5,16 +5,19 @@
 import json
 import zipfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from src.plugins.base import Permission, PluginCapability, PluginConfig, PluginManifest
 from src.plugins.loader import (
-    PLUGIN_MANIFEST_FILE,
     PluginLoader,
     PluginLoadError,
-    PluginValidationError,
     install_plugin_dependencies,
+)
+from src.plugins.manifest import (
+    PLUGIN_MANIFEST_FILE,
+    PluginValidationError,
     parse_manifest,
     validate_dependency_format,
 )
@@ -36,12 +39,15 @@ class TestParseManifest:
 
     def test_parse_minimal_manifest(self, manifest_dir):
         """Test parsing a minimal valid manifest."""
-        manifest_path = self.write_manifest(manifest_dir, {
-            "id": "test-plugin",
-            "name": "Test Plugin",
-            "version": "1.0.0",
-            "description": "A test plugin",
-        })
+        manifest_path = self.write_manifest(
+            manifest_dir,
+            {
+                "id": "test-plugin",
+                "name": "Test Plugin",
+                "version": "1.0.0",
+                "description": "A test plugin",
+            },
+        )
 
         manifest = parse_manifest(manifest_path)
 
@@ -52,20 +58,23 @@ class TestParseManifest:
 
     def test_parse_full_manifest(self, manifest_dir):
         """Test parsing a fully specified manifest."""
-        manifest_path = self.write_manifest(manifest_dir, {
-            "id": "full-plugin",
-            "name": "Full Plugin",
-            "version": "2.0.0",
-            "description": "A full plugin",
-            "author": "Test Author",
-            "homepage": "https://example.com",
-            "license": "MIT",
-            "min_host_version": "0.2.0",
-            "max_host_version": "1.0.0",
-            "capabilities": {"backend": True, "frontend": True, "config": False},
-            "permissions": ["user.read", "event.write"],
-            "dependencies": ["other-plugin"],
-        })
+        manifest_path = self.write_manifest(
+            manifest_dir,
+            {
+                "id": "full-plugin",
+                "name": "Full Plugin",
+                "version": "2.0.0",
+                "description": "A full plugin",
+                "author": "Test Author",
+                "homepage": "https://example.com",
+                "license": "MIT",
+                "min_host_version": "0.2.0",
+                "max_host_version": "1.0.0",
+                "capabilities": {"backend": True, "frontend": True, "config": False},
+                "permissions": ["user.read", "event.write"],
+                "dependencies": ["other-plugin"],
+            },
+        )
 
         manifest = parse_manifest(manifest_path)
 
@@ -83,13 +92,16 @@ class TestParseManifest:
 
     def test_parse_capabilities_as_list(self, manifest_dir):
         """Test parsing capabilities in list format."""
-        manifest_path = self.write_manifest(manifest_dir, {
-            "id": "test-plugin",
-            "name": "Test",
-            "version": "1.0.0",
-            "description": "Test",
-            "capabilities": ["backend", "frontend"],
-        })
+        manifest_path = self.write_manifest(
+            manifest_dir,
+            {
+                "id": "test-plugin",
+                "name": "Test",
+                "version": "1.0.0",
+                "description": "Test",
+                "capabilities": ["backend", "frontend"],
+            },
+        )
 
         manifest = parse_manifest(manifest_path)
 
@@ -98,35 +110,44 @@ class TestParseManifest:
 
     def test_parse_missing_required_field(self, manifest_dir):
         """Test that missing required fields raise error."""
-        manifest_path = self.write_manifest(manifest_dir, {
-            "id": "test-plugin",
-            "name": "Test",
-            # Missing version and description
-        })
+        manifest_path = self.write_manifest(
+            manifest_dir,
+            {
+                "id": "test-plugin",
+                "name": "Test",
+                # Missing version and description
+            },
+        )
 
         with pytest.raises(PluginValidationError, match="Missing required field"):
             parse_manifest(manifest_path)
 
     def test_parse_empty_plugin_id(self, manifest_dir):
         """Test that empty plugin ID raises error."""
-        manifest_path = self.write_manifest(manifest_dir, {
-            "id": "",
-            "name": "Test",
-            "version": "1.0.0",
-            "description": "Test",
-        })
+        manifest_path = self.write_manifest(
+            manifest_dir,
+            {
+                "id": "",
+                "name": "Test",
+                "version": "1.0.0",
+                "description": "Test",
+            },
+        )
 
         with pytest.raises(PluginValidationError, match="cannot be empty"):
             parse_manifest(manifest_path)
 
     def test_parse_invalid_plugin_id(self, manifest_dir):
         """Test that invalid plugin ID raises error."""
-        manifest_path = self.write_manifest(manifest_dir, {
-            "id": "invalid plugin id!",
-            "name": "Test",
-            "version": "1.0.0",
-            "description": "Test",
-        })
+        manifest_path = self.write_manifest(
+            manifest_dir,
+            {
+                "id": "invalid plugin id!",
+                "name": "Test",
+                "version": "1.0.0",
+                "description": "Test",
+            },
+        )
 
         with pytest.raises(PluginValidationError, match="Invalid plugin ID"):
             parse_manifest(manifest_path)
@@ -134,12 +155,15 @@ class TestParseManifest:
     def test_parse_valid_plugin_id_formats(self, manifest_dir):
         """Test that valid plugin ID formats are accepted."""
         for plugin_id in ["my-plugin", "my_plugin", "MyPlugin123", "plugin-123_test"]:
-            manifest_path = self.write_manifest(manifest_dir, {
-                "id": plugin_id,
-                "name": "Test",
-                "version": "1.0.0",
-                "description": "Test",
-            })
+            manifest_path = self.write_manifest(
+                manifest_dir,
+                {
+                    "id": plugin_id,
+                    "name": "Test",
+                    "version": "1.0.0",
+                    "description": "Test",
+                },
+            )
             manifest = parse_manifest(manifest_path)
             assert manifest.id == plugin_id
 
@@ -160,13 +184,16 @@ class TestParseManifest:
 
     def test_parse_unknown_capability_ignored(self, manifest_dir):
         """Test that unknown capabilities are ignored but valid ones kept."""
-        manifest_path = self.write_manifest(manifest_dir, {
-            "id": "test-plugin",
-            "name": "Test",
-            "version": "1.0.0",
-            "description": "Test",
-            "capabilities": {"backend": True, "unknown_cap": True},
-        })
+        manifest_path = self.write_manifest(
+            manifest_dir,
+            {
+                "id": "test-plugin",
+                "name": "Test",
+                "version": "1.0.0",
+                "description": "Test",
+                "capabilities": {"backend": True, "unknown_cap": True},
+            },
+        )
 
         manifest = parse_manifest(manifest_path)
 
@@ -175,22 +202,68 @@ class TestParseManifest:
         # Unknown capability should be ignored (only valid ones in set)
         assert len(manifest.capabilities) == 1
 
-    def test_parse_unknown_permission_ignored(self, manifest_dir):
-        """Test that unknown permissions are ignored but valid ones kept."""
-        manifest_path = self.write_manifest(manifest_dir, {
-            "id": "test-plugin",
-            "name": "Test",
-            "version": "1.0.0",
-            "description": "Test",
-            "permissions": ["user.read", "unknown.permission"],
-        })
+    @pytest.mark.parametrize(
+        "permissions",
+        [
+            ["user.read", "unknown.permission"],
+            {"required": ["company.read"]},
+        ],
+    )
+    def test_parse_rejects_non_core_required_permission(
+        self, manifest_dir, permissions
+    ):
+        """Test that a required permission must be a core permission code."""
+        manifest_path = self.write_manifest(
+            manifest_dir,
+            {
+                "id": "test-plugin",
+                "name": "Test",
+                "version": "1.0.0",
+                "description": "Test",
+                "permissions": permissions,
+            },
+        )
+
+        with pytest.raises(PluginValidationError, match="Unknown required"):
+            parse_manifest(manifest_path)
+
+    def test_parse_member_default(self, manifest_dir):
+        """Test that member_default is read per provided permission."""
+        manifest_path = self.write_manifest(
+            manifest_dir,
+            {
+                "id": "test-plugin",
+                "name": "Test",
+                "version": "1.0.0",
+                "description": "Test",
+                "permissions": {
+                    "required": ["company.view"],
+                    "provided": [
+                        {"code": "test-plugin.a", "member_default": True},
+                        {"code": "test-plugin.b"},
+                        "test-plugin.c",
+                    ],
+                },
+            },
+        )
 
         manifest = parse_manifest(manifest_path)
 
-        # Valid permission should be present
-        assert Permission.USER_READ in manifest.permissions
-        # Unknown permission should be ignored (only valid ones in set)
-        assert len(manifest.permissions) == 1
+        assert Permission.COMPANY_VIEW in manifest.required_permissions
+        assert [(p.code, p.member_default) for p in manifest.provided_permissions] == [
+            ("test-plugin.a", True),
+            ("test-plugin.b", False),
+            ("test-plugin.c", False),
+        ]
+
+    @pytest.mark.parametrize("plugin_dir", ["time-tracking", "example"])
+    def test_bundled_manifests_parse(self, plugin_dir):
+        """Test that the bundled manifests use core codes and member_default."""
+        root = Path(__file__).parents[3] / "plugins" / plugin_dir
+        manifest = parse_manifest(root / PLUGIN_MANIFEST_FILE)
+
+        assert manifest.provided_permissions
+        assert all(p.member_default for p in manifest.provided_permissions)
 
 
 class TestPluginLoader:
@@ -257,12 +330,16 @@ class TestPlugin(BasePlugin):
 
     def test_discover_plugins_with_plugin(self, loader, plugins_dir):
         """Test discovering a valid plugin."""
-        self.create_plugin_structure(plugins_dir, "test-plugin", {
-            "id": "test-plugin",
-            "name": "Test Plugin",
-            "version": "1.0.0",
-            "description": "A test plugin",
-        })
+        self.create_plugin_structure(
+            plugins_dir,
+            "test-plugin",
+            {
+                "id": "test-plugin",
+                "name": "Test Plugin",
+                "version": "1.0.0",
+                "description": "A test plugin",
+            },
+        )
 
         discovered = loader.discover_plugins()
 
@@ -276,12 +353,16 @@ class TestPlugin(BasePlugin):
         # Create hidden directory with valid plugin
         hidden_dir = plugins_dir / ".hidden-plugin"
         hidden_dir.mkdir()
-        (hidden_dir / PLUGIN_MANIFEST_FILE).write_text(json.dumps({
-            "id": "hidden",
-            "name": "Hidden",
-            "version": "1.0.0",
-            "description": "Hidden",
-        }))
+        (hidden_dir / PLUGIN_MANIFEST_FILE).write_text(
+            json.dumps(
+                {
+                    "id": "hidden",
+                    "name": "Hidden",
+                    "version": "1.0.0",
+                    "description": "Hidden",
+                }
+            )
+        )
 
         discovered = loader.discover_plugins()
         assert len(discovered) == 0
@@ -305,12 +386,16 @@ class TestPlugin(BasePlugin):
 
     def test_get_plugin_path_exists(self, loader, plugins_dir):
         """Test getting path for existing plugin."""
-        self.create_plugin_structure(plugins_dir, "test-plugin", {
-            "id": "test-plugin",
-            "name": "Test",
-            "version": "1.0.0",
-            "description": "Test",
-        })
+        self.create_plugin_structure(
+            plugins_dir,
+            "test-plugin",
+            {
+                "id": "test-plugin",
+                "name": "Test",
+                "version": "1.0.0",
+                "description": "Test",
+            },
+        )
 
         path = loader.get_plugin_path("test-plugin")
 
@@ -323,12 +408,16 @@ class TestPlugin(BasePlugin):
 
     def test_has_frontend(self, loader, plugins_dir):
         """Test checking for frontend assets."""
-        plugin_dir = self.create_plugin_structure(plugins_dir, "test-plugin", {
-            "id": "test-plugin",
-            "name": "Test",
-            "version": "1.0.0",
-            "description": "Test",
-        })
+        plugin_dir = self.create_plugin_structure(
+            plugins_dir,
+            "test-plugin",
+            {
+                "id": "test-plugin",
+                "name": "Test",
+                "version": "1.0.0",
+                "description": "Test",
+            },
+        )
 
         # Initially no frontend
         assert loader.has_frontend("test-plugin") is False
@@ -342,12 +431,16 @@ class TestPlugin(BasePlugin):
 
     def test_has_backend(self, loader, plugins_dir):
         """Test checking for backend code."""
-        self.create_plugin_structure(plugins_dir, "test-plugin", {
-            "id": "test-plugin",
-            "name": "Test",
-            "version": "1.0.0",
-            "description": "Test",
-        })
+        self.create_plugin_structure(
+            plugins_dir,
+            "test-plugin",
+            {
+                "id": "test-plugin",
+                "name": "Test",
+                "version": "1.0.0",
+                "description": "Test",
+            },
+        )
 
         assert loader.has_backend("test-plugin") is True
 
@@ -355,23 +448,31 @@ class TestPlugin(BasePlugin):
         """Test has_backend when plugin.py is missing."""
         plugin_dir = plugins_dir / "no-backend"
         plugin_dir.mkdir()
-        (plugin_dir / PLUGIN_MANIFEST_FILE).write_text(json.dumps({
-            "id": "no-backend",
-            "name": "No Backend",
-            "version": "1.0.0",
-            "description": "Test",
-        }))
+        (plugin_dir / PLUGIN_MANIFEST_FILE).write_text(
+            json.dumps(
+                {
+                    "id": "no-backend",
+                    "name": "No Backend",
+                    "version": "1.0.0",
+                    "description": "Test",
+                }
+            )
+        )
 
         assert loader.has_backend("no-backend") is False
 
     def test_uninstall_removes_directory(self, loader, plugins_dir):
         """Test that uninstall removes plugin directory."""
-        self.create_plugin_structure(plugins_dir, "test-plugin", {
-            "id": "test-plugin",
-            "name": "Test",
-            "version": "1.0.0",
-            "description": "Test",
-        })
+        self.create_plugin_structure(
+            plugins_dir,
+            "test-plugin",
+            {
+                "id": "test-plugin",
+                "name": "Test",
+                "version": "1.0.0",
+                "description": "Test",
+            },
+        )
 
         assert (plugins_dir / "test-plugin").exists()
 
@@ -411,7 +512,9 @@ class TestPluginLoaderZipInstall:
             zf.writestr(PLUGIN_MANIFEST_FILE, json.dumps(manifest_data))
 
             # Add backend plugin.py
-            zf.writestr("backend/plugin.py", """
+            zf.writestr(
+                "backend/plugin.py",
+                """
 from src.plugins.base import BasePlugin
 
 class TestPlugin(BasePlugin):
@@ -424,18 +527,23 @@ class TestPlugin(BasePlugin):
 
     def get_models(self):
         return []
-""")
+""",
+            )
 
         return zip_path
 
     def test_install_from_zip(self, loader, plugins_dir, tmp_path):
         """Test installing a plugin from ZIP."""
-        zip_path = self.create_plugin_zip(tmp_path, "zip-plugin", {
-            "id": "zip-plugin",
-            "name": "ZIP Plugin",
-            "version": "1.0.0",
-            "description": "Installed from ZIP",
-        })
+        zip_path = self.create_plugin_zip(
+            tmp_path,
+            "zip-plugin",
+            {
+                "id": "zip-plugin",
+                "name": "ZIP Plugin",
+                "version": "1.0.0",
+                "description": "Installed from ZIP",
+            },
+        )
 
         manifest, old_version = loader.install_from_zip(zip_path)
 
@@ -450,12 +558,17 @@ class TestPlugin(BasePlugin):
 
         with zipfile.ZipFile(zip_path, "w") as zf:
             # Content in subdirectory
-            zf.writestr("subdir-plugin/" + PLUGIN_MANIFEST_FILE, json.dumps({
-                "id": "subdir-plugin",
-                "name": "Subdir Plugin",
-                "version": "1.0.0",
-                "description": "In subdirectory",
-            }))
+            zf.writestr(
+                "subdir-plugin/" + PLUGIN_MANIFEST_FILE,
+                json.dumps(
+                    {
+                        "id": "subdir-plugin",
+                        "name": "Subdir Plugin",
+                        "version": "1.0.0",
+                        "description": "In subdirectory",
+                    }
+                ),
+            )
             zf.writestr("subdir-plugin/backend/plugin.py", "# Plugin code")
 
         manifest, old_version = loader.install_from_zip(zip_path)
@@ -492,12 +605,16 @@ class TestPlugin(BasePlugin):
     def test_install_from_zip_already_installed(self, loader, plugins_dir, tmp_path):
         """Test installing plugin that already exists without upgrade flag."""
         # First install
-        zip_path = self.create_plugin_zip(tmp_path, "dup-plugin", {
-            "id": "dup-plugin",
-            "name": "Dup Plugin",
-            "version": "1.0.0",
-            "description": "Test",
-        })
+        zip_path = self.create_plugin_zip(
+            tmp_path,
+            "dup-plugin",
+            {
+                "id": "dup-plugin",
+                "name": "Dup Plugin",
+                "version": "1.0.0",
+                "description": "Test",
+            },
+        )
         loader.install_from_zip(zip_path)
 
         # Try to install again without upgrade flag
@@ -507,23 +624,31 @@ class TestPlugin(BasePlugin):
     def test_install_from_zip_upgrade(self, loader, plugins_dir, tmp_path):
         """Test upgrading an existing plugin with upgrade flag."""
         # First install v1.0.0
-        zip_path_v1 = self.create_plugin_zip(tmp_path, "upgrade-plugin-v1", {
-            "id": "upgrade-plugin",
-            "name": "Upgrade Plugin",
-            "version": "1.0.0",
-            "description": "Version 1",
-        })
+        zip_path_v1 = self.create_plugin_zip(
+            tmp_path,
+            "upgrade-plugin-v1",
+            {
+                "id": "upgrade-plugin",
+                "name": "Upgrade Plugin",
+                "version": "1.0.0",
+                "description": "Version 1",
+            },
+        )
         manifest, old_version = loader.install_from_zip(zip_path_v1)
         assert manifest.version == "1.0.0"
         assert old_version is None
 
         # Now upgrade to v2.0.0
-        zip_path_v2 = self.create_plugin_zip(tmp_path, "upgrade-plugin-v2", {
-            "id": "upgrade-plugin",
-            "name": "Upgrade Plugin",
-            "version": "2.0.0",
-            "description": "Version 2",
-        })
+        zip_path_v2 = self.create_plugin_zip(
+            tmp_path,
+            "upgrade-plugin-v2",
+            {
+                "id": "upgrade-plugin",
+                "name": "Upgrade Plugin",
+                "version": "2.0.0",
+                "description": "Version 2",
+            },
+        )
         manifest, old_version = loader.install_from_zip(zip_path_v2, upgrade=True)
 
         assert manifest.version == "2.0.0"
@@ -542,13 +667,17 @@ class TestPlugin(BasePlugin):
         self, loader, plugins_dir, tmp_path
     ):
         """Test that plugins with dangerous permissions can still be installed."""
-        zip_path = self.create_plugin_zip(tmp_path, "dangerous-plugin", {
-            "id": "dangerous-plugin",
-            "name": "Dangerous Plugin",
-            "version": "1.0.0",
-            "description": "Has dangerous permissions",
-            "permissions": ["user.write.all", "system.settings.write"],
-        })
+        zip_path = self.create_plugin_zip(
+            tmp_path,
+            "dangerous-plugin",
+            {
+                "id": "dangerous-plugin",
+                "name": "Dangerous Plugin",
+                "version": "1.0.0",
+                "description": "Has dangerous permissions",
+                "permissions": ["user.write.all", "system.settings.write"],
+            },
+        )
 
         manifest, old_version = loader.install_from_zip(zip_path)
 
@@ -790,3 +919,124 @@ class TestTablePrefixParsing:
         manifest = parse_manifest(manifest_path)
 
         assert manifest.table_prefix is None
+
+
+class TestLoadPluginDependencies:
+    """Tests for the Python dependency check in load_plugin."""
+
+    PLUGIN_SOURCE = """
+from src.plugins.base import BasePlugin
+
+class DepsPlugin(BasePlugin):
+    @classmethod
+    def get_config_schema(cls):
+        return {}
+
+    def get_router(self):
+        return None
+
+    def get_models(self):
+        return []
+"""
+
+    @pytest.fixture
+    def plugin_dir(self, tmp_path):
+        """Create a plugin directory with a minimal backend module."""
+        plugin = tmp_path / "plugins" / "deps-plugin"
+        (plugin / "backend").mkdir(parents=True)
+        (plugin / "backend" / "plugin.py").write_text(self.PLUGIN_SOURCE)
+        return plugin
+
+    @pytest.fixture
+    def loader(self, plugin_dir):
+        """Create a PluginLoader for the plugin's parent directory."""
+        return PluginLoader(plugin_dir.parent)
+
+    def manifest(self, *requirements: str) -> PluginManifest:
+        """Build a manifest with the given Python requirements."""
+        return PluginManifest(
+            id="deps-plugin",
+            name="Deps",
+            version="1.0.0",
+            description="Test",
+            python_dependencies=list(requirements),
+        )
+
+    def test_satisfied_requirement_runs_no_install(self, loader, plugin_dir):
+        """Test that an installed requirement does not start pip."""
+
+        def fail(*args, **kwargs):
+            pytest.fail("subprocess.run must not be called")
+
+        with patch("src.plugins.loader.subprocess.run", side_effect=fail):
+            plugin = loader.load_plugin(
+                plugin_dir, self.manifest("holidays>=0.62"), PluginConfig()
+            )
+
+        assert plugin.manifest.id == "deps-plugin"
+
+    def test_missing_requirement_without_pip(self, loader, plugin_dir):
+        """Test that a missing requirement fails clearly when pip is absent."""
+        with (
+            patch("src.plugins.loader.importlib.util.find_spec", return_value=None),
+            patch("src.plugins.loader.install_plugin_dependencies") as install,
+            pytest.raises(PluginLoadError, match="hoa-nonexistent-pkg>=1") as exc,
+        ):
+            loader.load_plugin(
+                plugin_dir,
+                self.manifest("holidays>=0.62", "hoa-nonexistent-pkg>=1"),
+                PluginConfig(),
+            )
+
+        assert "application image" in str(exc.value)
+        assert "holidays" not in str(exc.value)
+        install.assert_not_called()
+
+    def test_missing_requirement_with_pip(self, loader, plugin_dir):
+        """Test that pip receives only the missing requirement."""
+        with (
+            patch("src.plugins.loader.importlib.util.find_spec", return_value=object()),
+            patch(
+                "src.plugins.loader.install_plugin_dependencies",
+                return_value=(True, "Installed"),
+            ) as install,
+        ):
+            loader.load_plugin(
+                plugin_dir,
+                self.manifest("holidays>=0.62", "hoa-nonexistent-pkg>=1"),
+                PluginConfig(),
+            )
+
+        install.assert_called_once_with("deps-plugin", ["hoa-nonexistent-pkg>=1"])
+
+    def test_invalid_requirement_format(self, loader, plugin_dir):
+        """Test that a malformed requirement is rejected before any check."""
+        with pytest.raises(PluginLoadError, match="Invalid dependency format"):
+            loader.load_plugin(
+                plugin_dir, self.manifest("pkg; rm -rf /"), PluginConfig()
+            )
+
+
+class TestBasePluginDefaultHooks:
+    """BasePlugin supplies a no-op on_enable."""
+
+    async def test_default_on_enable_is_noop(self, tmp_path):
+        """A plugin without an on_enable override can be enabled."""
+        from src.plugins.base import BasePlugin
+
+        class Minimal(BasePlugin):
+            @classmethod
+            def get_config_schema(cls):
+                return {}
+
+            def get_router(self):
+                return None
+
+            def get_models(self):
+                return []
+
+        manifest = PluginManifest(
+            id="minimal", name="Minimal", version="1.0.0", description="x"
+        )
+        plugin = Minimal(manifest, PluginConfig(), str(tmp_path))
+        assert await plugin.on_enable() is None

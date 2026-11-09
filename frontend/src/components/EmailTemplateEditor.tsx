@@ -5,8 +5,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useMemo, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { api } from '@/api/client'
+import { api, errorMessage } from '@/api/client'
 import { ContactTypeSelect } from '@/components/ContactTypeSelect'
+import { EmailTemplatePreview } from '@/components/settings/EmailTemplatePreview'
+import { EmailTemplateVariables } from '@/components/settings/EmailTemplateVariables'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -127,8 +129,8 @@ export function EmailTemplateEditor({
         contact_types: watchReason === 'expense_report' ? ['billing'] : [],
       })
       setShowPrefillPrompt(false)
-    } catch {
-      setError('Failed to load default template content')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to load default template content'))
     }
   }
 
@@ -180,30 +182,9 @@ export function EmailTemplateEditor({
       }
       onSaved()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save template')
+      setError(errorMessage(e, 'Failed to save template'))
     } finally {
       setIsSaving(false)
-    }
-  }
-
-  const insertVariable = (variable: string) => {
-    // Get the active textarea and insert the variable at cursor
-    const activeElement = document.activeElement as HTMLTextAreaElement | HTMLInputElement
-    if (
-      activeElement &&
-      (activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'INPUT')
-    ) {
-      const start = activeElement.selectionStart || 0
-      const end = activeElement.selectionEnd || 0
-      const currentValue = activeElement.value
-      const newValue = currentValue.substring(0, start) + variable + currentValue.substring(end)
-      activeElement.value = newValue
-      activeElement.setSelectionRange(start + variable.length, start + variable.length)
-      activeElement.focus()
-
-      // Trigger React's onChange
-      const event = new Event('input', { bubbles: true })
-      activeElement.dispatchEvent(event)
     }
   }
 
@@ -361,30 +342,7 @@ export function EmailTemplateEditor({
           ) : (
             /* Preview Tab */
             <div className="flex-1 flex flex-col">
-              {isLoadingPreview ? (
-                <div className="flex-1 flex items-center justify-center text-gray-500">
-                  Loading preview...
-                </div>
-              ) : preview ? (
-                <div className="flex-1 flex flex-col overflow-auto">
-                  <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                    <p className="text-sm font-medium text-gray-500">Subject</p>
-                    <p className="text-gray-900">{preview.subject}</p>
-                  </div>
-                  <div className="flex-1 border rounded-lg overflow-hidden">
-                    <iframe
-                      srcDoc={preview.body_html}
-                      title="Email Preview"
-                      className="w-full h-full bg-white"
-                      style={{ minHeight: '300px' }}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="flex-1 flex items-center justify-center text-gray-500">
-                  Enter template content to see preview
-                </div>
-              )}
+              <EmailTemplatePreview isLoading={isLoadingPreview} preview={preview} />
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 mt-4">
                 <Button type="button" variant="secondary" onClick={onClose}>
                   Cancel
@@ -397,32 +355,7 @@ export function EmailTemplateEditor({
           )}
         </div>
 
-        {/* Right side - Variables */}
-        <div className="w-64 flex-shrink-0 border-l border-gray-200 pl-6">
-          <h3 className="font-medium text-gray-900 mb-4">Available Variables</h3>
-          {currentReason ? (
-            <div className="space-y-3">
-              {currentReason.variables.map((v) => (
-                <div key={v.variable} className="text-sm">
-                  <button
-                    type="button"
-                    onClick={() => insertVariable(v.variable)}
-                    className="font-mono text-blue-600 hover:text-blue-800 cursor-pointer"
-                    title={`Click to insert: ${v.variable}`}
-                  >
-                    {v.variable}
-                  </button>
-                  <p className="text-gray-500 text-xs">{v.description}</p>
-                  <p className="text-gray-400 text-xs">e.g. {v.example}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500">
-              Select a template type to see available variables
-            </p>
-          )}
-        </div>
+        <EmailTemplateVariables reason={currentReason} />
       </div>
     </Modal>
   )

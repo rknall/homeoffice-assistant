@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/api/client'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
+import { useLocale } from '@/stores/locale'
 import type { ExpenseSubmission, ExpenseSubmissionSummary } from '@/types'
 
 interface SubmissionHistoryProps {
@@ -62,15 +63,7 @@ export function SubmissionHistory({ eventId }: SubmissionHistoryProps) {
     })
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
+  const formatDate = useLocale((state) => state.formatDateTime)
 
   if (isLoading) {
     return (

@@ -2,37 +2,45 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Todo API endpoints."""
 
+import datetime
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_user, get_db
-from src.models import Todo, User
+from src.api.deps import require_event_permission, require_permission
+from src.database import get_db
+from src.models import Event, Todo, User
 from src.schemas.todo import TodoCreate, TodoResponse, TodoUpdate
 from src.schemas.todo_template import (
     ApplyTemplatesRequest,
     ApplyTemplatesResponse,
     TemplateSetWithComputedDates,
 )
-from src.services import event_service, todo_template_service
+from src.services import rbac_service, todo_service, todo_template_service
 
 router = APIRouter()
+
+# Todos across events, mounted at /todos.
+due_router = APIRouter()
+
+
+def _get_todo_or_404(db: Session, todo_id: uuid.UUID, event: Event) -> Todo:
+    """Load a todo of the event or raise 404."""
+    todo = todo_service.get_todo_for_event(db, todo_id, event.id)
+    if not todo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Todo not found",
+        )
+    return todo
 
 
 @router.get("/{event_id}/todos", response_model=list[TodoResponse])
 def list_todos(
-    event_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    event: Event = Depends(require_event_permission("event.read")),
 ) -> list[TodoResponse]:
     """List todos for an event."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
     return [TodoResponse.model_validate(t) for t in event.todos]
 
 
@@ -41,20 +49,12 @@ def list_todos(
     response_model=list[TemplateSetWithComputedDates],
 )
 def get_templates_for_event(
-    event_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    event: Event = Depends(require_event_permission("event.read")),
 ) -> list[TemplateSetWithComputedDates]:
     """Get template sets with computed due dates for an event."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
     return todo_template_service.get_template_sets_with_computed_dates(
-        db, current_user.id, event_id
+        db, event.user_id, event.id
     )
 
 
@@ -64,21 +64,13 @@ def get_templates_for_event(
     status_code=status.HTTP_201_CREATED,
 )
 def apply_templates_to_event(
-    event_id: uuid.UUID,
     data: ApplyTemplatesRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    event: Event = Depends(require_event_permission("event.write")),
 ) -> ApplyTemplatesResponse:
     """Apply selected templates to an event, creating todos."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
     count, created_ids = todo_template_service.apply_templates_to_event(
-        db, event_id, data.template_ids
+        db, event.id, data.template_ids
     )
 
     return ApplyTemplatesResponse(
@@ -93,108 +85,68 @@ def apply_templates_to_event(
     status_code=status.HTTP_201_CREATED,
 )
 def create_todo(
-    event_id: uuid.UUID,
     data: TodoCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    event: Event = Depends(require_event_permission("event.write")),
 ) -> TodoResponse:
     """Create a new todo for an event."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    todo = Todo(
-        event_id=event_id,
-        title=data.title,
-        description=data.description,
-        due_date=data.due_date,
-        category=data.category,
-        completed=False,
-    )
-    db.add(todo)
-    db.commit()
-    db.refresh(todo)
+    todo = todo_service.create_todo(db, event.id, data)
     return TodoResponse.model_validate(todo)
 
 
 @router.get("/{event_id}/todos/{todo_id}", response_model=TodoResponse)
 def get_todo(
-    event_id: uuid.UUID,
     todo_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    event: Event = Depends(require_event_permission("event.read")),
 ) -> TodoResponse:
     """Get a specific todo."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    todo = db.query(Todo).filter(Todo.id == todo_id, Todo.event_id == event_id).first()
-    if not todo:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Todo not found",
-        )
-    return TodoResponse.model_validate(todo)
+    return TodoResponse.model_validate(_get_todo_or_404(db, todo_id, event))
 
 
 @router.put("/{event_id}/todos/{todo_id}", response_model=TodoResponse)
 def update_todo(
-    event_id: uuid.UUID,
     todo_id: uuid.UUID,
     data: TodoUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    event: Event = Depends(require_event_permission("event.write")),
 ) -> TodoResponse:
     """Update a todo."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    todo = db.query(Todo).filter(Todo.id == todo_id, Todo.event_id == event_id).first()
-    if not todo:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Todo not found",
-        )
-
-    for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(todo, field, value)
-    db.commit()
-    db.refresh(todo)
-    return TodoResponse.model_validate(todo)
+    todo = _get_todo_or_404(db, todo_id, event)
+    return TodoResponse.model_validate(todo_service.update_todo(db, todo, data))
 
 
 @router.delete("/{event_id}/todos/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_todo(
-    event_id: uuid.UUID,
     todo_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    event: Event = Depends(require_event_permission("event.write")),
 ) -> None:
     """Delete a todo."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
+    todo_service.delete_todo(db, _get_todo_or_404(db, todo_id, event))
 
-    todo = db.query(Todo).filter(Todo.id == todo_id, Todo.event_id == event_id).first()
-    if not todo:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Todo not found",
-        )
 
-    db.delete(todo)
-    db.commit()
+@due_router.get("", response_model=list[TodoResponse])
+def list_due_todos(
+    due_from: datetime.date,
+    due_to: datetime.date,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("event.read", company_id_param="company_id")
+    ),
+) -> list[TodoResponse]:
+    """List the todos due in a date range on the user's own events.
+
+    Both ends of the range are inclusive. Only events of companies in which
+    the user holds ``event.read`` are included.
+    """
+    if due_from > due_to:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="due_from must not be after due_to",
+        )
+    companies = rbac_service.companies_with_permission(db, current_user, "event.read")
+    todos = todo_service.list_due_todos(
+        db, current_user.id, due_from, due_to, companies
+    )
+    return [TodoResponse.model_validate(t) for t in todos]

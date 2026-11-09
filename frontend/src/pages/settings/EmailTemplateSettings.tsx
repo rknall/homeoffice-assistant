@@ -4,7 +4,7 @@
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api } from '@/api/client'
+import { api, errorMessage } from '@/api/client'
 import { EmailTemplateEditor } from '@/components/EmailTemplateEditor'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
 import { useBreadcrumb } from '@/stores/breadcrumb'
+import { confirmAction } from '@/stores/confirm'
 import type { EmailTemplate, IntegrationConfig, TemplateReason } from '@/types'
 
 export function EmailTemplateSettings() {
@@ -39,8 +40,8 @@ export function EmailTemplateSettings() {
       setTemplates(templatesData)
       setReasons(reasonsData)
       setHasSmtpIntegration(integrationsData.some((i) => i.integration_type === 'smtp'))
-    } catch {
-      setError('Failed to load email templates')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to load email templates'))
     } finally {
       setIsLoading(false)
     }
@@ -70,12 +71,19 @@ export function EmailTemplateSettings() {
       setError('Cannot delete the last email template. At least one template must exist.')
       return
     }
-    if (!confirm('Are you sure you want to delete this email template?')) return
+    if (
+      !(await confirmAction({
+        title: 'Delete email template',
+        message: 'Are you sure you want to delete this email template?',
+        confirmLabel: 'Delete',
+      }))
+    )
+      return
     try {
       await api.delete(`/email-templates/${id}`)
       await fetchData()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to delete template')
+      setError(errorMessage(e, 'Failed to delete template'))
     }
   }
 

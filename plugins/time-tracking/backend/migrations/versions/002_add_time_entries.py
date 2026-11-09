@@ -48,9 +48,7 @@ def upgrade() -> None:
         ),
         sa.UniqueConstraint("time_record_id", "sequence", name="uq_tt_entry_seq"),
     )
-    op.create_index(
-        "idx_tt_entry_record", "tt_time_entries", ["time_record_id"]
-    )
+    op.create_index("idx_tt_entry_record", "tt_time_entries", ["time_record_id"])
 
     # Migrate existing TimeRecord check_in/check_out data to TimeEntry
     # This creates one entry per existing record that has check_in

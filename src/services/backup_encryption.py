@@ -3,11 +3,14 @@
 """Password-based encryption utilities for backup files."""
 
 import base64
+import logging
 import os
 
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+logger = logging.getLogger(__name__)
 
 # OWASP 2023 recommendation for PBKDF2-SHA256
 PBKDF2_ITERATIONS = 480_000
@@ -93,5 +96,6 @@ def try_decrypt_backup(
         return True, decrypted, ""
     except InvalidToken:
         return False, None, "Invalid password or corrupted backup"
-    except Exception as e:
-        return False, None, f"Decryption error: {e!s}"
+    except Exception:
+        logger.exception("Backup decryption failed")
+        return False, None, "Decryption error, see server log"

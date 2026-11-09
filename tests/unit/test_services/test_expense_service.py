@@ -5,6 +5,8 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
 from src.models import Company, Event, User
 from src.models.enums import (
     CompanyType,
@@ -12,9 +14,11 @@ from src.models.enums import (
     ExpenseStatus,
     PaymentType,
 )
+from src.plugins.events import AppEvent, EventPayload, event_bus
 from src.schemas.expense import ExpenseCreate, ExpenseUpdate
 from src.security import get_password_hash
 from src.services import expense_service
+from src.services.currency_service import CurrencyService, CurrencyServiceError
 
 
 def create_user(db_session) -> User:
@@ -22,7 +26,6 @@ def create_user(db_session) -> User:
         username="expenseuser",
         email="expense@example.com",
         hashed_password=get_password_hash("Secret123!"),
-        is_admin=False,
         is_active=True,
     )
     db_session.add(user)
@@ -105,30 +108,64 @@ def test_update_and_delete_expense(db_session):
     assert expense_service.get_expense(db_session, updated.id) is None
 
 
-def test_bulk_update_payment_type(db_session):
+def test_effective_amount_falls_back_to_amount(db_session):
+    from src.models import Expense
+
     event = create_event(db_session)
-    exp1 = create_expense(db_session, event.id)
-    exp2 = create_expense(db_session, event.id, amount=Decimal("5.00"))
+    plain = create_expense(db_session, event.id, Decimal("10.00"))
+    converted = create_expense(db_session, event.id, Decimal("20.00"))
+    converted.converted_amount = Decimal("18.00")
+    db_session.commit()
 
-    updated = expense_service.bulk_update_payment_type(
-        db_session,
-        [exp1.id, exp2.id],
-        PaymentType.COMPANY_CARD,
-    )
-
-    assert updated == 2
-    db_session.refresh(exp1)
-    db_session.refresh(exp2)
-    assert exp1.payment_type == PaymentType.COMPANY_CARD
+    assert plain.effective_amount == Decimal("10.00")
+    assert converted.effective_amount == Decimal("18.00")
+    rows = db_session.query(Expense.id, Expense.effective_amount).all()
+    assert dict(rows) == {plain.id: Decimal("10.00"), converted.id: Decimal("18.00")}
 
 
-def test_expense_summary(db_session):
+@pytest.mark.asyncio
+async def test_convert_expense_failure_clears_stale_conversion(db_session, monkeypatch):
     event = create_event(db_session)
-    create_expense(db_session, event.id, amount=Decimal("3.00"))
-    create_expense(db_session, event.id, amount=Decimal("2.00"))
+    expense = create_expense(db_session, event.id, Decimal("10.00"))
+    expense.currency = "USD"
+    expense.converted_amount = Decimal("9.00")
+    expense.exchange_rate = Decimal("0.9")
+    expense.rate_date = date(2025, 5, 1)
 
-    summary = expense_service.get_expense_summary(db_session, event.id)
+    async def failing_convert(self, *args, **kwargs):
+        raise CurrencyServiceError("no rate")
 
-    assert summary["total"] == 5.0
-    assert summary["count"] == 2
-    assert "travel" in summary["by_category"]
+    monkeypatch.setattr(CurrencyService, "convert", failing_convert)
+
+    assert await expense_service.convert_expense(db_session, expense, "EUR") is False
+    assert expense.converted_amount is None
+    assert expense.exchange_rate is None
+    assert expense.rate_date is None
+
+
+@pytest.mark.asyncio
+async def test_convert_expense_same_currency_is_one_to_one(db_session):
+    event = create_event(db_session)
+    expense = create_expense(db_session, event.id, Decimal("10.00"))
+
+    assert await expense_service.convert_expense(db_session, expense, "eur") is True
+    assert expense.converted_amount == Decimal("10.00")
+    assert expense.exchange_rate == Decimal("1.0")
+
+
+def test_delete_expense_publishes_event(db_session):
+    event = create_event(db_session)
+    expense = create_expense(db_session, event.id)
+    expense_id = str(expense.id)
+    received: list[dict] = []
+
+    def handler(payload: EventPayload) -> None:
+        received.append(payload.data)
+
+    event_bus.subscribe(AppEvent.EXPENSE_DELETED, handler)
+    try:
+        expense_service.delete_expense(db_session, expense)
+    finally:
+        event_bus.unsubscribe(AppEvent.EXPENSE_DELETED, handler)
+
+    assert received == [{"expense_id": expense_id, "event_id": str(event.id)}]

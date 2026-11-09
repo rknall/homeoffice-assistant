@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Unit tests for backup service."""
 
+import io
 import json
 import os
 import shutil
@@ -12,67 +13,51 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
+from sqlalchemy import create_engine
 
-from src.services import backup_service
-from src.services.backup_encryption import decrypt_backup_archive
+from alembic import command
+from src.config import settings
+from src.services import backup_restore, backup_service, file_storage_service
+from src.services.backup_encryption import (
+    decrypt_backup_archive,
+    encrypt_backup_archive,
+)
 
 # Test password used for all backup tests
-TEST_PASSWORD = "test_password_123"  # noqa: S105
+TEST_PASSWORD = "test_password_123"
+
+
+@pytest.fixture(scope="module")
+def migrated_db_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Build a database with the real schema by running ``alembic upgrade head``.
+
+    A restore migrates the backup to the current head before swapping it in,
+    so the fixture needs an alembic-built schema. Built once per module.
+    """
+    template = tmp_path_factory.mktemp("backup-unit-template") / "template.db"
+    command.upgrade(backup_restore.core_alembic_config(f"sqlite:///{template}"), "head")
+    return template
 
 
 @pytest.fixture
-def temp_data_dir():
-    """Create temporary data directory for tests."""
+def temp_data_dir(migrated_db_template: Path):
+    """Create a data dir with a migrated database plus a marker table."""
     temp_dir = tempfile.mkdtemp()
     data_dir = Path(temp_dir) / "data"
     data_dir.mkdir()
     avatar_dir = Path(temp_dir) / "static" / "avatars"
     avatar_dir.mkdir(parents=True)
+    logo_dir = data_dir / "logos"
+    logo_dir.mkdir()
+    (logo_dir / "company1.png").write_bytes(b"fake logo 1")
 
-    # Create a test database with required tables
     db_path = data_dir / "travel_manager.db"
+    shutil.copy2(migrated_db_template, db_path)
     conn = sqlite3.connect(str(db_path))
     conn.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)")
     conn.execute("INSERT INTO test VALUES (1, 'test')")
-    # Create tables needed for backup service
-    conn.execute(
-        """CREATE TABLE IF NOT EXISTS integration_configs (
-            id TEXT PRIMARY KEY,
-            integration_type TEXT,
-            name TEXT,
-            config_encrypted TEXT,
-            is_active INTEGER,
-            created_by TEXT,
-            created_at TEXT,
-            updated_at TEXT
-        )"""
-    )
-    conn.execute(
-        """CREATE TABLE IF NOT EXISTS users (
-            id TEXT PRIMARY KEY,
-            username TEXT,
-            email TEXT,
-            hashed_password TEXT,
-            is_admin INTEGER,
-            is_active INTEGER,
-            avatar_url TEXT,
-            use_gravatar INTEGER DEFAULT 1,
-            regional_settings TEXT,
-            created_at TEXT,
-            updated_at TEXT
-        )"""
-    )
-    conn.execute(
-        """CREATE TABLE IF NOT EXISTS events (
-            id TEXT PRIMARY KEY,
-            user_id TEXT
-        )"""
-    )
-    conn.execute(
-        """CREATE TABLE IF NOT EXISTS sessions (
-            id TEXT PRIMARY KEY
-        )"""
-    )
     conn.commit()
     conn.close()
 
@@ -88,12 +73,17 @@ def temp_data_dir():
 
 @pytest.fixture
 def mock_paths(temp_data_dir):
-    """Mock the backup service paths."""
+    """Mock the backup service paths.
+
+    The avatar and logo directories are patched where the service reads them,
+    so no test touches the real data/logos or static/avatars.
+    """
     temp_dir, data_dir, avatar_dir, db_path = temp_data_dir
 
     with (
         patch.object(backup_service, "DATA_DIR", data_dir),
-        patch.object(backup_service, "AVATAR_DIR", avatar_dir),
+        patch.object(file_storage_service, "AVATAR_DIR", avatar_dir),
+        patch.object(file_storage_service, "LOGO_DIR", data_dir / "logos"),
         patch.object(backup_service, "DB_PATH", db_path),
         patch.object(
             backup_service,
@@ -265,6 +255,14 @@ class TestCreateBackup:
             with tarfile.open(tarball_path, "r:gz") as tar:
                 names = tar.getnames()
                 assert any("integration_configs.json" in name for name in names)
+
+    def test_tarball_contains_logos(self, mock_paths):
+        """The company logos are packed as logos/<file>."""
+        backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
+
+        names = tar_names(decrypt(backup_bytes))
+
+        assert any(name.endswith("/logos/company1.png") for name in names)
 
 
 class TestValidateBackup:
@@ -451,6 +449,20 @@ class TestPerformRestore:
         pre_restore_files = list(pre_restore_dir.glob("*.tar.gz"))
         assert len(pre_restore_files) == 1
 
+    def test_migrates_outside_the_project_directory(
+        self, mock_paths, tmp_path, monkeypatch
+    ):
+        """The core upgrade finds the migrations from any working directory."""
+        backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
+        monkeypatch.chdir(tmp_path)
+
+        success, message, details = backup_service.perform_restore(
+            backup_bytes, password=TEST_PASSWORD
+        )
+
+        assert success is True, message
+        assert details["migrations_run"] is True
+
     def test_rejects_invalid_backup(self, mock_paths):
         """Test rejection of invalid backup during restore."""
         success, _, _ = backup_service.perform_restore(b"invalid data")
@@ -482,6 +494,40 @@ class TestPerformRestore:
         avatar_files = list(avatar_dir.glob("*"))
         assert len(avatar_files) == 2
         assert not (avatar_dir / "new_avatar.jpg").exists()
+
+    def test_restores_logos(self, mock_paths):
+        """The logo directory ends up holding exactly the archive's logos."""
+        logo_dir = file_storage_service.LOGO_DIR
+        backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
+        (logo_dir / "company1.png").unlink()
+        (logo_dir / "new_logo.png").write_bytes(b"new logo")
+
+        success, message, _ = backup_service.perform_restore(
+            backup_bytes, password=TEST_PASSWORD
+        )
+
+        assert success is True, message
+        assert sorted(p.name for p in logo_dir.iterdir()) == ["company1.png"]
+        assert (logo_dir / "company1.png").read_bytes() == b"fake logo 1"
+
+    def test_archive_without_logos_keeps_current_logos(self, mock_paths, tmp_path):
+        """An archive made before logos were backed up leaves the logos alone."""
+        logo_dir = file_storage_service.LOGO_DIR
+        backup_bytes, _ = backup_service.create_backup("testuser", TEST_PASSWORD)
+        old_bytes = without_logos(decrypt(backup_bytes), tmp_path)
+        assert not any("/logos" in name for name in tar_names(old_bytes))
+        encrypted, salt = encrypt_backup_archive(old_bytes, TEST_PASSWORD)
+        (logo_dir / "current.png").write_bytes(b"current logo")
+
+        success, message, _ = backup_service.perform_restore(
+            salt + encrypted, password=TEST_PASSWORD
+        )
+
+        assert success is True, message
+        assert sorted(p.name for p in logo_dir.iterdir()) == [
+            "company1.png",
+            "current.png",
+        ]
 
     def test_requires_password_for_encrypted_backup(self, mock_paths):
         """Test that password is required for encrypted backups."""
@@ -519,3 +565,83 @@ class TestBackupEncryption:
 
         with pytest.raises(InvalidToken):
             decrypt_backup_archive(encrypted_data, "wrong_password", salt)
+
+
+def test_pre_restore_dir_lives_under_the_data_dir(tmp_path: Path) -> None:
+    """Pre-restore archives go to the data volume, not the container layer."""
+    assert backup_service.pre_restore_dir_for(tmp_path) == (
+        tmp_path / "backups" / "pre_restore"
+    )
+    assert (
+        backup_service.pre_restore_dir_for(backup_service.DATA_DIR)
+    ) == backup_service.PRE_RESTORE_BACKUP_DIR
+
+
+def test_upgrade_core_leaves_settings_alone(tmp_path: Path) -> None:
+    """The core upgrade reaches head without repointing the settings URL."""
+    db_path = tmp_path / "fresh.db"
+    configured_url = settings.database_url
+    seen: list[str] = []
+    upgrade = command.upgrade
+
+    def recording_upgrade(config, revision: str) -> None:
+        seen.append(settings.database_url)
+        upgrade(config, revision)
+        seen.append(settings.database_url)
+
+    with patch.object(backup_restore.command, "upgrade", recording_upgrade):
+        backup_restore.upgrade_core(db_path)
+
+    assert seen == [configured_url, configured_url]
+    head = ScriptDirectory.from_config(
+        backup_restore.core_alembic_config()
+    ).get_current_head()
+    engine = create_engine(f"sqlite:///{db_path}")
+    try:
+        with engine.connect() as conn:
+            current = MigrationContext.configure(conn).get_current_revision()
+    finally:
+        engine.dispose()
+    assert current == head
+
+
+def decrypt(backup_bytes: bytes) -> bytes:
+    """Return the tar.gz bytes of a backup made by ``create_backup``."""
+    return decrypt_backup_archive(backup_bytes[16:], TEST_PASSWORD, backup_bytes[:16])
+
+
+def tar_names(tar_bytes: bytes) -> list[str]:
+    """List the member names of a tar.gz archive."""
+    with tarfile.open(fileobj=io.BytesIO(tar_bytes), mode="r:gz") as tar:
+        return tar.getnames()
+
+
+def without_logos(tar_bytes: bytes, work: Path) -> bytes:
+    """Rebuild an archive without its logos/ members, like an older backup."""
+    source = work / "with_logos.tar.gz"
+    source.write_bytes(tar_bytes)
+    target = work / "without_logos.tar.gz"
+    with (
+        tarfile.open(source, "r:gz") as old,
+        tarfile.open(target, "w:gz") as new,
+    ):
+        for member in old.getmembers():
+            if "/logos" in member.name:
+                continue
+            new.addfile(member, old.extractfile(member) if member.isfile() else None)
+    return target.read_bytes()
+
+
+def test_try_decrypt_unexpected_error_hides_raw_text():
+    """An unexpected decryption failure reports no library exception text."""
+    from src.services.backup_encryption import try_decrypt_backup
+
+    with patch(
+        "src.services.backup_encryption.decrypt_backup_archive",
+        side_effect=RuntimeError("secret internals"),
+    ):
+        ok, data, message = try_decrypt_backup(b"x", "pw", b"salt")
+
+    assert ok is False
+    assert data is None
+    assert message == "Decryption error, see server log"

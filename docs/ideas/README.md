@@ -12,19 +12,22 @@ Completed ideas are moved to the `done/` subdirectory.
 | [Company Documents](company-documents.md) | Not Started | Attach contracts, NDAs, policies to companies with expiry tracking |
 | [Travel Report Generation](travel-report-generation.md) | Partially Planned | Generate narrative trip reports with photos |
 | [Recurring Events](recurring-events.md) | Not Started | Event templates and optional recurrence patterns |
+| [Database-Independent Backup](database-independent-backup.md) | Not Started | Backup and restore for PostgreSQL as well as SQLite |
+| [UI Modernisation](ui-modernisation.md) | Not Started | Per-page UI audit: modals, row actions, consistency (separate task) |
+| [Theming](theming.md) | Not Started | Colour tokens, light/dark mode, colour themes |
 
 ### Plugins
 | Idea | Status | Description |
 |------|--------|-------------|
 | [Business Card Scanner](business-card-scanner.md) | Not Started | Vision-based contact extraction from business cards (plugin) |
-| [Local OCR for Expenses](local-ocr-expense-recognition.md) | Not Started | Use Ollama vision models to extract expense data from receipts |
+| [Local OCR for Expenses](local-ocr-expense-recognition.md) | Partially implemented v0.5.0 | LLM scanning shipped; local vision models on receipt images remain |
+| [Time Tracking PDF Timesheet](time-tracking-pdf-timesheet.md) | Not Started | Printable timesheet export for the time-tracking plugin |
 
 ### Infrastructure & Integrations
 | Idea | Status | Description |
 |------|--------|-------------|
-| [OAuth2/OIDC Authentication](oauth2-oidc-authentication.md) | Planned v0.3+ | Single sign-on with Keycloak, Authentik, etc. |
+| [OAuth2/OIDC Authentication](oauth2-oidc-authentication.md) | Not scheduled | Single sign-on with Keycloak, Authentik, etc. |
 | [File Storage Integrations](file-storage-integrations.md) | Not Started | S3, WebDAV, Nextcloud for document storage |
-| [Calendar Integration](calendar-integration.md) | Not Started | Sync events with calendar apps (ICS, CalDAV) |
 | [Task Import/Export](task-import-export.md) | Not Started | Sync todos with Todoist, Things, etc. |
 
 ## Completed Ideas
@@ -35,7 +38,8 @@ See the [done/](done/) folder for implemented features:
 |------|-------------|-------------|
 | [Incremental Expense Submission](done/incremental-expense-submission.md) | v0.3.0-rc1 | Submit expenses in stages, track submission status |
 | [Task Management (Internal)](done/task-management-integration.md) | v0.3.0 | Todo CRUD, categories, templates, auto-completion |
-| [Time/Working Hours Tracking](done/time-tracking.md) | Implemented as plugin | Track working hours per event/company/project (plugin) |
+| [Time/Working Hours Tracking](done/time-tracking.md) | v0.3.0 (plugin) | Track working hours per event/company/project (plugin) |
+| [Calendar Integration](done/calendar-integration.md) | v0.4.0, v0.5.0 | Company calendar connections, calendar page, national holidays |
 
 ## Contributing Ideas
 

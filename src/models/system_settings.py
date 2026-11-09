@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """System settings model for global configuration."""
 
-from sqlalchemy import Boolean, String, Text
+from sqlalchemy import String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base
@@ -15,4 +15,3 @@ class SystemSettings(Base):
 
     key: Mapped[str] = mapped_column(String(100), primary_key=True)
     value: Mapped[str | None] = mapped_column(Text, nullable=True)
-    is_encrypted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

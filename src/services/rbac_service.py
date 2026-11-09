@@ -1,4 +1,7 @@
-# src/services/rbac_service.py
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
+"""Role and permission queries and assignments."""
+
 import logging
 import uuid
 
@@ -7,6 +10,9 @@ from sqlalchemy.orm import Session, joinedload
 
 from src.models import Permission, Role, RolePermission, User, UserRole
 from src.plugins.base import ProvidedPermission
+from src.rbac.roles import MEMBER_ROLE
+
+SYSTEM_ADMIN_PERMISSION = "system.admin"
 
 logger = logging.getLogger(__name__)
 
@@ -14,73 +20,108 @@ logger = logging.getLogger(__name__)
 def user_has_permission(
     db: Session, user: User, permission_code: str, company_id: uuid.UUID | None = None
 ) -> bool:
-    """Check if a user has a specific permission."""
+    """Check if a user holds a permission globally or for a company.
+
+    Args:
+        db: Database session.
+        user: The user to check.
+        permission_code: Permission code, e.g. "event.read".
+        company_id: Company the check is scoped to. None checks global roles
+            only.
+
+    Returns:
+        True when the user is active and holds the code.
+    """
     if not user.is_active:
         return False
-
-    # Global admin has all permissions
     if is_global_admin(db, user):
         return True
-
-    permissions = get_user_permissions(db, user, company_id)
-    return permission_code in permissions
+    return permission_code in get_user_permissions(db, user, company_id)
 
 
 def is_global_admin(db: Session, user: User) -> bool:
-    """Check for global admin role."""
-    global_admin_role = get_role_by_name(db, "Global Admin")
-    if not global_admin_role:
-        return False
+    """Check whether the user holds a system role globally.
 
-    for user_role in user.user_roles:
-        if user_role.role_id == global_admin_role.id and user_role.company_id is None:
-            return True
-    return False
+    Args:
+        db: Database session.
+        user: The user to check.
+
+    Returns:
+        True when a global assignment of an ``is_system`` role exists.
+    """
+    query = (
+        sa.select(UserRole.id)
+        .join(Role, Role.id == UserRole.role_id)
+        .where(
+            UserRole.user_id == user.id,
+            UserRole.company_id.is_(None),
+            Role.is_system,
+        )
+        .limit(1)
+    )
+    return db.scalar(query) is not None
 
 
 def get_user_permissions(
     db: Session, user: User, company_id: uuid.UUID | None = None
 ) -> set[str]:
-    """Get a set of all permission codes for a user.
+    """Get the permission codes a user holds.
 
-    If company_id is provided, it includes permissions from global roles
-    and company-specific roles for that company.
-    If company_id is None, it only includes permissions from global roles.
+    Args:
+        db: Database session.
+        user: The user whose roles are resolved.
+        company_id: When given, roles scoped to this company count as well as
+            global roles. When None, only global roles count.
+
+    Returns:
+        The set of permission codes.
     """
-    permission_codes = set()
-
-    # Get permissions from global roles
-    global_roles = (
-        db.query(UserRole)
-        .filter(UserRole.user_id == user.id, UserRole.company_id.is_(None))
-        .all()
+    scope = UserRole.company_id.is_(None)
+    if company_id is not None:
+        scope = sa.or_(scope, UserRole.company_id == company_id)
+    query = (
+        sa.select(RolePermission.permission_code)
+        .join(UserRole, UserRole.role_id == RolePermission.role_id)
+        .where(UserRole.user_id == user.id, scope)
+        .distinct()
     )
-    for user_role in global_roles:
-        role_permissions = (
-            db.query(RolePermission)
-            .filter(RolePermission.role_id == user_role.role_id)
-            .all()
-        )
-        for rp in role_permissions:
-            permission_codes.add(rp.permission_code)
+    return set(db.scalars(query))
 
-    # Get permissions from company-specific roles
-    if company_id:
-        company_roles = (
-            db.query(UserRole)
-            .filter(UserRole.user_id == user.id, UserRole.company_id == company_id)
-            .all()
-        )
-        for user_role in company_roles:
-            role_permissions = (
-                db.query(RolePermission)
-                .filter(RolePermission.role_id == user_role.role_id)
-                .all()
-            )
-            for rp in role_permissions:
-                permission_codes.add(rp.permission_code)
 
-    return permission_codes
+def companies_with_permission(
+    db: Session, user: User, permission_code: str
+) -> set[uuid.UUID] | None:
+    """Get the companies in which a user holds a permission.
+
+    List routes without a company id use this to filter their results.
+
+    Args:
+        db: Database session.
+        user: The user to check.
+        permission_code: Permission code, e.g. "company.view".
+
+    Returns:
+        None when the user holds the code globally (or is a Global Admin), so
+        no company filter applies. Otherwise the ids of the companies whose
+        scoped roles grant the code; an empty set means no access.
+    """
+    if not user.is_active:
+        return set()
+    if is_global_admin(db, user):
+        return None
+    query = (
+        sa.select(UserRole.company_id)
+        .join(RolePermission, RolePermission.role_id == UserRole.role_id)
+        .where(
+            UserRole.user_id == user.id,
+            RolePermission.permission_code == permission_code,
+        )
+        .distinct()
+    )
+    company_ids = set(db.scalars(query))
+    if None in company_ids:
+        return None
+    return company_ids
 
 
 def get_user_roles(
@@ -154,6 +195,94 @@ def get_role_by_name(db: Session, name: str) -> Role | None:
     return db.query(Role).filter(Role.name == name).first()
 
 
+def assign_member_role(db: Session, user_id: uuid.UUID) -> UserRole | None:
+    """Give a user the default Member role globally.
+
+    Args:
+        db: Database session.
+        user_id: The user that gets the role.
+
+    Returns:
+        The new assignment, or None when the Member role does not exist.
+    """
+    member = get_role_by_name(db, MEMBER_ROLE)
+    if member is None:
+        logger.warning(
+            "Role %r not found; user %s gets no default role", MEMBER_ROLE, user_id
+        )
+        return None
+    return assign_role_to_user(db, user_id=user_id, role_id=member.id)
+
+
+def role_grants_system_admin(db: Session, role: Role) -> bool:
+    """Check whether holding a role makes a user a system administrator.
+
+    Args:
+        db: Database session.
+        role: The role to check.
+
+    Returns:
+        True for a system role or a role linked to ``system.admin``.
+    """
+    if role.is_system:
+        return True
+    query = sa.select(RolePermission.role_id).where(
+        RolePermission.role_id == role.id,
+        RolePermission.permission_code == SYSTEM_ADMIN_PERMISSION,
+    )
+    return db.scalar(query.limit(1)) is not None
+
+
+def can_assign_role(db: Session, actor: User, role: Role) -> bool:
+    """Check whether a user may assign or remove a role.
+
+    Roles that grant system administration need ``system.admin`` themselves,
+    so ``user.manage`` alone cannot be used to escalate.
+
+    Args:
+        db: Database session.
+        actor: The user performing the change.
+        role: The role being assigned or removed.
+
+    Returns:
+        True when the actor may hand out the role.
+    """
+    if not role_grants_system_admin(db, role):
+        return True
+    return user_has_permission(db, actor, SYSTEM_ADMIN_PERMISSION)
+
+
+def can_manage_user(db: Session, actor: User, target: User) -> bool:
+    """Check whether a user may edit another user's account or roles.
+
+    Users who hold ``system.admin`` can only be changed by a user who holds
+    it as well.
+
+    Args:
+        db: Database session.
+        actor: The user performing the change.
+        target: The user being changed.
+
+    Returns:
+        True when the actor may change the target.
+    """
+    if not user_has_permission(db, target, SYSTEM_ADMIN_PERMISSION):
+        return True
+    return user_has_permission(db, actor, SYSTEM_ADMIN_PERMISSION)
+
+
+def get_system_roles(db: Session) -> list[Role]:
+    """Get the system roles, such as Global Admin.
+
+    Args:
+        db: Database session.
+
+    Returns:
+        Every role with ``is_system`` set.
+    """
+    return list(db.scalars(sa.select(Role).where(Role.is_system)))
+
+
 def register_permission(
     db: Session, code: str, module: str, description: str | None = None
 ) -> Permission:
@@ -176,27 +305,16 @@ def get_user_all_permissions(db: Session, user: User) -> dict:
     global_permissions: set[str] = set()
     company_permissions: dict[str, set[str]] = {}
 
-    # Get all user role assignments
-    user_roles = db.query(UserRole).filter(UserRole.user_id == user.id).all()
-
-    for user_role in user_roles:
-        # Get permissions for this role
-        role_perms = (
-            db.query(RolePermission)
-            .filter(RolePermission.role_id == user_role.role_id)
-            .all()
-        )
-        perm_codes = {rp.permission_code for rp in role_perms}
-
-        if user_role.company_id is None:
-            # Global role
-            global_permissions.update(perm_codes)
+    rows = db.execute(
+        sa.select(UserRole.company_id, RolePermission.permission_code)
+        .join(RolePermission, RolePermission.role_id == UserRole.role_id)
+        .where(UserRole.user_id == user.id)
+    )
+    for company_id, code in rows:
+        if company_id is None:
+            global_permissions.add(code)
         else:
-            # Company-scoped role
-            company_id_str = str(user_role.company_id)
-            if company_id_str not in company_permissions:
-                company_permissions[company_id_str] = set()
-            company_permissions[company_id_str].update(perm_codes)
+            company_permissions.setdefault(str(company_id), set()).add(code)
 
     return {
         "global_permissions": list(global_permissions),
@@ -249,11 +367,32 @@ def register_plugin_permissions(
                 plugin_id=plugin_id,
             )
             db.add(permission)
+            db.flush()
+            _grant_to_default_roles(db, prov_perm)
             registered.append(permission)
             logger.info(f"Registered plugin permission: {prov_perm.code}")
 
     db.commit()
     return registered
+
+
+def _grant_to_default_roles(db: Session, prov_perm: ProvidedPermission) -> None:
+    """Link a newly registered plugin permission to the default roles.
+
+    Runs only when the permission row is created, so an admin who later
+    removes the code from Member does not see it come back.
+
+    Args:
+        db: Database session.
+        prov_perm: The plugin permission that was just created.
+    """
+    roles = get_system_roles(db)
+    if prov_perm.member_default:
+        member = get_role_by_name(db, MEMBER_ROLE)
+        if member is not None:
+            roles.append(member)
+    for role in roles:
+        db.add(RolePermission(role_id=role.id, permission_code=prov_perm.code))
 
 
 def unregister_plugin_permissions(
@@ -290,53 +429,3 @@ def unregister_plugin_permissions(
 
     db.commit()
     return count
-
-
-def get_permissions_by_plugin(
-    db: Session,
-    plugin_id: str | None = None,
-) -> list[Permission]:
-    """Get permissions, optionally filtered by plugin.
-
-    Args:
-        db: Database session
-        plugin_id: If provided, only return permissions for this plugin.
-                   If None, returns all permissions.
-
-    Returns:
-        List of Permission objects
-    """
-    query = db.query(Permission)
-
-    if plugin_id is not None:
-        query = query.filter(Permission.plugin_id == plugin_id)
-
-    return query.order_by(Permission.code).all()
-
-
-def get_core_permissions(db: Session) -> list[Permission]:
-    """Get all core (non-plugin) permissions.
-
-    Returns:
-        List of Permission objects where plugin_id is NULL
-    """
-    return (
-        db.query(Permission)
-        .filter(Permission.plugin_id.is_(None))
-        .order_by(Permission.code)
-        .all()
-    )
-
-
-def get_all_plugin_permissions(db: Session) -> list[Permission]:
-    """Get all plugin-provided permissions.
-
-    Returns:
-        List of Permission objects where plugin_id is not NULL
-    """
-    return (
-        db.query(Permission)
-        .filter(Permission.plugin_id.isnot(None))
-        .order_by(Permission.plugin_id, Permission.code)
-        .all()
-    )

@@ -112,20 +112,8 @@ export const usePlugins = create<PluginsState>((set, get) => ({
       const formData = new FormData()
       formData.append('file', file)
 
-      const url = upgrade ? '/api/v1/plugins/install?upgrade=true' : '/api/v1/plugins/install'
-
-      const response = await fetch(url, {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || `Install failed: ${response.status}`)
-      }
-
-      const result: PluginInstallResponse = await response.json()
+      const path = upgrade ? '/plugins/install?upgrade=true' : '/plugins/install'
+      const result = await api.upload<PluginInstallResponse>(path, formData)
 
       // Refresh plugin list and discovered plugins
       await get().fetchPlugins()

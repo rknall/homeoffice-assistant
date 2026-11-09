@@ -11,7 +11,9 @@ from email.mime.text import MIMEText
 from typing import Any
 
 from src.integrations.base import EmailProvider
+from src.integrations.failure import failure_category
 from src.integrations.registry import IntegrationRegistry
+from src.models.enums import IntegrationType
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +25,7 @@ class SmtpProvider(EmailProvider):
     @classmethod
     def get_type(cls) -> str:
         """Return the unique identifier for this integration type."""
-        return "smtp"
+        return IntegrationType.SMTP.value
 
     @classmethod
     def get_display_name(cls) -> str:
@@ -121,7 +123,7 @@ class SmtpProvider(EmailProvider):
         except TimeoutError:
             return False, "Connection timeout"
         except Exception as e:
-            return False, str(e)
+            return False, failure_category(e)
 
     async def send_email(
         self,
@@ -174,8 +176,7 @@ class SmtpProvider(EmailProvider):
                     part.set_payload(content)
                     encoders.encode_base64(part)
                     part.add_header(
-                        "Content-Disposition",
-                        f"attachment; filename={filename}",
+                        "Content-Disposition", "attachment", filename=filename
                     )
                     msg.attach(part)
 

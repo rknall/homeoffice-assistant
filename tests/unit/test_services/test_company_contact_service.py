@@ -113,29 +113,6 @@ def test_getters_and_filters(db_session):
     assert filtered == [contact]
 
 
-def test_validate_contact_types_exist(db_session):
-    company = create_company(db_session)
-    create_contact(
-        db_session,
-        company.id,
-        "first",
-        contact_types=[ContactType.BILLING],
-        is_main=True,
-    )
-
-    ok, missing = company_contact_service.validate_contact_types_exist(
-        db_session, company.id, [ContactType.BILLING]
-    )
-    assert ok is True
-    assert missing == []
-
-    ok, missing = company_contact_service.validate_contact_types_exist(
-        db_session, company.id, [ContactType.SALES]
-    )
-    assert ok is False
-    assert missing == [ContactType.SALES]
-
-
 def test_contact_to_response(db_session):
     company = create_company(db_session)
     contact = create_contact(db_session, company.id, "first", is_main=True)

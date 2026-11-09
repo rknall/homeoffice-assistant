@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 import { X } from 'lucide-react'
-import { Fragment, type ReactNode } from 'react'
+import { Fragment, type ReactNode, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 
 interface ModalProps {
@@ -14,6 +14,16 @@ interface ModalProps {
 }
 
 export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
+  useEffect(() => {
+    if (!isOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      // A nested dialog (the confirm overlay) handles its own Escape and marks it handled.
+      if (event.key === 'Escape' && !event.defaultPrevented) onClose()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [isOpen, onClose])
+
   if (!isOpen) return null
 
   return (

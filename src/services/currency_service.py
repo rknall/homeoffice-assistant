@@ -4,13 +4,14 @@
 
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 import httpx
 from sqlalchemy.orm import Session
 
 from src.models.currency_cache import CurrencyCache
+from src.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +177,7 @@ class CurrencyService:
 
         if cached is not None:
             # Check if cache is fresh enough
-            cache_age = datetime.utcnow() - cached.fetched_at
+            cache_age = utc_now() - cached.fetched_at
             if cache_age < timedelta(hours=CACHE_FRESHNESS_HOURS):
                 return cached.rate, cached.rate_date
 
@@ -275,14 +276,14 @@ class CurrencyService:
 
         if existing:
             existing.rate = rate
-            existing.fetched_at = datetime.utcnow()
+            existing.fetched_at = utc_now()
         else:
             cache_entry = CurrencyCache(
                 base_currency=from_currency,
                 target_currency=to_currency,
                 rate=rate,
                 rate_date=rate_date,
-                fetched_at=datetime.utcnow(),
+                fetched_at=utc_now(),
             )
             self.db.add(cache_entry)
 
@@ -326,93 +327,3 @@ class CurrencyService:
             exchange_rate=rate,
             rate_date=actual_date,
         )
-
-
-async def backfill_expense_conversions(db: Session) -> dict:
-    """Backfill currency conversions for expenses missing converted_amount.
-
-    Finds all expenses where converted_amount is NULL and the expense currency
-    differs from the system base currency, then converts them.
-
-    Args:
-        db: Database session.
-
-    Returns:
-        Dict with counts: converted, skipped, failed.
-    """
-    from src.models import Expense
-    from src.services import settings_service
-
-    results = {"converted": 0, "skipped": 0, "failed": 0}
-    base_currency = settings_service.get_base_currency(db)
-
-    # Find expenses without converted_amount
-    expenses = (
-        db.query(Expense)
-        .filter(Expense.converted_amount.is_(None))
-        .all()
-    )
-
-    if not expenses:
-        return results
-
-    service = CurrencyService(db)
-    try:
-        for expense in expenses:
-            if expense.currency.upper() == base_currency.upper():
-                # Same currency: set 1:1 conversion
-                expense.converted_amount = expense.amount
-                expense.exchange_rate = Decimal("1.0")
-                expense.rate_date = expense.date
-                results["converted"] += 1
-            else:
-                try:
-                    result = await service.convert(
-                        expense.amount,
-                        expense.currency,
-                        base_currency,
-                        expense.date,
-                    )
-                    expense.converted_amount = result.converted_amount
-                    expense.exchange_rate = result.exchange_rate
-                    expense.rate_date = result.rate_date
-                    results["converted"] += 1
-                except CurrencyServiceError as e:
-                    logger.warning(
-                        f"Failed to convert expense {expense.id}: {e}"
-                    )
-                    results["failed"] += 1
-
-        db.commit()
-    finally:
-        await service.close()
-
-    return results
-
-
-# Synchronous wrapper functions for use in non-async contexts
-def get_supported_currencies_sync(db: Session) -> list[Currency]:
-    """Synchronous wrapper for getting supported currencies.
-
-    For use in schema validation and other sync contexts.
-    Uses cached data if available.
-    """
-    import asyncio
-
-    service = CurrencyService(db)
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # We're in an async context, need to use run_coroutine_threadsafe
-            future = asyncio.run_coroutine_threadsafe(
-                service.get_supported_currencies(), loop
-            )
-            return future.result(timeout=10)
-        else:
-            return loop.run_until_complete(service.get_supported_currencies())
-    except RuntimeError:
-        # No event loop, create a new one
-        return asyncio.run(service.get_supported_currencies())
-    finally:
-        # Don't close the client here as it may be used again
-        pass

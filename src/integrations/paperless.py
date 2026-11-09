@@ -8,7 +8,9 @@ from typing import Any
 import httpx
 
 from src.integrations.base import DocumentProvider
+from src.integrations.failure import failure_category
 from src.integrations.registry import IntegrationRegistry
+from src.models.enums import IntegrationType
 
 # Content types that say nothing about the format, so the served filename
 # stays as-is rather than becoming something like receipt.bin
@@ -39,7 +41,7 @@ class PaperlessProvider(DocumentProvider):
     @classmethod
     def get_type(cls) -> str:
         """Return the unique identifier for this integration type."""
-        return "paperless"
+        return IntegrationType.PAPERLESS.value
 
     @classmethod
     def get_display_name(cls) -> str:
@@ -112,7 +114,7 @@ class PaperlessProvider(DocumentProvider):
         except httpx.TimeoutException:
             return False, "Connection timeout"
         except Exception as e:
-            return False, str(e)
+            return False, failure_category(e)
 
     async def list_storage_paths(self) -> list[dict[str, Any]]:
         """List available storage paths from Paperless-ngx."""
@@ -131,20 +133,6 @@ class PaperlessProvider(DocumentProvider):
             {"id": sp["id"], "name": sp["name"], "path": sp.get("path", "")}
             for sp in results
         ]
-
-    async def list_tags(self) -> list[dict[str, Any]]:
-        """List all tags from Paperless-ngx."""
-        results = []
-        url = "/api/tags/"
-        while url:
-            resp = await self._client.get(url)
-            resp.raise_for_status()
-            data = resp.json()
-            results.extend(data.get("results", []))
-            url = data.get("next")
-            if url:
-                url = url.replace(self.url, "")
-        return [{"id": tag["id"], "name": tag["name"]} for tag in results]
 
     async def create_tag(self, name: str) -> dict[str, Any]:
         """Create a new tag in Paperless-ngx."""
@@ -226,28 +214,6 @@ class PaperlessProvider(DocumentProvider):
         content_type = resp.headers.get("content-type", "application/pdf")
         filename = _match_extension_to_content(original_filename, content_type)
         return resp.content, filename, content_type
-
-    async def list_custom_fields(self) -> list[dict[str, Any]]:
-        """List all custom fields from Paperless-ngx."""
-        results = []
-        url = "/api/custom_fields/"
-        while url:
-            resp = await self._client.get(url)
-            resp.raise_for_status()
-            data = resp.json()
-            results.extend(data.get("results", []))
-            url = data.get("next")
-            if url:
-                url = url.replace(self.url, "")
-        return [
-            {
-                "id": cf["id"],
-                "name": cf["name"],
-                "data_type": cf.get("data_type", ""),
-                "extra_data": cf.get("extra_data", {}),
-            }
-            for cf in results
-        ]
 
     async def get_custom_field_by_name(self, name: str) -> dict[str, Any] | None:
         """Get a custom field by name from Paperless-ngx."""

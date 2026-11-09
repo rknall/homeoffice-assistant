@@ -53,5 +53,6 @@ def downgrade() -> None:
         op.f("ix_company_calendars_company_id"), table_name="company_calendars"
     )
     op.drop_table("company_calendars")
-    # Drop the enum type if using PostgreSQL
-    op.execute("DROP TYPE IF EXISTS calendartype")
+    # Only PostgreSQL has named enum types; SQLite rejects DROP TYPE.
+    if op.get_bind().dialect.name == "postgresql":
+        op.execute("DROP TYPE IF EXISTS calendartype")

@@ -10,35 +10,20 @@ import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
-import type { Todo, TodoCategory } from '@/types'
+import type { Todo } from '@/types'
 import { TODO_CATEGORY_LABELS } from '@/types'
+import { enumValues, labelOptions } from '@/utils/labels'
 
 const todoSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title is too long'),
   description: z.string().optional(),
   due_date: z.string().optional(),
-  category: z.enum([
-    'travel',
-    'accommodation',
-    'preparation',
-    'equipment',
-    'contacts',
-    'followup',
-    'other',
-  ]),
+  category: z.enum(enumValues(TODO_CATEGORY_LABELS)),
 })
 
 type TodoFormData = z.infer<typeof todoSchema>
 
-const categoryOptions: Array<{ value: TodoCategory; label: string }> = [
-  { value: 'travel', label: TODO_CATEGORY_LABELS.travel },
-  { value: 'accommodation', label: TODO_CATEGORY_LABELS.accommodation },
-  { value: 'preparation', label: TODO_CATEGORY_LABELS.preparation },
-  { value: 'equipment', label: TODO_CATEGORY_LABELS.equipment },
-  { value: 'contacts', label: TODO_CATEGORY_LABELS.contacts },
-  { value: 'followup', label: TODO_CATEGORY_LABELS.followup },
-  { value: 'other', label: TODO_CATEGORY_LABELS.other },
-]
+const categoryOptions = labelOptions(TODO_CATEGORY_LABELS)
 
 interface TodoFormModalProps {
   isOpen: boolean

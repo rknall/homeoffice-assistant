@@ -270,6 +270,7 @@ def upgrade() -> None:
 
     user_roles_table = sa.table(
         "user_roles",
+        sa.column("id", sa.UUID),
         sa.column("user_id", sa.UUID),
         sa.column("role_id", sa.UUID),
         sa.column("company_id", sa.UUID),
@@ -288,6 +289,7 @@ def upgrade() -> None:
 
         user_roles_to_insert.append(
             {
+                "id": uuid.uuid4(),
                 "user_id": user_id,
                 "role_id": global_admin_role_id,
                 "company_id": None,

@@ -1,5 +1,7 @@
 # HomeOffice Assistant - Requirements Document
 
+> Status: historical. This is the original v0.1 MVP scope; the app has moved on (RBAC roles, plugins, calendar, LLM expense scanning). The "Viewer" role below was never built as described; see USER_ROLES.md and RELEASENOTES.md for the current state.
+
 ## Overview
 
 A self-hosted web application to centrally manage business trips, expenses, and reports. Integrates with external systems (Paperless-ngx, Immich) to provide a unified interface for the complete trip lifecycle.
@@ -27,7 +29,7 @@ Managing business trips currently requires:
 - Passwords stored with bcrypt hashing
 - Session-based auth with secure cookies
 
-### Authentication (v0.3+)
+### Authentication (not scheduled)
 - OAuth2/OIDC integration (Keycloak, Authentik, etc.)
 - Optional: Keep local auth as fallback
 
@@ -255,7 +257,7 @@ EmailProvider(IntegrationProvider)
 ### Security
 - Multi-user with role-based access
 - v0.1: Username/password auth with session cookies
-- v0.3+: OAuth2/OIDC ready (Keycloak, Authentik, etc.)
+- Not scheduled: OAuth2/OIDC ready (Keycloak, Authentik, etc.)
 - All integration credentials (API tokens, passwords) stored encrypted in database
 - Encryption key derived from SECRET_KEY environment variable
 - HTTPS in production
@@ -376,7 +378,7 @@ SystemSettings (key, value_encrypted)
 - Todo management UI
 - Contact management UI
 
-**Deferred to v0.3+:**
+**Deferred (not scheduled):**
 - OAuth2/OIDC authentication
 - Additional integrations (file storage, calendar)
 - Plugin system for custom integrations

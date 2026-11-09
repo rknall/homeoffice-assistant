@@ -104,13 +104,14 @@ def upgrade() -> None:
         sa.Column("rejection_reason", sa.Text(), nullable=True),
     )
 
-    # Migrate INCLUDED status to SUBMITTED and set submitted_at
-    # SQLite stores enums as text, so we can just update the string value
+    # Migrate INCLUDED status to SUBMITTED and set submitted_at.
+    # Enum(ExpenseStatus) stores member names, so match 'INCLUDED'; the
+    # lowercase value is matched too for rows written by hand.
     op.execute(
         """
         UPDATE expenses
-        SET status = 'submitted', submitted_at = updated_at
-        WHERE status = 'included'
+        SET status = 'SUBMITTED', submitted_at = updated_at
+        WHERE status IN ('INCLUDED', 'included')
         """
     )
 
@@ -120,8 +121,8 @@ def downgrade() -> None:
     op.execute(
         """
         UPDATE expenses
-        SET status = 'included'
-        WHERE status = 'submitted'
+        SET status = 'INCLUDED'
+        WHERE status IN ('SUBMITTED', 'submitted')
         """
     )
 

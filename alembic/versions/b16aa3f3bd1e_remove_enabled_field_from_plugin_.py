@@ -26,7 +26,5 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.add_column(
         "plugin_configs",
-        sa.Column(
-            "is_enabled", sa.Boolean(), nullable=False, server_default=sa.true_()
-        ),
+        sa.Column("is_enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
     )

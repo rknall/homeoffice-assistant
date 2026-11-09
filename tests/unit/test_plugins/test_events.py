@@ -2,11 +2,10 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Tests for plugin event bus system."""
 
-from datetime import datetime
-
 import pytest
 
 from src.plugins.events import AppEvent, EventBus, EventPayload
+from src.utils.time import utc_now
 
 
 class TestAppEvent:
@@ -62,7 +61,7 @@ class TestEventPayload:
 
     def test_create_payload(self):
         """Test creating an event payload."""
-        now = datetime.utcnow()
+        now = utc_now()
         payload = EventPayload(
             event_type=AppEvent.USER_CREATED,
             timestamp=now,
@@ -77,7 +76,7 @@ class TestEventPayload:
         """Test creating an event payload with source plugin."""
         payload = EventPayload(
             event_type=AppEvent.EVENT_CREATED,
-            timestamp=datetime.utcnow(),
+            timestamp=utc_now(),
             data={"event_id": "456"},
             source_plugin_id="my-plugin",
         )

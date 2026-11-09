@@ -147,3 +147,9 @@ class EventWithSummary(EventDetailResponse):
     expense_total: float = 0.0
     todo_count: int = 0
     todo_incomplete_count: int = 0
+
+
+class EventCountResponse(BaseModel):
+    """Schema for the event count response."""
+
+    count: int

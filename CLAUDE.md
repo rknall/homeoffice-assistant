@@ -2,36 +2,55 @@
 
 ## Project: HomeOffice Assistant
 
-A self-hosted personal productivity and work management assistant with external system integrations.
+A self-hosted personal productivity and work management assistant with external
+system integrations. Deployed as a single Docker image (backend + built frontend),
+released by GitHub Actions on `v*` tags.
 
 ## Quick Reference
 
 ```bash
 # Backend
-uv run pip install -e ".[dev]"
-uv run pytest                          # Run tests
-uv run uvicorn src.main:app --reload   # Dev server on :8000
+uv sync --extra dev                              # Install with dev tools
+uv run --extra dev pytest tests/                 # Core tests
+uv run --extra dev pytest plugins/*/tests/       # Plugin tests
+uv run --extra dev ruff check src/               # Lint (CI gate)
+uv run uvicorn src.main:app --reload             # Dev server on :8000
 
-# Frontend
-cd frontend
+# Frontend (run inside frontend/)
 bun install
 bun run dev                     # Dev server on :5173
-bun run build                   # Production build
-bun test                        # Run tests
+bun run build                   # tsc + production build
+bun run test                    # Vitest (NOT `bun test`, Bun's own runner skips most tests)
+bun run lint                    # Biome
 
 # Docker (full stack)
 docker compose up --build
 ```
 
+Tests need `SECRET_KEY` set (any 32+ chars) and a `DATABASE_URL`; CI uses
+`sqlite:///./test.db`. The full local equivalent of CI is in
+`.claude/pipeline/RULES.md` (Verification gate).
+
+## Agent Pipeline
+
+Every request that changes backend, frontend, plugins, migrations, Docker, CI/CD
+or docs runs through the `hoa-pipeline` skill automatically, without being asked.
+Requests to verify, audit or refactor existing code run as task type `audit`.
+Read-only questions and git housekeeping are answered directly.
+The main loop only dispatches the `hoa-*` agents in `.claude/agents/` and never
+does a stage's work itself. Stages, task types, paths, document limits and the
+verification gate: `.claude/pipeline/RULES.md`. Plans and work documents go to
+`docs/specs/<task>/`.
+
 ## Tech Stack
 
 | Layer | Technologies |
 |-------|--------------|
-| **Backend** | FastAPI, SQLAlchemy 2.0, Pydantic v2, Alembic |
+| **Backend** | FastAPI, SQLAlchemy 2.0, Pydantic v2, Alembic, Python 3.14 |
 | **Frontend** | React 18, TypeScript, Tailwind CSS, Zustand, Vite |
 | **Database** | SQLite (dev), PostgreSQL (prod) |
 | **Testing** | pytest (backend), Vitest (frontend) |
-| **Linting** | Ruff (Python), Biome (TypeScript) |
+| **Linting** | Ruff (Python), Biome (TypeScript), hadolint (Dockerfile) |
 
 ## Project Structure
 
@@ -41,22 +60,29 @@ homeoffice-assistant/
 │   ├── main.py                 # FastAPI app entry point
 │   ├── config.py               # Settings
 │   ├── database.py             # SQLAlchemy setup
+│   ├── version.py              # APP_VERSION, read from pyproject.toml
 │   ├── models/                 # SQLAlchemy ORM models
 │   ├── schemas/                # Pydantic request/response schemas
 │   ├── api/v1/                 # API route handlers
 │   ├── services/               # Business logic
-│   ├── integrations/           # External system clients (Paperless, Immich)
-│   └── plugins/                # Plugin system
+│   ├── integrations/           # External system clients (Paperless, Immich, LLM, SMTP)
+│   ├── rbac/                   # Roles and permissions
+│   ├── plugins/                # Plugin system (loader, registry, migrations)
+│   └── utils/                  # Shared helpers
+├── plugins/<name>/             # Plugins: backend/, frontend/, tests/, manifest
 ├── frontend/src/
 │   ├── api/                    # API client
-│   ├── components/             # UI components (ui/, layout/, forms/)
+│   ├── components/             # UI components
 │   ├── pages/                  # Page components
-│   ├── hooks/                  # Custom React hooks
+│   ├── lib/, utils/            # Shared frontend helpers
+│   ├── plugins/                # Frontend plugin loader
 │   ├── stores/                 # Zustand state management
-│   └── types/                  # TypeScript types
+│   └── types/                  # TypeScript types (api.generated.ts is generated)
 ├── tests/                      # Backend tests (unit/, integration/)
+├── scripts/                    # CI and ops scripts (plugin_deps, backup, restore)
 ├── alembic/                    # Database migrations
-└── docker-compose.yml
+├── docker/                     # Dockerfile, entrypoint
+└── .github/workflows/          # ci.yml (checks), release.yml (image on v* tags)
 ```
 
 ## Configuration
@@ -67,36 +93,32 @@ SECRET_KEY=<generate-with-secrets.token_urlsafe(32)>  # REQUIRED
 DATABASE_URL=sqlite:///./data/homeoffice_assistant.db # Optional
 ```
 
-**Database-stored config** (encrypted via Fernet):
-- Integration credentials (Paperless, Immich, SMTP)
-- System settings
+**Database-stored config** (encrypted via Fernet): integration credentials
+(Paperless, Immich, SMTP, LLM) and system settings.
 
 ## Development Guidelines
 
 ### Shell Command Rules
-- **Never** use `git -C <repo>` — always assume the shell is already in the correct repo. If there is no git repository, STOP and ask the user how to proceed
-- **Never** prefix shell commands with `cd <cwd>` — always assume the correct working directory
-- **Always** run python and pip through `uv run` (e.g. `uv run python ...`, `uv run pytest`). NEVER source or activate a virtualenv (`source .venv/bin/activate`) — `uv run` handles the environment automatically
+- **Never** use `git -C <repo>`; the shell is already in the correct repo. If there is no git repository, STOP and ask the user how to proceed
+- **Never** prefix shell commands with `cd <cwd>`; a subshell `(cd frontend && ...)` for frontend commands is fine
+- **Always** run python and pip through `uv run`. NEVER source or activate a virtualenv
+- Use bun/bunx, never npm/npx
 
 ### Do
-- Use `/skill frontend-design` before UI work
-- Run tests before pushing (`pytest` + `bun test`)
-- Update `RELEASENOTES.md` for new features
-- Use TypeScript strictly (no `any`)
 - Keep business logic in services, not route handlers
+- Add or change tests with every behavior change; run tests before pushing
+- Ship an Alembic migration (with `downgrade()`) with every model change
+- Use TypeScript strictly (no `any`)
 
 ### Do NOT
 - Modify `.env SECRET_KEY` after initial setup (breaks encryption compatibility)
 - Put credentials in env vars (use database config)
 - Skip tests
-- Use `*` imports
+- Use `*` imports or `from __future__` imports in Python
 - Downgrade tool or library versions
-- Use `__future__` imports in Python
-- Use npm/npx (use bun/bunx instead)
 
 ### Demo Instance
-- Port: 8123
-- Admin: `roland` / `pass123!`
+Port and credentials live in the untracked `CLAUDE.local.md` (gitignored).
 
 ### Troubleshooting Frontend Changes Not Showing
 1. First, close the browser and reopen to clear cache
@@ -104,15 +126,6 @@ DATABASE_URL=sqlite:///./data/homeoffice_assistant.db # Optional
 3. Never rebuild more than once - assume it fixes all caching issues
 4. If rebuild doesn't help, the issue is in the TypeScript code
 5. If code appears correct but changes still don't show, STOP and ask the user
-
-## Pre-commit Hooks
-
-```bash
-pip install pre-commit
-pre-commit install
-```
-
-Runs automatically: **ruff** (Python), **biome** (TypeScript)
 
 ## Code Style
 
@@ -128,66 +141,29 @@ Runs automatically: **ruff** (Python), **biome** (TypeScript)
 - `camelCase` functions/variables, `PascalCase` components/types
 - Accessibility: `htmlFor` on labels, `type` on buttons
 
+Pre-commit (ruff, ruff-format, Biome): `uvx pre-commit install`.
+
 ## Release Notes
 
-**REQUIRED**: Update `RELEASENOTES.md` whenever a new feature is implemented. This is mandatory, not optional. Release notes keep track of all implemented features for users and developers.
-
-Update `RELEASENOTES.md` when:
-- Adding new features (mandatory)
-- Making substantial changes
-- Fixing bugs
-- Introducing breaking changes
-
-**PR Verification**: When creating or updating a pull request, verify that the `RELEASENOTES.md` section for the feature (based on the current branch) accurately reflects what was implemented. Update the release notes if the implementation differs from what was originally documented.
-
-Sync version in `frontend/src/components/layout/Footer.tsx` with app version.
+**REQUIRED**: update `RELEASENOTES.md` for every new feature, substantial change,
+user-visible bug fix and breaking change. When creating or updating a pull request,
+verify the section for the branch matches what was actually implemented.
+The version lives in `pyproject.toml` and `frontend/package.json`; the Footer
+reads it at build time and `tests/unit/test_version.py` fails when they drift.
 
 ## Git Tags and Releases
 
 **Version tags MUST use the `v` prefix** (e.g., `v0.4.0`, `v0.4.0-dev`, `v1.0.0-beta1`).
-
-The release workflow only triggers on `v*` tags. If the user requests a tag without the `v` prefix, always add it automatically.
+The release workflow only triggers on `v*` tags. If the user requests a tag without
+the `v` prefix, add it automatically.
 
 ## Mockups and Specifications
 
-**Local-only directories** (gitignored, never commit):
-- `docs/mockups/` - HTML mockups for UI design
-- `docs/specs/` - Feature specification documents
+Local-only, gitignored, never commit: `docs/mockups/<feature>/` (HTML mockups with
+an `index.html`) and `docs/specs/<feature>/` (plans and pipeline work documents).
 
-**Structure**: Organize by feature in subdirectories:
-```
-docs/
-├── mockups/
-│   └── <feature-name>/
-│       ├── <view-name>.html
-│       └── index.html      # Links to all mockups for this feature
-└── specs/
-    └── <feature-name>/
-        └── <feature-name>.md
-```
-
-### When to Create Mockups
-
-**REQUIRED** for any UI change beyond trivial modifications (adding a button, removing text):
-- New pages or views
-- Layout changes
-- New components or component redesigns
-- Navigation changes
-- Form redesigns
-
-**NEVER** create ASCII/text-based mockups. Always generate proper HTML mockups.
-
-### Mockup Workflow
-
-1. **Generate**: Use `/skill frontend-design` to create HTML mockups matching the current design language
-2. **Organize**: Save to `docs/mockups/<feature-name>/` with an `index.html` linking all views
-3. **Review**: User MUST sign off on mockups before implementation begins
-4. **Implement**: Build the UI according to approved mockups
-5. **Verify**: Use Playwright to compare implementation against mockups
-
-### Verification
-
-After implementing UI changes, use Playwright browser tools to:
-- Take screenshots of the implemented views
-- Compare against the approved mockups
-- Ensure design language consistency (spacing, colors, typography)
+**Mockups are REQUIRED** for any UI change beyond trivial modifications: new pages or
+views, layout changes, new or redesigned components, navigation and form redesigns.
+Never ASCII mockups. In the pipeline the `hoa-uidesign` agent builds them with the
+`frontend-design` skill in the current design language, the user signs off before
+implementation, and the reviewer compares the implementation against them with Playwright.

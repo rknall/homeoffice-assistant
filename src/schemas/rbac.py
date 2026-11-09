@@ -1,4 +1,7 @@
-# src/schemas/rbac.py
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
+"""Schemas for roles and permissions."""
+
 import uuid
 
 from pydantic import BaseModel, ConfigDict

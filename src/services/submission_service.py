@@ -3,13 +3,13 @@
 """Expense submission service for tracking incremental expense submissions."""
 
 import uuid
-from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from src.models import Event, Expense, ExpenseSubmission, ExpenseSubmissionItem
 from src.models.enums import ExpenseStatus
 from src.services import settings_service
+from src.utils.time import utc_now
 
 
 def get_submissions(db: Session, event_id: uuid.UUID) -> list[ExpenseSubmission]:
@@ -28,17 +28,6 @@ def get_submission(db: Session, submission_id: uuid.UUID) -> ExpenseSubmission |
         db.query(ExpenseSubmission)
         .filter(ExpenseSubmission.id == submission_id)
         .first()
-    )
-
-
-def get_submission_items(
-    db: Session, submission_id: uuid.UUID
-) -> list[ExpenseSubmissionItem]:
-    """Get all items for a submission."""
-    return (
-        db.query(ExpenseSubmissionItem)
-        .filter(ExpenseSubmissionItem.submission_id == submission_id)
-        .all()
     )
 
 
@@ -81,12 +70,9 @@ def create_submission(
         raise ValueError("No valid expenses found for submission")
 
     # Calculate totals (using converted amount where available)
-    total_amount = sum(
-        e.converted_amount if e.converted_amount is not None else e.amount
-        for e in expenses
-    )
+    total_amount = sum(e.effective_amount for e in expenses)
 
-    submitted_at = datetime.utcnow()
+    submitted_at = utc_now()
 
     # Create the submission record
     submission = ExpenseSubmission(
@@ -158,10 +144,7 @@ def get_submission_summary(db: Session, event_id: uuid.UUID) -> dict:
         )
         .all()
     )
-    total_reimbursed = sum(
-        e.converted_amount if e.converted_amount is not None else e.amount
-        for e in reimbursed_expenses
-    )
+    total_reimbursed = sum(e.effective_amount for e in reimbursed_expenses)
 
     # Get pending expenses
     pending_expenses = (
@@ -172,10 +155,7 @@ def get_submission_summary(db: Session, event_id: uuid.UUID) -> dict:
         )
         .all()
     )
-    total_pending = sum(
-        e.converted_amount if e.converted_amount is not None else e.amount
-        for e in pending_expenses
-    )
+    total_pending = sum(e.effective_amount for e in pending_expenses)
 
     # Get awaiting reimbursement (submitted but not yet reimbursed)
     submitted_expenses = (
@@ -186,10 +166,7 @@ def get_submission_summary(db: Session, event_id: uuid.UUID) -> dict:
         )
         .all()
     )
-    total_awaiting = sum(
-        e.converted_amount if e.converted_amount is not None else e.amount
-        for e in submitted_expenses
-    )
+    total_awaiting = sum(e.effective_amount for e in submitted_expenses)
 
     currency = settings_service.get_base_currency(db)
 
@@ -201,40 +178,3 @@ def get_submission_summary(db: Session, event_id: uuid.UUID) -> dict:
         "total_awaiting_reimbursement": float(total_awaiting),
         "currency": currency,
     }
-
-
-def get_expense_submission_history(
-    db: Session, expense_id: uuid.UUID
-) -> list[dict]:
-    """Get submission history for a specific expense.
-
-    Returns list of submission events in chronological order.
-    """
-    expense = db.query(Expense).filter(Expense.id == expense_id).first()
-    if not expense:
-        return []
-
-    # Get all submission items for this expense
-    items = (
-        db.query(ExpenseSubmissionItem)
-        .filter(ExpenseSubmissionItem.expense_id == expense_id)
-        .all()
-    )
-
-    history = []
-
-    for item in items:
-        submission = item.submission
-        history.append({
-            "type": "submitted",
-            "date": submission.submitted_at,
-            "submission_id": str(submission.id),
-            "submission_method": submission.submission_method,
-            "amount_at_submission": float(item.amount),
-            "currency": item.currency,
-        })
-
-    # Sort by date
-    history.sort(key=lambda x: x["date"])
-
-    return history

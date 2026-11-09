@@ -1,143 +1,24 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
 
-import { Plus, Save, Trash2, User as UserIcon } from 'lucide-react'
+import { Save, User as UserIcon } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { api } from '@/api/client'
+import { api, errorMessage } from '@/api/client'
+import { AssignRoleModal } from '@/components/settings/AssignRoleModal'
+import { EffectivePermissionsCard } from '@/components/settings/EffectivePermissionsCard'
+import { UserDetailsCard } from '@/components/settings/UserDetailsCard'
+import { UserProfileCard } from '@/components/settings/UserProfileCard'
+import { UserRolesCard } from '@/components/settings/UserRolesCard'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { Checkbox } from '@/components/ui/Checkbox'
-import { Input } from '@/components/ui/Input'
-import { Modal } from '@/components/ui/Modal'
 import { Spinner } from '@/components/ui/Spinner'
 import { useBreadcrumb } from '@/stores/breadcrumb'
-import type { Company, Role, User, UserRole, Uuid } from '@/types'
-import { getGravatarUrl } from '@/utils/gravatar'
-
-interface AssignRoleModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onAssign: (roleId: Uuid, companyId: Uuid | null) => Promise<void>
-  roles: Role[]
-  companies: Company[]
-  existingRoles: UserRole[]
-}
-
-function AssignRoleModal({
-  isOpen,
-  onClose,
-  onAssign,
-  roles,
-  companies,
-  existingRoles,
-}: AssignRoleModalProps) {
-  const [selectedRoleId, setSelectedRoleId] = useState<Uuid | null>(null)
-  const [selectedCompanyId, setSelectedCompanyId] = useState<Uuid | null>(null)
-  const [isGlobalScope, setIsGlobalScope] = useState(true)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
-  const handleSubmit = async () => {
-    if (!selectedRoleId) {
-      toast.error('Please select a role')
-      return
-    }
-
-    // Check if this exact assignment already exists
-    const exists = existingRoles.some(
-      (ur) =>
-        ur.role_id === selectedRoleId &&
-        (isGlobalScope ? ur.company_id === null : ur.company_id === selectedCompanyId),
-    )
-    if (exists) {
-      toast.error('This role assignment already exists')
-      return
-    }
-
-    setIsSubmitting(true)
-    try {
-      await onAssign(selectedRoleId, isGlobalScope ? null : selectedCompanyId)
-      onClose()
-      setSelectedRoleId(null)
-      setSelectedCompanyId(null)
-      setIsGlobalScope(true)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Assign Role" size="md">
-      <div className="space-y-4">
-        <div>
-          <label htmlFor="role-select" className="block text-sm font-medium text-gray-700 mb-1">
-            Role
-          </label>
-          <select
-            id="role-select"
-            value={selectedRoleId || ''}
-            onChange={(e) => setSelectedRoleId(e.target.value || null)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="">Select a role...</option>
-            {roles.map((role) => (
-              <option key={role.id} value={role.id}>
-                {role.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Checkbox
-            id="global-scope"
-            checked={isGlobalScope}
-            onCheckedChange={(checked: boolean) => setIsGlobalScope(checked)}
-          />
-          <label htmlFor="global-scope" className="text-sm font-medium text-gray-700">
-            Global scope (applies to all companies)
-          </label>
-        </div>
-
-        {!isGlobalScope && (
-          <div>
-            <label
-              htmlFor="company-select"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Company
-            </label>
-            <select
-              id="company-select"
-              value={selectedCompanyId || ''}
-              onChange={(e) => setSelectedCompanyId(e.target.value || null)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Select a company...</option>
-              {companies.map((company) => (
-                <option key={company.id} value={company.id}>
-                  {company.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        <div className="flex justify-end gap-3 pt-4">
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting || !selectedRoleId}>
-            {isSubmitting ? 'Assigning...' : 'Assign Role'}
-          </Button>
-        </div>
-      </div>
-    </Modal>
-  )
-}
+import { useCompanies } from '@/stores/companies'
+import { confirmAction } from '@/stores/confirm'
+import type { Role, User, UserRole, Uuid } from '@/types'
 
 export function UserDetail() {
   const { id } = useParams<{ id: string }>()
@@ -149,7 +30,8 @@ export function UserDetail() {
   const [user, setUser] = useState<User | null>(null)
   const [userRoles, setUserRoles] = useState<UserRole[]>([])
   const [allRoles, setAllRoles] = useState<Role[]>([])
-  const [companies, setCompanies] = useState<Company[]>([])
+  const companies = useCompanies((s) => s.companies)
+  const fetchCompanies = useCompanies((s) => s.fetchCompanies)
   const [isLoading, setIsLoading] = useState(!isNewUser)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -176,8 +58,8 @@ export function UserDetail() {
       setIsActive(data.is_active)
       setFullName(data.full_name || '')
       setUseGravatar(data.use_gravatar)
-    } catch {
-      setError('Failed to load user')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to load user'))
     }
   }, [id, isNewUser])
 
@@ -186,8 +68,8 @@ export function UserDetail() {
     try {
       const data = await api.get<UserRole[]>(`/rbac/users/${id}/roles`)
       setUserRoles(data)
-    } catch {
-      setError('Failed to load user roles')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to load user roles'))
     }
   }, [id, isNewUser])
 
@@ -195,17 +77,8 @@ export function UserDetail() {
     try {
       const data = await api.get<Role[]>('/rbac/roles')
       setAllRoles(data)
-    } catch {
-      setError('Failed to load roles')
-    }
-  }, [])
-
-  const fetchCompanies = useCallback(async () => {
-    try {
-      const data = await api.get<Company[]>('/companies')
-      setCompanies(data)
-    } catch {
-      // Companies might not be critical, don't show error
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to load roles'))
     }
   }, [])
 
@@ -309,7 +182,7 @@ export function UserDetail() {
         setPassword('')
       }
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to save user'
+      const message = errorMessage(e, 'Failed to save user')
       toast.error(message)
     } finally {
       setIsSaving(false)
@@ -326,23 +199,12 @@ export function UserDetail() {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch(`/api/v1/users/${user.id}/avatar`, {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      })
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}))
-        throw new Error(err.detail || 'Failed to upload avatar')
-      }
-
-      const updatedUser: User = await response.json()
+      const updatedUser = await api.upload<User>(`/users/${user.id}/avatar`, formData)
       setUser(updatedUser)
       setUseGravatar(false)
       toast.success('Avatar uploaded successfully')
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to upload avatar'
+      const message = errorMessage(e, 'Failed to upload avatar')
       toast.error(message)
     } finally {
       setIsUploading(false)
@@ -363,7 +225,7 @@ export function UserDetail() {
       setUseGravatar(true)
       toast.success('Avatar removed successfully')
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to remove avatar'
+      const message = errorMessage(e, 'Failed to remove avatar')
       toast.error(message)
     } finally {
       setIsUploading(false)
@@ -380,14 +242,21 @@ export function UserDetail() {
       await fetchUserRoles()
       toast.success('Role assigned successfully')
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to assign role'
+      const message = errorMessage(e, 'Failed to assign role')
       toast.error(message)
       throw e
     }
   }
 
   const removeRole = async (userRole: UserRole) => {
-    if (!user || !confirm('Are you sure you want to remove this role assignment?')) {
+    if (
+      !user ||
+      !(await confirmAction({
+        title: 'Remove role assignment',
+        message: 'Are you sure you want to remove this role assignment?',
+        confirmLabel: 'Remove',
+      }))
+    ) {
       return
     }
     try {
@@ -395,8 +264,8 @@ export function UserDetail() {
       await api.delete(`/rbac/users/${user.id}/roles/${userRole.role_id}${companyParam}`)
       await fetchUserRoles()
       toast.success('Role removed successfully')
-    } catch {
-      toast.error('Failed to remove role')
+    } catch (e) {
+      toast.error(errorMessage(e, 'Failed to remove role'))
     }
   }
 
@@ -459,222 +328,43 @@ export function UserDetail() {
         </Alert>
       )}
 
-      {/* Profile Card - only show for existing users */}
       {!isNewUser && user && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Profile</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-start gap-6">
-              <div className="flex-shrink-0">
-                <img
-                  src={
-                    useGravatar
-                      ? getGravatarUrl(user.email, 128)
-                      : user.avatar_url || getGravatarUrl(user.email, 128)
-                  }
-                  alt={user.full_name || user.username}
-                  className="w-24 h-24 rounded-full object-cover border-2 border-gray-200"
-                />
-              </div>
-              <div className="flex-1 space-y-3">
-                <p className="text-sm font-medium text-gray-700">Profile Picture</p>
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                    isLoading={isUploading}
-                  >
-                    Upload Image
-                  </Button>
-                  {user.avatar_url && !user.use_gravatar && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={handleDeleteAvatar}
-                      isLoading={isUploading}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  <Checkbox
-                    id="use-gravatar"
-                    checked={useGravatar}
-                    onCheckedChange={handleUseGravatarChange}
-                  />
-                  <label htmlFor="use-gravatar" className="text-sm text-gray-600">
-                    Use Gravatar
-                  </label>
-                </div>
-                <p className="text-xs text-gray-500">
-                  Gravatar uses the email address to show a profile picture.{' '}
-                  <a
-                    href="https://gravatar.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    Learn more about Gravatar
-                  </a>
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <UserProfileCard
+          user={user}
+          useGravatar={useGravatar}
+          isUploading={isUploading}
+          fileInputRef={fileInputRef}
+          onFileSelect={handleFileSelect}
+          onDeleteAvatar={handleDeleteAvatar}
+          onUseGravatarChange={handleUseGravatarChange}
+        />
       )}
 
-      {/* User Details Card */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>User Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <Input
-              label="Full Name"
-              value={fullName}
-              onChange={(e) => handleFullNameChange(e.target.value)}
-              placeholder="Enter full name"
-            />
-            <Input
-              label="Username"
-              value={username}
-              onChange={(e) => handleUsernameChange(e.target.value)}
-              placeholder="Enter username"
-            />
-            <Input
-              label="Email"
-              type="email"
-              value={email}
-              onChange={(e) => handleEmailChange(e.target.value)}
-              placeholder="Enter email"
-            />
-            <Input
-              label={isNewUser ? 'Password' : 'New Password (leave blank to keep current)'}
-              type="password"
-              value={password}
-              onChange={(e) => handlePasswordChange(e.target.value)}
-              placeholder={isNewUser ? 'Enter password' : 'Enter new password'}
-            />
-            {!isNewUser && (
-              <div className="flex items-center gap-3">
-                <Checkbox
-                  id="is-active"
-                  checked={isActive}
-                  onCheckedChange={handleIsActiveChange}
-                />
-                <label htmlFor="is-active" className="text-sm font-medium text-gray-700">
-                  Account is active
-                </label>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <UserDetailsCard
+        isNewUser={isNewUser}
+        fullName={fullName}
+        username={username}
+        email={email}
+        password={password}
+        isActive={isActive}
+        onFullNameChange={handleFullNameChange}
+        onUsernameChange={handleUsernameChange}
+        onEmailChange={handleEmailChange}
+        onPasswordChange={handlePasswordChange}
+        onIsActiveChange={handleIsActiveChange}
+      />
 
-      {/* Role Assignments Card - only show for existing users */}
       {!isNewUser && user && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Role Assignments</CardTitle>
-              <Button variant="secondary" onClick={() => setIsAssignModalOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Assign Role
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {userRoles.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">
-                No roles assigned to this user. Click "Assign Role" to add one.
-              </p>
-            ) : (
-              <div className="divide-y divide-gray-200">
-                {userRoles.map((userRole) => (
-                  <div
-                    key={`${userRole.role_id}-${userRole.company_id || 'global'}`}
-                    className="flex items-center justify-between py-3"
-                  >
-                    <div>
-                      <h4 className="font-medium text-gray-900">{userRole.role.name}</h4>
-                      <p className="text-sm text-gray-500">
-                        Scope: {getCompanyName(userRole.company_id)}
-                      </p>
-                      {userRole.role.description && (
-                        <p className="text-sm text-gray-400">{userRole.role.description}</p>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeRole(userRole)}
-                      className="p-2 text-gray-400 hover:text-red-600"
-                      title="Remove role"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <UserRolesCard
+          userRoles={userRoles}
+          getCompanyName={getCompanyName}
+          onAssignClick={() => setIsAssignModalOpen(true)}
+          onRemove={removeRole}
+        />
       )}
 
-      {/* Effective Permissions Card - only show for existing users */}
       {!isNewUser && user && (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Effective Permissions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {user.permissions.length === 0 && Object.keys(user.company_permissions).length === 0 ? (
-              <p className="text-gray-500">No permissions. Assign roles to grant permissions.</p>
-            ) : (
-              <div className="space-y-4">
-                {user.permissions.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Global Permissions</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {user.permissions.sort().map((perm) => (
-                        <Badge key={perm} variant="default">
-                          {perm}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {Object.entries(user.company_permissions).map(([companyId, perms]) => (
-                  <div key={companyId}>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-2">
-                      {getCompanyName(companyId)} Permissions
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                      {perms.sort().map((perm) => (
-                        <Badge key={perm} variant="info">
-                          {perm}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <EffectivePermissionsCard user={user} getCompanyName={getCompanyName} />
       )}
 
       {/* Assign Role Modal */}

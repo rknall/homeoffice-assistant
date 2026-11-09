@@ -19,7 +19,6 @@ def create_user(db_session, username: str = "user") -> User:
         username=username,
         email=f"{username}@example.com",
         hashed_password=get_password_hash("Secret123!"),
-        is_admin=False,
         is_active=True,
     )
     db_session.add(user)
@@ -147,9 +146,6 @@ class DummyDocumentProvider(DocumentProvider):
         self.closed = True
 
     async def list_storage_paths(self) -> list[dict]:
-        return []
-
-    async def list_tags(self) -> list[dict]:
         return []
 
     async def create_tag(self, name: str) -> dict:

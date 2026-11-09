@@ -11,6 +11,7 @@ from src.plugins.base import (
     PluginConfig,
     PluginManifest,
 )
+from src.rbac.permissions import CORE_PERMISSIONS
 
 
 class TestPluginCapability:
@@ -45,18 +46,19 @@ class TestPermission:
 
     def test_company_permissions(self):
         """Test company permission values."""
-        assert Permission.COMPANY_READ.value == "company.read"
-        assert Permission.COMPANY_WRITE.value == "company.write"
+        assert Permission.COMPANY_VIEW.value == "company.view"
+        assert Permission.COMPANY_MANAGE.value == "company.manage"
 
     def test_expense_permissions(self):
         """Test expense permission values."""
-        assert Permission.EXPENSE_READ.value == "expense.read"
-        assert Permission.EXPENSE_WRITE.value == "expense.write"
+        assert Permission.EXPENSE_VIEW.value == "expense.view"
+        assert Permission.EXPENSE_MANAGE.value == "expense.manage"
 
-    def test_calendar_permissions(self):
-        """Test calendar permission values."""
-        assert Permission.CALENDAR_READ.value == "calendar.read"
-        assert Permission.CALENDAR_WRITE.value == "calendar.write"
+    def test_members_are_exactly_the_core_codes(self):
+        """Test that a manifest can only name core permission codes."""
+        assert {p.value for p in Permission} == {p["code"] for p in CORE_PERMISSIONS}
+        assert "company.read" not in {p.value for p in Permission}
+        assert "calendar.read" not in {p.value for p in Permission}
 
     def test_integration_permissions(self):
         """Test integration permission values."""
@@ -231,7 +233,7 @@ class TestBasePlugin:
     def test_has_permission_false(self, plugin):
         """Test has_permission returns False for non-granted permission."""
         assert plugin.has_permission(Permission.USER_WRITE_ALL) is False
-        assert plugin.has_permission(Permission.EXPENSE_WRITE) is False
+        assert plugin.has_permission(Permission.EXPENSE_MANAGE) is False
 
     def test_has_all_permissions_true(self, plugin):
         """Test has_all_permissions returns True when all granted."""
@@ -244,7 +246,9 @@ class TestBasePlugin:
     def test_has_all_permissions_false(self, plugin):
         """Test has_all_permissions returns False when some missing."""
         assert (
-            plugin.has_all_permissions({Permission.USER_READ, Permission.EXPENSE_WRITE})
+            plugin.has_all_permissions(
+                {Permission.USER_READ, Permission.EXPENSE_MANAGE}
+            )
             is False
         )
 

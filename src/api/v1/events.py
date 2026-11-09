@@ -6,56 +6,71 @@ import contextlib
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_user, get_db
-from src.integrations.base import DocumentProvider, LlmProvider
-from src.integrations.llm import LlmError
-from src.models import DocumentReference, User
-from src.models.enums import EventStatus
-from src.schemas.document_reference import (
-    DocumentReferenceCreate,
-    DocumentReferenceResponse,
-    DocumentReferenceUpdate,
+from src.api.deps import (
+    ensure_permission,
+    get_current_user,
+    require_event_permission,
+    require_permission,
 )
+from src.database import get_db
+from src.models import Event, User
+from src.models.enums import EventStatus
 from src.schemas.event import (
+    EventCountResponse,
     EventCreate,
     EventDetailResponse,
     EventResponse,
     EventUpdate,
     EventWithSummary,
 )
-from src.schemas.expense import ExpenseScanResult
-from src.schemas.integration import DocumentResponse
 from src.services import (
     company_service,
     event_service,
-    expense_scan_service,
-    integration_service,
+    rbac_service,
 )
 
 router = APIRouter()
 
+# Event routes check the event.* codes for the event's company. List and
+# count read the optional company_id filter; without it, holding event.read in
+# any company passes and the results are limited to the permitted companies.
+read_events = require_permission("event.read", company_id_param="company_id")
+write_events = require_permission("event.write", company_id_param="company_id")
+read_event = require_event_permission("event.read")
+write_event = require_event_permission("event.write")
+delete_event_permission = require_event_permission("event.delete")
 
-@router.get("/count")
+
+@router.get("/count", response_model=EventCountResponse)
 def count_events(
     company_id: uuid.UUID | None = None,
     event_status: EventStatus | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict[str, int]:
+    current_user: User = Depends(read_events),
+) -> EventCountResponse:
     """Count events for the current user with optional filters.
 
     More efficient than listing all events when only the count is needed.
+    Without a company filter only events of permitted companies count.
     """
-    count = event_service.count_events(
-        db,
-        user_id=current_user.id,
-        company_id=company_id,
-        status=event_status,
+    allowed = (
+        None
+        if company_id is not None
+        else rbac_service.companies_with_permission(db, current_user, "event.read")
     )
-    return {"count": count}
+    scopes = [company_id] if allowed is None else sorted(allowed)
+    count = sum(
+        event_service.count_events(
+            db,
+            user_id=current_user.id,
+            company_id=scope,
+            status=event_status,
+        )
+        for scope in scopes
+    )
+    return EventCountResponse(count=count)
 
 
 @router.get("", response_model=list[EventDetailResponse])
@@ -64,9 +79,12 @@ def list_events(
     event_status: EventStatus | None = None,
     include_summary: bool = False,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(read_events),
 ) -> list[EventDetailResponse] | list[EventWithSummary]:
-    """List events for the current user with company info."""
+    """List events for the current user with company info.
+
+    Without a company filter only events of permitted companies are listed.
+    """
     events = event_service.get_events(
         db,
         user_id=current_user.id,
@@ -74,6 +92,10 @@ def list_events(
         status=event_status,
         include_company=True,
     )
+    if company_id is None:
+        allowed = rbac_service.companies_with_permission(db, current_user, "event.read")
+        if allowed is not None:
+            events = [e for e in events if e.company_id in allowed]
 
     if include_summary:
         # Get summaries for all events in one query
@@ -102,9 +124,10 @@ def list_events(
 async def create_event(
     data: EventCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(write_events),
 ) -> EventResponse:
     """Create a new event."""
+    ensure_permission(db, current_user, "event.write", data.company_id)
     # Verify company exists
     company = company_service.get_company(db, data.company_id)
     if not company:
@@ -124,19 +147,9 @@ async def create_event(
 
 @router.get("/{event_id}", response_model=EventDetailResponse)
 def get_event(
-    event_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    event: Event = Depends(read_event),
 ) -> EventDetailResponse:
     """Get an event by ID."""
-    event = event_service.get_event_for_user(
-        db, event_id, current_user.id, include_company=True
-    )
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
     response = EventDetailResponse.model_validate(event)
     response.company_name = event.company.name if event.company else None
     return response
@@ -144,21 +157,15 @@ def get_event(
 
 @router.put("/{event_id}", response_model=EventResponse)
 async def update_event(
-    event_id: uuid.UUID,
     data: EventUpdate,
     db: Session = Depends(get_db),
+    event: Event = Depends(write_event),
     current_user: User = Depends(get_current_user),
 ) -> EventResponse:
     """Update an event."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    # Verify company if changing
+    # Moving the event needs write access in the target company as well
     if data.company_id and data.company_id != event.company_id:
+        ensure_permission(db, current_user, "event.write", data.company_id)
         company = company_service.get_company(db, data.company_id)
         if not company:
             raise HTTPException(
@@ -178,412 +185,8 @@ async def update_event(
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_event(
-    event_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    event: Event = Depends(delete_event_permission),
 ) -> None:
     """Delete an event."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
     event_service.delete_event(db, event)
-
-
-@router.post("/{event_id}/sync-paperless")
-async def sync_event_to_paperless(
-    event_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    """Manually sync event to Paperless custom field."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    success = await event_service.sync_event_to_paperless_custom_field(db, event)
-    if success:
-        return {"success": True, "message": "Event synced to Paperless custom field"}
-    return {
-        "success": False,
-        "message": "Sync failed - check Paperless integration config",
-    }
-
-
-@router.get("/{event_id}/documents", response_model=list[DocumentResponse])
-async def get_event_documents(
-    event_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> list[DocumentResponse]:
-    """Get documents from Paperless associated with this event."""
-    event = event_service.get_event_for_user(
-        db, event_id, current_user.id, include_company=True
-    )
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    # Get active Paperless integration
-    paperless_config = integration_service.get_active_document_provider(db)
-    if not paperless_config:
-        return []  # No Paperless integration configured
-
-    provider = integration_service.create_provider_instance(paperless_config)
-    if not provider or not isinstance(provider, DocumentProvider):
-        return []
-
-    try:
-        # Get the custom field ID for filtering
-        decrypted_config = integration_service.get_decrypted_config(paperless_config)
-        custom_field_name = decrypted_config.get("custom_field_name", "Trip")
-        custom_field = await provider.get_custom_field_by_name(custom_field_name)
-        custom_field_id = custom_field["id"] if custom_field else None
-
-        # Get company storage path
-        storage_path_id = (
-            event.company.paperless_storage_path_id if event.company else None
-        )
-
-        # Get documents matching event criteria
-        documents = await provider.get_documents_for_event(
-            storage_path_id=storage_path_id,
-            custom_field_id=custom_field_id,
-            custom_field_value=event.paperless_custom_field_value,
-        )
-        return [DocumentResponse(**doc) for doc in documents]
-    finally:
-        await provider.close()
-
-
-@router.delete(
-    "/{event_id}/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT
-)
-async def delete_event_document(
-    event_id: uuid.UUID,
-    document_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> None:
-    """Delete a document from Paperless.
-
-    Warning: This permanently deletes the document!
-    """
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    # Get active Paperless integration
-    paperless_config = integration_service.get_active_document_provider(db)
-    if not paperless_config:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No Paperless integration configured",
-        )
-
-    provider = integration_service.create_provider_instance(paperless_config)
-    if not provider or not isinstance(provider, DocumentProvider):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create Paperless provider",
-        )
-
-    try:
-        success = await provider.delete_document(document_id)
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to delete document from Paperless",
-            )
-    finally:
-        await provider.close()
-
-
-@router.get("/{event_id}/documents/{document_id}/preview")
-async def get_document_preview(
-    event_id: uuid.UUID,
-    document_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> Response:
-    """Get document content for preview from Paperless."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    # Get active Paperless integration
-    paperless_config = integration_service.get_active_document_provider(db)
-    if not paperless_config:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No Paperless integration configured",
-        )
-
-    provider = integration_service.create_provider_instance(paperless_config)
-    if not provider or not isinstance(provider, DocumentProvider):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create Paperless provider",
-        )
-
-    try:
-        content, filename, content_type = await provider.download_document(document_id)
-        return Response(
-            content=content,
-            media_type=content_type,
-            headers={
-                "Content-Disposition": f'inline; filename="{filename}"',
-            },
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to download document: {e!s}",
-        ) from e
-    finally:
-        await provider.close()
-
-
-@router.post(
-    "/{event_id}/documents/{document_id}/scan-expense",
-    response_model=ExpenseScanResult,
-)
-async def scan_document_for_expense(
-    event_id: uuid.UUID,
-    document_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> ExpenseScanResult:
-    """Extract expense fields from a document's OCR text via the LLM integration."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    llm_config = integration_service.get_active_llm_provider(db)
-    if not llm_config:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No LLM integration configured",
-        )
-
-    paperless_config = integration_service.get_active_document_provider(db)
-    if not paperless_config:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No Paperless integration configured",
-        )
-
-    paperless = integration_service.create_provider_instance(paperless_config)
-    if not paperless or not isinstance(paperless, DocumentProvider):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create Paperless provider",
-        )
-    try:
-        content = await paperless.get_document_content(document_id)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Failed to fetch document text: {e!s}",
-        ) from e
-    finally:
-        await paperless.close()
-
-    if not content.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Document has no OCR text to scan",
-        )
-
-    llm = integration_service.create_provider_instance(llm_config)
-    if not llm or not isinstance(llm, LlmProvider):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create LLM provider",
-        )
-    try:
-        raw = await llm.extract_expense(content)
-    except LlmError as e:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(e),
-        ) from e
-    finally:
-        await llm.close()
-
-    return expense_scan_service.validate_extraction(raw)
-
-
-# Document Reference endpoints (non-expense documents linked to events)
-
-
-@router.get(
-    "/{event_id}/document-references",
-    response_model=list[DocumentReferenceResponse],
-)
-def list_document_references(
-    event_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> list[DocumentReferenceResponse]:
-    """List all document references linked to an event."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    references = (
-        db.query(DocumentReference)
-        .filter(DocumentReference.event_id == event_id)
-        .order_by(DocumentReference.created_at.desc())
-        .all()
-    )
-    return references
-
-
-@router.post(
-    "/{event_id}/document-references",
-    response_model=DocumentReferenceResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-def create_document_reference(
-    event_id: uuid.UUID,
-    data: DocumentReferenceCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> DocumentReferenceResponse:
-    """Link a Paperless document to an event."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    # Check if already linked
-    existing = (
-        db.query(DocumentReference)
-        .filter(
-            DocumentReference.event_id == event_id,
-            DocumentReference.paperless_doc_id == data.paperless_doc_id,
-        )
-        .first()
-    )
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Document already linked to this event",
-        )
-
-    reference = DocumentReference(
-        event_id=event_id,
-        paperless_doc_id=data.paperless_doc_id,
-        title=data.title,
-        original_filename=data.original_filename,
-        notes=data.notes,
-        document_type=data.document_type,
-        include_in_report=data.include_in_report,
-    )
-    db.add(reference)
-    db.commit()
-    db.refresh(reference)
-    return reference
-
-
-@router.put(
-    "/{event_id}/document-references/{reference_id}",
-    response_model=DocumentReferenceResponse,
-)
-def update_document_reference(
-    event_id: uuid.UUID,
-    reference_id: uuid.UUID,
-    data: DocumentReferenceUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> DocumentReferenceResponse:
-    """Update a document reference's notes, type, or include_in_report flag."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    reference = (
-        db.query(DocumentReference)
-        .filter(
-            DocumentReference.id == reference_id,
-            DocumentReference.event_id == event_id,
-        )
-        .first()
-    )
-    if not reference:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document reference not found",
-        )
-
-    if data.notes is not None:
-        reference.notes = data.notes
-    if data.document_type is not None:
-        reference.document_type = data.document_type
-    if data.include_in_report is not None:
-        reference.include_in_report = data.include_in_report
-
-    db.commit()
-    db.refresh(reference)
-    return reference
-
-
-@router.delete(
-    "/{event_id}/document-references/{reference_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-def delete_document_reference(
-    event_id: uuid.UUID,
-    reference_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> None:
-    """Unlink a document from an event (does not delete from Paperless)."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    reference = (
-        db.query(DocumentReference)
-        .filter(
-            DocumentReference.id == reference_id,
-            DocumentReference.event_id == event_id,
-        )
-        .first()
-    )
-    if not reference:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document reference not found",
-        )
-
-    db.delete(reference)
-    db.commit()

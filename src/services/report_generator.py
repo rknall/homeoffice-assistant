@@ -3,6 +3,7 @@
 """Expense report generator service."""
 
 import io
+import logging
 import zipfile
 from datetime import datetime
 from decimal import Decimal
@@ -18,6 +19,8 @@ from src.integrations.base import DocumentProvider
 from src.models import Event, Expense
 from src.models.enums import ExpenseStatus
 from src.services import expense_service, integration_service, settings_service
+
+logger = logging.getLogger(__name__)
 
 
 def _slugify_filename(name: str, max_length: int = 50) -> str:
@@ -72,23 +75,24 @@ class ExpenseReportGenerator:
         """
         self.db = db
         self.paperless = paperless
+        self.skipped_documents: list[str] = []
 
     async def get_preview(self, event: Event) -> dict[str, Any]:
-        """Return summary without generating files."""
+        """Return summary without generating files.
+
+        Covers the same expenses as ``generate`` (private and reimbursed
+        ones are excluded), so the preview total matches the report.
+        """
         base_currency = settings_service.get_base_currency(self.db)
 
-        expenses = expense_service.get_expenses(self.db, event.id)
+        expenses = select_report_expenses(self.db, event)
 
         # Auto-convert any expenses missing conversion data
         await expense_service.ensure_expense_conversions(
             self.db, expenses, base_currency
         )
 
-        # Now all expenses should have converted_amount (unless conversion failed)
-        total = sum(
-            e.converted_amount if e.converted_amount is not None else e.amount
-            for e in expenses
-        )
+        total = sum(e.effective_amount for e in expenses)
         documents_available = sum(1 for e in expenses if e.paperless_doc_id)
 
         by_category: dict[str, Decimal] = {}
@@ -99,11 +103,7 @@ class ExpenseReportGenerator:
 
         for expense in expenses:
             # Use converted amount for aggregations
-            amount = (
-                expense.converted_amount
-                if expense.converted_amount is not None
-                else expense.amount
-            )
+            amount = expense.effective_amount
             cat = expense.category.value
             by_category[cat] = by_category.get(cat, Decimal(0)) + amount
 
@@ -224,11 +224,7 @@ class ExpenseReportGenerator:
             ws.cell(row=row, column=7, value=expense.currency).border = border
 
             # Converted amount (or original if same currency)
-            converted = (
-                expense.converted_amount
-                if expense.converted_amount is not None
-                else expense.amount
-            )
+            converted = expense.effective_amount
             conv_cell = ws.cell(row=row, column=8, value=float(converted))
             conv_cell.number_format = amount_format
             conv_cell.border = border
@@ -302,11 +298,17 @@ class ExpenseReportGenerator:
             include_private: Include expenses marked as private (excluded by default).
 
         Returns:
-            Tuple of (zip_bytes, included_expenses)
+            Tuple of (zip_bytes, included_expenses). Expenses whose document
+            download failed are listed in ``self.skipped_documents``.
         """
         expenses = select_report_expenses(
             self.db, event, expense_ids, include_private=include_private
         )
+        base_currency = settings_service.get_base_currency(self.db)
+        await expense_service.ensure_expense_conversions(
+            self.db, expenses, base_currency
+        )
+        self.skipped_documents = []
 
         # Create the Excel file
         excel_bytes = self._create_excel(event, expenses)
@@ -345,9 +347,15 @@ class ExpenseReportGenerator:
                             new_filename = f"{idx:02d}_{date_fmt}_{desc_slug}.{ext}"
 
                             zip_file.writestr(f"documents/{new_filename}", content)
-                        except Exception:  # noqa: S110
-                            # Skip documents that fail to download
-                            pass
+                        except Exception:
+                            # Keep the report, but record the missing document
+                            logger.warning(
+                                "Document %s of expense %s could not be downloaded",
+                                expense.paperless_doc_id,
+                                expense.id,
+                                exc_info=True,
+                            )
+                            self.skipped_documents.append(str(expense.id))
 
         zip_buffer.seek(0)
         return zip_buffer.getvalue(), expenses

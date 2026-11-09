@@ -100,7 +100,7 @@ def get_events_needing_reports(
 
     Past status is computed: end_date < today
     Events are excluded if report_sent_at is set.
-    Uses converted_amount for proper multi-currency totals.
+    Uses Expense.effective_amount for proper multi-currency totals.
     """
     today = date.today()
     base_currency = settings_service.get_base_currency(db)
@@ -112,7 +112,7 @@ def get_events_needing_reports(
             Event.name,
             Event.company_id,
             func.count(Expense.id).label("expense_count"),
-            func.sum(Expense.converted_amount).label("total_amount"),
+            func.sum(Expense.effective_amount).label("total_amount"),
         )
         .join(Expense, Event.id == Expense.event_id)
         .filter(Event.user_id == user_id)
@@ -201,7 +201,7 @@ def get_expense_summary(
 ) -> ExpenseSummary:
     """Get expense summary for the last N days.
 
-    Uses converted_amount for proper multi-currency totals, expressed in
+    Uses Expense.effective_amount for proper multi-currency totals, expressed in
     the system-wide base currency.
     """
     cutoff_date = date.today() - timedelta(days=period_days)
@@ -211,7 +211,7 @@ def get_expense_summary(
     results = (
         db.query(
             Expense.category,
-            func.sum(Expense.converted_amount).label("total"),
+            func.sum(Expense.effective_amount).label("total"),
         )
         .join(Event, Expense.event_id == Event.id)
         .filter(Event.user_id == user_id)

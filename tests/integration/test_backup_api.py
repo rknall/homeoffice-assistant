@@ -13,13 +13,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import create_engine, func, inspect, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
-from alembic import command
 from src.encryption import decrypt_config, encrypt_config
 from src.models import (
-    Base,
     Company,
     Event,
     HolidayCalendar,
@@ -33,22 +31,16 @@ from src.models import Session as UserSession
 from src.models.enums import CompanyType, IntegrationType
 from src.rbac.roles import GLOBAL_ADMIN_ROLE, MEMBER_ROLE
 from src.security import get_password_hash
-from src.services import backup_restore, backup_service, file_storage_service
+from src.services import (
+    backup_restore,
+    backup_service,
+    file_storage_service,
+    restore_user_refs,
+)
 from src.services.backup_encryption import decrypt_backup_archive
 
 # Test password used for all backup tests
 TEST_PASSWORD = "test_password_123"
-
-
-@pytest.fixture(scope="module")
-def migrated_db_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Build a database with the real schema by running ``alembic upgrade head``.
-
-    Built once per module and copied for each test.
-    """
-    template = tmp_path_factory.mktemp("backup-template") / "template.db"
-    command.upgrade(backup_restore.core_alembic_config(f"sqlite:///{template}"), "head")
-    return template
 
 
 @pytest.fixture
@@ -354,7 +346,7 @@ class TestRestoreBackupEndpoint:
             config = db.scalars(select(IntegrationConfig)).one()
             assert config.created_by == admin_user.id
             assert decrypt_config(config.config_encrypted) == {"url": "http://docs"}
-            assert orphan_user_references(db) == {}
+            assert restore_user_refs.find_user_orphans(db) == {}
 
     def test_failure_before_swap_leaves_database_intact(
         self, admin_client, mock_backup_paths
@@ -379,6 +371,21 @@ class TestRestoreBackupEndpoint:
         assert "boom" not in data["message"]
         assert snapshot(db_path) == before
         assert (avatar_dir / "after_backup.jpg").exists()
+
+    def test_orphan_guard_aborts_restore(self, admin_client, mock_backup_paths):
+        """A restore that would leave orphans fails without changing anything."""
+        _, _, _, db_path = mock_backup_paths
+        seed_other_user_data(db_path)
+        backup_bytes = make_backup()
+        before = snapshot(db_path)
+
+        with patch.object(backup_restore, "reassign_user_rows"):
+            response = post_restore(admin_client, backup_bytes)
+
+        data = response.json()
+        assert data["success"] is False
+        assert data["message"] == "Restore failed, nothing was changed, see server log"
+        assert snapshot(db_path) == before
 
     def test_swap_failure_rolls_back(self, admin_client, mock_backup_paths):
         """A failure after the database was swapped restores the old data."""
@@ -558,27 +565,6 @@ def seed_other_user_data(db_path: Path) -> None:
             ]
         )
         db.commit()
-
-
-def orphan_user_references(db: Session) -> dict[str, int]:
-    """Count rows per column that reference a user who does not exist."""
-    existing = set(inspect(db.get_bind()).get_table_names())
-    user_ids = select(User.id)
-    orphans = {}
-    for table in Base.metadata.sorted_tables:
-        if table.name not in existing:
-            continue
-        for fk in table.foreign_keys:
-            if fk.column is not User.__table__.c.id:
-                continue
-            count = db.scalar(
-                select(func.count())
-                .select_from(table)
-                .where(fk.parent.is_not(None), fk.parent.not_in(user_ids))
-            )
-            if count:
-                orphans[f"{table.name}.{fk.parent.name}"] = count
-    return orphans
 
 
 def snapshot(db_path: Path) -> dict[str, list]:

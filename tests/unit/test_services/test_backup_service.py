@@ -29,18 +29,6 @@ from src.services.backup_encryption import (
 TEST_PASSWORD = "test_password_123"
 
 
-@pytest.fixture(scope="module")
-def migrated_db_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Build a database with the real schema by running ``alembic upgrade head``.
-
-    A restore migrates the backup to the current head before swapping it in,
-    so the fixture needs an alembic-built schema. Built once per module.
-    """
-    template = tmp_path_factory.mktemp("backup-unit-template") / "template.db"
-    command.upgrade(backup_restore.core_alembic_config(f"sqlite:///{template}"), "head")
-    return template
-
-
 @pytest.fixture
 def temp_data_dir(migrated_db_template: Path):
     """Create a data dir with a migrated database plus a marker table."""

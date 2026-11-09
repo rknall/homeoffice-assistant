@@ -45,6 +45,7 @@
 - Fixed the submitted total counting an expense once per submission, so emailing a report and then downloading it doubled the amount
 - Logout now invalidates the server-side session, not just the browser cookie (a leaked session token could previously stay valid until expiry)
 - Fixed backup restore: restoring a backup through Settings > Backup now works end to end (the staged database is migrated before it replaces the live one); pre-restore safety backups are kept under `data/backups/pre_restore` and survive container recreation
+- Fixed restore with "preserve current admin" leaving plugin data (time-tracking entries, leave balances, preferences) attached to a removed user: it now belongs to the admin; per-user rows that would clash with the admin's own are dropped, and a restore that would leave such references fails without changing anything
 - In-app backups now include company logos (`data/logos`); archives without logos still restore and leave the current logos alone
 - Fixed the calendar not loading events, holidays, todos and company calendars (it called a non-existent endpoint), and holidays being shown one day off; todos now load with one range request (`GET /api/v1/todos?due_from=&due_to=`, requires `event.read`)
 - Fixed avatar images being broken (served now at `/avatars/...`) and company logos not showing in the company list after upload; deleting a company removes its logo file

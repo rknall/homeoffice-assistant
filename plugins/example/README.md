@@ -11,6 +11,15 @@ Use it as a reference, not as a template to copy verbatim.
   and the plugin's own Alembic migrations (`migrations/`).
 - `frontend/index.js`: the frontend module, loaded by the host at runtime.
 
+## User data
+
+Declare every column that holds a user id as `ForeignKey("users.id")`. A
+backup restore that keeps the current admin finds user columns through these
+foreign keys and re-points them to the admin; an undeclared user column would
+keep the id of a removed user. Per-user unique keys (PRIMARY KEY, UNIQUE,
+unique index) are taken over too; a partial or expression unique index over a
+user column is not, and a clash on it makes the restore fail.
+
 ## Frontend module
 
 `frontend/index.js` is hand-written plain JavaScript on purpose. The host loads

@@ -57,14 +57,20 @@ def test_malformed_tags_are_rejected(tag: str) -> None:
     assert check_release_tag.main([tag]) == 1
 
 
+def _current_tag() -> str:
+    """Build a release tag for whatever version the files hold now."""
+    version = check_release_tag.file_versions()["pyproject.toml"]
+    return f"v{version}1" if "-" in version else f"v{version}"
+
+
 def test_matching_tag_passes_against_current_files() -> None:
-    """A new pre-release number of the current version is consistent."""
-    assert check_release_tag.check_tag("v0.5.0-dev7") == []
-    assert check_release_tag.main(["v0.5.0-dev7"]) == 0
+    """A release tag of the current version is consistent."""
+    assert check_release_tag.check_tag(_current_tag()) == []
+    assert check_release_tag.main([_current_tag()]) == 0
 
 
 def test_mismatching_tag_fails_against_current_files() -> None:
     """A tag for another version reports both version files."""
-    problems = check_release_tag.check_tag("v0.6.0")
+    problems = check_release_tag.check_tag("v99.0.0")
     assert len(problems) == 2
-    assert check_release_tag.main(["v0.6.0"]) == 1
+    assert check_release_tag.main(["v99.0.0"]) == 1

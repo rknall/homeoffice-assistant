@@ -1,6 +1,6 @@
 # Release Notes
 
-## Version 0.5.0 (in development)
+## Version 0.6.0 (in development)
 
 ### Major Features
 

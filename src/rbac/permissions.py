@@ -1,4 +1,7 @@
-# src/rbac/permissions.py
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
+"""Core permission codes, the single source for roles and plugin manifests."""
+
 CORE_PERMISSIONS = [
     # User management
     {"code": "user.read", "module": "core", "description": "Read user information"},

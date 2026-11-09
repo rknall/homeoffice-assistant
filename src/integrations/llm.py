@@ -10,10 +10,14 @@ from typing import Any
 import httpx
 
 from src.integrations.base import LlmProvider
+from src.integrations.failure import failure_category
 from src.integrations.registry import IntegrationRegistry
-from src.models.enums import ExpenseCategory, PaymentType
+from src.models.enums import ExpenseCategory, IntegrationType, PaymentType
 
 logger = logging.getLogger(__name__)
+
+# Bounds request size and cost; receipts and invoices fit well below this.
+MAX_DOCUMENT_CHARS = 20_000
 
 EXTRACTION_FIELDS = (
     "date",
@@ -82,7 +86,7 @@ class OpenAiCompatibleLlmProvider(LlmProvider):
     @classmethod
     def get_type(cls) -> str:
         """Return the unique identifier for this integration type."""
-        return "llm"
+        return IntegrationType.LLM.value
 
     @classmethod
     def get_display_name(cls) -> str:
@@ -149,8 +153,7 @@ class OpenAiCompatibleLlmProvider(LlmProvider):
         # (LiteLLM: general_settings.litellm_key_header_name) or the gateway
         # must strip Authorization after authenticating - otherwise LiteLLM
         # reads Authorization first and chokes on the basic auth blob.
-        # ponytail: x-api-key hardcoded, make the header name configurable if
-        # a backend shows up that wants something else.
+        # The key header name is fixed to x-api-key; no supported gateway needs another.
         auth = (
             httpx.BasicAuth(username, config.get("password") or "")
             if username
@@ -185,7 +188,7 @@ class OpenAiCompatibleLlmProvider(LlmProvider):
         except httpx.TimeoutException:
             return False, "Connection timeout"
         except Exception as e:
-            return False, str(e)
+            return False, failure_category(e)
 
     async def list_models(self) -> list[str]:
         """List the model identifiers the endpoint offers, sorted by name.
@@ -224,7 +227,7 @@ class OpenAiCompatibleLlmProvider(LlmProvider):
             "response_format": {"type": "json_object"},
             "messages": [
                 {"role": "system", "content": _extraction_prompt()},
-                {"role": "user", "content": text},
+                {"role": "user", "content": text[:MAX_DOCUMENT_CHARS]},
             ],
         }
         try:

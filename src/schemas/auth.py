@@ -48,3 +48,10 @@ class AuthStatusResponse(BaseModel):
 
     first_run: bool
     registration_enabled: bool = False
+
+
+class UsernameAvailabilityResponse(BaseModel):
+    """Schema for the username availability check."""
+
+    available: bool
+    username: str

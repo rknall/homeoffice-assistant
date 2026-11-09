@@ -2,47 +2,36 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Expense API endpoints."""
 
-import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_user, get_db
-from src.models import User
+from src.api.deps import require_event_permission
+from src.database import get_db
+from src.models import Event
 from src.models.enums import ExpenseStatus
 from src.schemas.expense import (
+    ExpenseBulkStatusResult,
     ExpenseBulkStatusUpdate,
-    ExpenseBulkUpdate,
     ExpenseCreate,
     ExpenseResponse,
-    ExpenseStatusUpdate,
     ExpenseUpdate,
 )
-from src.services import event_service, expense_service, settings_service
-from src.services.currency_service import CurrencyService, CurrencyServiceError
+from src.services import expense_service, settings_service
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
 
 
 @router.get("/{event_id}/expenses", response_model=list[ExpenseResponse])
 async def list_expenses(
-    event_id: uuid.UUID,
     expense_status: ExpenseStatus | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    event: Event = Depends(require_event_permission("expense.view")),
 ) -> list[ExpenseResponse]:
     """List expenses for an event."""
     # Verify user owns the event
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    expenses = expense_service.get_expenses(db, event_id, expense_status)
+    expenses = expense_service.get_expenses(db, event.id, expense_status)
 
     # Auto-convert any expenses missing conversion data
     base_currency = settings_service.get_base_currency(db)
@@ -57,69 +46,29 @@ async def list_expenses(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_expense(
-    event_id: uuid.UUID,
     data: ExpenseCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    event: Event = Depends(require_event_permission("expense.manage")),
 ) -> ExpenseResponse:
     """Create a new expense for an event."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
+    expense = expense_service.create_expense(db, event.id, data)
 
-    expense = expense_service.create_expense(db, event_id, data)
-
-    # Convert currency if different from the system base currency
     base_currency = settings_service.get_base_currency(db)
-    if expense.currency.upper() != base_currency.upper():
-        currency_service = CurrencyService(db)
-        try:
-            result = await currency_service.convert(
-                expense.amount,
-                expense.currency,
-                base_currency,
-                expense.date,
-            )
-            expense.converted_amount = result.converted_amount
-            expense.exchange_rate = result.exchange_rate
-            expense.rate_date = result.rate_date
-            db.commit()
-            db.refresh(expense)
-        except CurrencyServiceError as e:
-            logger.warning(f"Currency conversion failed: {e}")
-            # Continue without conversion - expense is still valid
-        finally:
-            await currency_service.close()
-    else:
-        # Same currency: converted = original, rate = 1.0
-        expense.converted_amount = expense.amount
-        expense.exchange_rate = 1
-        expense.rate_date = expense.date
-        db.commit()
-        db.refresh(expense)
+    await expense_service.convert_expense(db, expense, base_currency)
+    db.commit()
+    db.refresh(expense)
 
     return ExpenseResponse.model_validate(expense)
 
 
 @router.get("/{event_id}/expenses/{expense_id}", response_model=ExpenseResponse)
 def get_expense(
-    event_id: uuid.UUID,
     expense_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    event: Event = Depends(require_event_permission("expense.view")),
 ) -> ExpenseResponse:
     """Get a specific expense."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    expense = expense_service.get_expense_for_event(db, expense_id, event_id)
+    expense = expense_service.get_expense_for_event(db, expense_id, event.id)
     if not expense:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -131,21 +80,13 @@ def get_expense(
 
 @router.put("/{event_id}/expenses/{expense_id}", response_model=ExpenseResponse)
 async def update_expense(
-    event_id: uuid.UUID,
     expense_id: uuid.UUID,
     data: ExpenseUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    event: Event = Depends(require_event_permission("expense.manage")),
 ) -> ExpenseResponse:
     """Update an expense."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    expense = expense_service.get_expense_for_event(db, expense_id, event_id)
+    expense = expense_service.get_expense_for_event(db, expense_id, event.id)
     if not expense:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -161,34 +102,11 @@ async def update_expense(
 
     expense = expense_service.update_expense(db, expense, data)
 
-    # Re-convert if needed
     if needs_reconvert:
         base_currency = settings_service.get_base_currency(db)
-        if expense.currency.upper() != base_currency.upper():
-            currency_service = CurrencyService(db)
-            try:
-                result = await currency_service.convert(
-                    expense.amount,
-                    expense.currency,
-                    base_currency,
-                    expense.date,
-                )
-                expense.converted_amount = result.converted_amount
-                expense.exchange_rate = result.exchange_rate
-                expense.rate_date = result.rate_date
-                db.commit()
-                db.refresh(expense)
-            except CurrencyServiceError as e:
-                logger.warning(f"Currency conversion failed: {e}")
-            finally:
-                await currency_service.close()
-        else:
-            # Same currency: converted = original, rate = 1.0
-            expense.converted_amount = expense.amount
-            expense.exchange_rate = 1
-            expense.rate_date = expense.date
-            db.commit()
-            db.refresh(expense)
+        await expense_service.convert_expense(db, expense, base_currency)
+        db.commit()
+        db.refresh(expense)
 
     return ExpenseResponse.model_validate(expense)
 
@@ -197,20 +115,12 @@ async def update_expense(
     "/{event_id}/expenses/{expense_id}", status_code=status.HTTP_204_NO_CONTENT
 )
 def delete_expense(
-    event_id: uuid.UUID,
     expense_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    event: Event = Depends(require_event_permission("expense.manage")),
 ) -> None:
     """Delete an expense."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    expense = expense_service.get_expense_for_event(db, expense_id, event_id)
+    expense = expense_service.get_expense_for_event(db, expense_id, event.id)
     if not expense:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -220,99 +130,13 @@ def delete_expense(
     expense_service.delete_expense(db, expense)
 
 
-@router.post("/{event_id}/expenses/bulk-update")
-def bulk_update_expenses(
-    event_id: uuid.UUID,
-    data: ExpenseBulkUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    """Bulk update payment type for multiple expenses."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    count = expense_service.bulk_update_payment_type(
-        db, data.expense_ids, data.payment_type
-    )
-    return {"updated": count}
-
-
-@router.get("/{event_id}/expenses/summary")
-def get_expense_summary(
-    event_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    """Get expense summary for an event."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    return expense_service.get_expense_summary(db, event_id)
-
-
-@router.patch(
-    "/{event_id}/expenses/{expense_id}/status", response_model=ExpenseResponse
-)
-def update_expense_status(
-    event_id: uuid.UUID,
-    expense_id: uuid.UUID,
-    data: ExpenseStatusUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> ExpenseResponse:
-    """Update status for a single expense."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
-    expense = expense_service.get_expense_for_event(db, expense_id, event_id)
-    if not expense:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Expense not found",
-        )
-
-    # Validate rejection reason is provided for REJECTED status
-    if data.status == ExpenseStatus.REJECTED and not data.rejection_reason:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Rejection reason is required when marking as rejected",
-        )
-
-    expense_service.bulk_update_status(
-        db, [expense_id], data.status, data.rejection_reason
-    )
-    db.refresh(expense)
-
-    return ExpenseResponse.model_validate(expense)
-
-
-@router.post("/{event_id}/expenses/bulk-status")
+@router.post("/{event_id}/expenses/bulk-status", response_model=ExpenseBulkStatusResult)
 def bulk_update_expense_status(
-    event_id: uuid.UUID,
     data: ExpenseBulkStatusUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
+    event: Event = Depends(require_event_permission("expense.manage")),
+) -> ExpenseBulkStatusResult:
     """Bulk update status for multiple expenses."""
-    event = event_service.get_event_for_user(db, event_id, current_user.id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found",
-        )
-
     # Validate rejection reason is provided for REJECTED status
     if data.status == ExpenseStatus.REJECTED and not data.rejection_reason:
         raise HTTPException(
@@ -321,6 +145,6 @@ def bulk_update_expense_status(
         )
 
     count = expense_service.bulk_update_status(
-        db, data.expense_ids, data.status, data.rejection_reason
+        db, event.id, data.expense_ids, data.status, data.rejection_reason
     )
-    return {"updated": count}
+    return ExpenseBulkStatusResult(updated=count)

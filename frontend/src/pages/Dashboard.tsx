@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 import { useCallback, useEffect, useState } from 'react'
-import { api } from '@/api/client'
+import { api, errorMessage } from '@/api/client'
 import { ActionItems, ExpenseBreakdown, StatsRow, UpcomingEvents } from '@/components/dashboard'
 import { Alert } from '@/components/ui/Alert'
 import { Spinner } from '@/components/ui/Spinner'
@@ -23,8 +23,8 @@ export function Dashboard() {
     try {
       const data = await api.get<DashboardSummary>('/dashboard/summary')
       setSummary(data)
-    } catch {
-      setError('Failed to load dashboard data')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to load dashboard data'))
     } finally {
       setIsLoading(false)
     }

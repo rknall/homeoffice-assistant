@@ -22,7 +22,6 @@ def create_event(db_session) -> Event:
         username="submituser",
         email="submit@example.com",
         hashed_password=get_password_hash("Secret123!"),
-        is_admin=False,
         is_active=True,
     )
     company = Company(name="Acme", type=CompanyType.EMPLOYER)

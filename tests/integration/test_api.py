@@ -1,10 +1,5 @@
 # SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 # SPDX-License-Identifier: GPL-2.0-only
-import os
-
-# Set test environment
-os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only-32chars!"  # noqa: S105
-os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 
 
 class TestHealthEndpoint:
@@ -471,6 +466,11 @@ class TestExpenseScanAPI:
                     "custom_field_name": "Trip",
                 },
             },
+        )
+        # Only documents linked to the event may be scanned.
+        admin_client.post(
+            f"/api/v1/events/{event_id}/document-references",
+            json={"paperless_doc_id": 42, "title": "Taxi receipt"},
         )
 
         with respx.mock:

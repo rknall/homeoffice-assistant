@@ -109,6 +109,5 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Restore original schema - not supported, data would be lost."""
     raise NotImplementedError(
-        "Downgrade not supported for this migration. "
-        "Restore from backup if needed."
+        "Downgrade not supported for this migration. Restore from backup if needed."
     )

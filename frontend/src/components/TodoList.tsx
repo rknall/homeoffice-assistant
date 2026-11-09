@@ -3,13 +3,14 @@
 
 import { ClipboardList, Plus } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { api } from '@/api/client'
+import { api, errorMessage } from '@/api/client'
 import { TodoFormModal } from '@/components/TodoFormModal'
 import { TodoItem } from '@/components/TodoItem'
 import { TodoTemplatePickerModal } from '@/components/TodoTemplatePickerModal'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
+import { confirmAction } from '@/stores/confirm'
 import type { Event, Todo, TodoCreate, TodoUpdate, Uuid } from '@/types'
 
 interface TodoListProps {
@@ -34,8 +35,8 @@ export function TodoList({ eventId, event, onTodoCountChange }: TodoListProps) {
       // Report counts to parent
       const incomplete = data.filter((t) => !t.completed).length
       onTodoCountChange?.(data.length, incomplete)
-    } catch {
-      setError('Failed to load todos')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to load todos'))
     } finally {
       setIsLoading(false)
     }
@@ -58,8 +59,8 @@ export function TodoList({ eventId, event, onTodoCountChange }: TodoListProps) {
       await api.post(`/events/${eventId}/todos`, cleanedData)
       await fetchTodos()
       setIsModalOpen(false)
-    } catch {
-      setError('Failed to create todo')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to create todo'))
     } finally {
       setIsSaving(false)
     }
@@ -79,8 +80,8 @@ export function TodoList({ eventId, event, onTodoCountChange }: TodoListProps) {
       await api.put(`/events/${eventId}/todos/${editingTodo.id}`, cleanedData)
       await fetchTodos()
       setEditingTodo(null)
-    } catch {
-      setError('Failed to update todo')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to update todo'))
     } finally {
       setIsSaving(false)
     }
@@ -92,18 +93,25 @@ export function TodoList({ eventId, event, onTodoCountChange }: TodoListProps) {
         completed: !todo.completed,
       })
       await fetchTodos()
-    } catch {
-      setError('Failed to update todo')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to update todo'))
     }
   }
 
   const handleDeleteTodo = async (todo: Todo) => {
-    if (!confirm(`Are you sure you want to delete "${todo.title}"?`)) return
+    if (
+      !(await confirmAction({
+        title: 'Delete todo',
+        message: `Are you sure you want to delete "${todo.title}"?`,
+        confirmLabel: 'Delete',
+      }))
+    )
+      return
     try {
       await api.delete(`/events/${eventId}/todos/${todo.id}`)
       await fetchTodos()
-    } catch {
-      setError('Failed to delete todo')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to delete todo'))
     }
   }
 

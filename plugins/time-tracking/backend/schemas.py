@@ -3,34 +3,10 @@
 """Time Tracking plugin Pydantic schemas."""
 
 from datetime import date, datetime, time
-from enum import Enum
 
 from pydantic import BaseModel, ConfigDict
 
-
-class EntryType(str, Enum):
-    """Types of time entries."""
-
-    WORK = "work"
-    VACATION = "vacation"
-    SICK = "sick"
-    DOCTOR_VISIT = "doctor_visit"
-    PUBLIC_HOLIDAY = "public_holiday"
-    COMP_TIME = "comp_time"
-    UNPAID_LEAVE = "unpaid_leave"
-    PARENTAL_LEAVE = "parental_leave"
-    TRAINING = "training"
-    OTHER = "other"
-
-
-class WorkLocation(str, Enum):
-    """Work location types."""
-
-    OFFICE = "office"
-    REMOTE = "remote"
-    CLIENT_SITE = "client_site"
-    TRAVEL = "travel"
-
+from .models import EntryType, WorkLocation
 
 # --- Time Entry Schemas ---
 

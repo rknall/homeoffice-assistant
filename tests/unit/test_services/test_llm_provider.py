@@ -254,3 +254,30 @@ async def test_list_models_raises_on_error():
             await provider.list_models()
     finally:
         await provider.close()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_extract_expense_truncates_document_text():
+    route = respx.post("https://llm.example.com/v1/chat/completions").mock(
+        return_value=chat_response(
+            {
+                "date": None,
+                "amount": None,
+                "currency": None,
+                "category": None,
+                "payment_type": None,
+                "description": None,
+            }
+        )
+    )
+    provider = OpenAiCompatibleLlmProvider(CONFIG)
+    try:
+        await provider.extract_expense("a" * 30_000)
+    finally:
+        await provider.close()
+
+    sent = json.loads(route.calls.last.request.content)
+    user_message = sent["messages"][1]
+    assert user_message["role"] == "user"
+    assert len(user_message["content"]) == 20_000

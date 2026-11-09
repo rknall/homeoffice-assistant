@@ -3,6 +3,7 @@
 
 import { Search } from 'lucide-react'
 import type { Company, EventStatus } from '@/types'
+import { eventStatusLabels, labelOptions } from '@/utils/labels'
 
 export interface EventFiltersState {
   status: EventStatus | 'all'
@@ -19,9 +20,7 @@ interface EventFiltersProps {
 // Status is computed from dates on the backend
 const STATUS_OPTIONS: { value: EventStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All' },
-  { value: 'upcoming', label: 'Upcoming' },
-  { value: 'active', label: 'Active' },
-  { value: 'past', label: 'Past' },
+  ...labelOptions(eventStatusLabels),
 ]
 
 export function EventFilters({ filters, onFiltersChange, companies }: EventFiltersProps) {

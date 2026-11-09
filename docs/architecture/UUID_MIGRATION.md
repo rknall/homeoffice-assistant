@@ -1,5 +1,7 @@
 # UUID Migration Plan
 
+> Status: partly implemented. All ORM models use `Uuid(as_uuid=True)` ids (the only remaining `String(36)` is the session token, which is not an id). The Alembic revisions still create `VARCHAR(36)` columns; the alignment migration is part of the system-cleanup task (slice s15). The "Current State Analysis" below describes the state before the model change.
+
 ## Overview
 
 Migrate all models from `String(36)` to native `UUID(as_uuid=True)` for consistency, performance, and future-proofing. The new RBAC models already use UUID, so we align the rest of the codebase.

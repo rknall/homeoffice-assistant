@@ -8,7 +8,8 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_user, get_db
+from src.api.deps import get_current_user
+from src.database import get_db
 from src.models import User
 from src.schemas.holiday_calendar import (
     HolidayCalendarCreate,
@@ -19,6 +20,7 @@ from src.schemas.holiday_calendar import (
     SupportedCountriesResponse,
 )
 from src.services import holiday_calendar_service
+from src.services.holiday_calendar_service import UnknownHolidayRegionError
 
 router = APIRouter()
 
@@ -77,11 +79,16 @@ def preview_holidays(
     current_user: User = Depends(get_current_user),
 ) -> list[HolidayEntry]:
     """Preview holidays for a country/subdivision before adding it."""
-    return holiday_calendar_service.get_holidays_preview(
-        country_code.upper(),
-        subdivision.upper() if subdivision else None,
-        year,
-    )
+    try:
+        return holiday_calendar_service.get_holidays_preview(
+            country_code.upper(),
+            subdivision.upper() if subdivision else None,
+            year,
+        )
+    except UnknownHolidayRegionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
 
 
 @router.get(
@@ -117,6 +124,12 @@ def create_holiday_calendar(
     current_user: User = Depends(get_current_user),
 ) -> HolidayCalendarResponse:
     """Create a new holiday calendar configuration."""
+    try:
+        holiday_calendar_service.validate_region(data.country_code, data.subdivision)
+    except UnknownHolidayRegionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
     calendar = holiday_calendar_service.create_holiday_calendar(
         db, current_user.id, data
     )

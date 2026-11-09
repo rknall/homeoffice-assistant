@@ -8,14 +8,20 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from src.api.v1.router import api_router
 from src.database import SessionLocal
 from src.plugins import PluginRegistry, get_plugin_router_manager
-from src.services import rbac_seed_service, todo_template_service
+from src.services import (
+    file_storage_service,
+    rbac_seed_service,
+    todo_template_service,
+)
+from src.version import APP_VERSION
 
 # Configure application logger; rely on external/root logging configuration
 log_level_name = os.getenv("APP_LOG_LEVEL")
@@ -31,7 +37,7 @@ if log_level_name:
         )
 
 # Ensure directories exist
-os.makedirs("static/avatars", exist_ok=True)
+file_storage_service.AVATAR_DIR.mkdir(parents=True, exist_ok=True)
 os.makedirs("plugins", exist_ok=True)
 
 
@@ -45,20 +51,26 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     db = SessionLocal()
     try:
-        # Seed RBAC data first
-        logger.info("Seeding RBAC data...")
-        rbac_seed_service.seed_rbac_data(db)
-        logger.info("RBAC data seeding complete.")
+        # Seed RBAC data first; a failure here must abort startup
+        try:
+            logger.info("Seeding RBAC data...")
+            rbac_seed_service.seed_rbac_data(db)
+            logger.info("RBAC data seeding complete.")
 
-        # Seed default todo templates
-        templates_created = todo_template_service.seed_default_templates(db)
-        if templates_created > 0:
-            logger.info(f"Seeded {templates_created} default todo templates.")
+            # Seed default todo templates
+            templates_created = todo_template_service.seed_default_templates(db)
+            if templates_created > 0:
+                logger.info(f"Seeded {templates_created} default todo templates.")
+        except Exception:
+            logger.exception("Seeding failed during startup")
+            raise
 
-        await registry.load_all_plugins(db)
-        logger.info(f"Loaded {len(registry.get_all_plugins())} available plugins")
-    except Exception as e:
-        logger.error(f"Error during startup: {e}")
+        # Plugin failures must not prevent the app from starting
+        try:
+            await registry.load_all_plugins(db)
+            logger.info(f"Loaded {len(registry.get_all_plugins())} available plugins")
+        except Exception:
+            logger.exception("Plugin loading failed during startup")
     finally:
         db.close()
 
@@ -71,7 +83,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="HomeOffice Assistant",
     description="Self-hosted personal productivity and work management assistant",
-    version="0.3.0",
+    version=APP_VERSION,
     lifespan=lifespan,
 )
 
@@ -88,11 +100,8 @@ app.add_middleware(
 @app.get("/health")
 def health_check() -> dict:
     """Health check endpoint."""
-    return {"status": "healthy"}
+    return {"status": "healthy", "version": APP_VERSION}
 
-
-# Import and include API router after it's created
-from src.api.v1.router import api_router  # noqa: E402
 
 app.include_router(api_router, prefix="/api/v1")
 
@@ -123,7 +132,7 @@ if static_path.exists():
     @app.get("/")
     async def serve_root() -> FileResponse:
         """Serve the main SPA entry point."""
-        return FileResponse("static/index.html")
+        return FileResponse(static_path / "index.html")
 
     # Catch-all route for SPA - must be last
     # Note: This catches all non-API routes for client-side routing
@@ -133,13 +142,12 @@ if static_path.exists():
         # Don't serve SPA for API routes - let them 404 naturally
         # This allows dynamically added plugin routes to work
         if full_path.startswith("api/"):
-            from fastapi import HTTPException
-
             raise HTTPException(status_code=404, detail="Not Found")
 
         # Serve static files if they exist
-        file_path = static_path / full_path
-        if file_path.exists() and file_path.is_file():
+        # Resolve the path and refuse anything that escapes the static directory
+        file_path = (static_path / full_path).resolve()
+        if file_path.is_relative_to(static_path.resolve()) and file_path.is_file():
             return FileResponse(file_path)
         # Otherwise serve index.html for client-side routing
-        return FileResponse("static/index.html")
+        return FileResponse(static_path / "index.html")

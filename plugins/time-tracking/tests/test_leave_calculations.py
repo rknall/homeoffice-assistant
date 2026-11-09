@@ -8,12 +8,12 @@ These tests verify vacation balance, comp time accrual, and year-end rollover lo
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 
 # --- Simplified implementations for testing ---
 
 
-class DayType(str, Enum):
+class DayType(StrEnum):
     """Day type for time records."""
 
     WORK = "work"

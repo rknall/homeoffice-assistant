@@ -11,12 +11,22 @@ on:
         required: true
         default: 'v0.0.0-test1'
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   build-and-push:
+    needs: ci
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -24,6 +34,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # Manual test runs use an arbitrary tag, so only real tags are compared
+      - name: Set up uv
+        if: github.event_name == 'push'
+        uses: astral-sh/setup-uv@v6
+
+      - name: Check tag against version files
+        if: github.event_name == 'push'
+        env:
+          UV_FROZEN: "1"
+          UV_PYTHON: "3.14"
+        run: uv run python scripts/check_release_tag.py "$GITHUB_REF_NAME"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -80,8 +102,8 @@ jobs:
             # Always include the exact version
             type=raw,value=${{ steps.version.outputs.version }}
             # For prereleases: add channel tag (e.g., 0.3.0-beta) and type tag (e.g., beta)
-            type=raw,value=${{ steps.version.outputs.channel_tag }},enable=${{ steps.version.outputs.is_prerelease == 'true' }}
-            type=raw,value=${{ steps.version.outputs.prerelease_type }},enable=${{ steps.version.outputs.is_prerelease == 'true' }}
+            type=raw,value=${{ steps.version.outputs.channel_tag }},enable=${{ steps.version.outputs.is_prerelease == 'true' && steps.version.outputs.channel_tag != '' }}
+            type=raw,value=${{ steps.version.outputs.prerelease_type }},enable=${{ steps.version.outputs.is_prerelease == 'true' && steps.version.outputs.prerelease_type != '' }}
             # For stable releases: add minor tag (e.g., 0.3) and latest
             type=raw,value=${{ steps.version.outputs.minor_tag }},enable=${{ steps.version.outputs.is_prerelease == 'false' && steps.version.outputs.minor_tag != '' }}
             type=raw,value=latest,enable=${{ steps.version.outputs.is_prerelease == 'false' }}

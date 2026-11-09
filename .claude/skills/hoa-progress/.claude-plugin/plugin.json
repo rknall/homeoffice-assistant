@@ -1,0 +1,5 @@
+{
+  "name": "hoa-progress",
+  "version": "0.1.0",
+  "description": "Side panel with the hoa-pipeline task progress: stages, waves done and still to do, read from the task ledger and plan."
+}

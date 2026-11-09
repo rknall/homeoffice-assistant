@@ -11,6 +11,8 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
+from src.utils.time import utc_now
+
 logger = logging.getLogger(__name__)
 
 
@@ -81,9 +83,9 @@ class EventBus:
         self._handlers: dict[AppEvent, list[tuple[str | None, EventHandler]]] = (
             defaultdict(list)
         )
-        self._async_handlers: dict[
-            AppEvent, list[tuple[str | None, EventHandler]]
-        ] = defaultdict(list)
+        self._async_handlers: dict[AppEvent, list[tuple[str | None, EventHandler]]] = (
+            defaultdict(list)
+        )
 
     def subscribe(
         self,
@@ -163,7 +165,7 @@ class EventBus:
         """
         payload = EventPayload(
             event_type=event_type,
-            timestamp=datetime.utcnow(),
+            timestamp=utc_now(),
             data=data,
             source_plugin_id=source_plugin_id,
         )
@@ -206,7 +208,7 @@ class EventBus:
         """
         payload = EventPayload(
             event_type=event_type,
-            timestamp=datetime.utcnow(),
+            timestamp=utc_now(),
             data=data,
             source_plugin_id=source_plugin_id,
         )

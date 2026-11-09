@@ -2,16 +2,20 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Photo API endpoints for Immich integration."""
 
+import logging
 import uuid
-from datetime import date, datetime, timedelta
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_user, get_db
-from src.integrations import IntegrationRegistry
+from src.api.deps import require_event_permission
+from src.api.provider_errors import provider_errors
+from src.database import get_db
 from src.integrations.immich import ImmichProvider
-from src.models import Event, IntegrationConfig, PhotoReference, User
+from src.models import Event, PhotoReference
 from src.models.enums import IntegrationType
 from src.schemas.location import LocationImageResponse
 from src.schemas.photo import (
@@ -20,372 +24,173 @@ from src.schemas.photo import (
     PhotoReferenceResponse,
     PhotoReferenceUpdate,
 )
-from src.services import location_image_service
+from src.services import integration_service, location_image_service, photo_service
+from src.services.integration_service import NoActiveIntegrationError
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+read_event = require_event_permission("event.read")
+write_event = require_event_permission("event.write")
 
 
-def get_immich_provider(db: Session) -> ImmichProvider | None:
-    """Get active Immich provider if configured."""
-    config = (
-        db.query(IntegrationConfig)
-        .filter(
-            IntegrationConfig.integration_type == IntegrationType.IMMICH,
-            IntegrationConfig.is_active.is_(True),
+@asynccontextmanager
+async def _open_immich(db: Session) -> AsyncIterator[ImmichProvider]:
+    """Open the active Immich provider, reporting open errors as HTTP errors.
+
+    The photo gallery hides the "not configured" message, so a missing Immich
+    integration keeps that wording.
+    """
+    with provider_errors():
+        try:
+            async with integration_service.open_active_provider(
+                db, IntegrationType.IMMICH
+            ) as provider:
+                yield provider
+        except NoActiveIntegrationError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Immich integration not configured",
+            ) from e
+
+
+def _get_reference_or_404(
+    db: Session, event: Event, photo_id: uuid.UUID
+) -> PhotoReference:
+    """Return a photo reference of the event or raise 404."""
+    reference = photo_service.get_photo_reference(db, event, photo_id)
+    if reference is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Photo reference not found",
         )
-        .first()
-    )
-
-    if not config:
-        return None
-
-    from src.encryption import decrypt_config
-
-    decrypted = decrypt_config(config.config_encrypted)
-    provider = IntegrationRegistry.create_provider("immich", decrypted)
-    return provider  # type: ignore
+    return reference
 
 
 @router.get("/{event_id}/photos", response_model=list[PhotoAsset])
 async def get_event_photos(
-    event_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    event: Event = Depends(read_event),
 ) -> list[PhotoAsset]:
     """Get photos from Immich matching event location and dates.
 
-    Requires Immich integration to be configured and event to have location data.
+    Returns an empty list when the event has no location.
     """
-    # Get event
-    event = db.query(Event).filter(Event.id == event_id).first()
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    if event.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    # Check if event has location
-    if not event.latitude or not event.longitude:
-        return []  # No location, can't search
-
-    # Get Immich provider
-    provider = get_immich_provider(db)
-    if not provider:
-        raise HTTPException(
-            status_code=400,
-            detail="Immich integration not configured",
-        )
-
-    try:
-        # Search by location and date range
-        start_date = datetime.combine(event.start_date, datetime.min.time())
-        end_date = datetime.combine(event.end_date, datetime.max.time()) + timedelta(
-            days=1
-        )
-        assets = await provider.search_by_location_and_date(
-            latitude=event.latitude,
-            longitude=event.longitude,
-            start_date=start_date,
-            end_date=end_date,
-        )
-
-        # Get already-linked photo IDs
-        linked_ids = {
-            ref.immich_asset_id
-            for ref in db.query(PhotoReference.immich_asset_id)
-            .filter(PhotoReference.event_id == event_id)
-            .all()
-        }
-
-        # Convert to response schema
-        result = []
-        for asset in assets:
-            exif = asset.get("exifInfo", {})
-            result.append(
-                PhotoAsset(
-                    id=asset["id"],
-                    original_filename=asset.get("originalFileName"),
-                    thumbnail_url=f"/api/v1/events/{event_id}/photos/{asset['id']}/thumbnail",
-                    taken_at=exif.get("dateTimeOriginal"),
-                    latitude=exif.get("latitude"),
-                    longitude=exif.get("longitude"),
-                    city=exif.get("city"),
-                    country=exif.get("country"),
-                    distance_km=asset.get("_distance_km"),
-                    is_linked=asset["id"] in linked_ids,
-                )
-            )
-
-        return result
-    finally:
-        await provider.close()
+    criteria = photo_service.build_search_criteria(event, date_only=False)
+    if criteria is None:
+        return []
+    async with _open_immich(db) as provider:
+        return await photo_service.search_photos(db, event, provider, criteria)
 
 
 @router.get("/{event_id}/photos/by-date", response_model=list[PhotoAsset])
 async def get_event_photos_by_date(
-    event_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    event: Event = Depends(read_event),
 ) -> list[PhotoAsset]:
-    """Get photos from Immich matching event date range only.
+    """Get photos from Immich matching the event date range only.
 
-    This is a manual search option when location-based search doesn't find results.
-    Only available for past events.
+    This is a manual search option when location-based search doesn't find
+    results. Only available for events that have started.
     """
-    event = db.query(Event).filter(Event.id == event_id).first()
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    if event.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    # Only allow for past events
-    today = date.today()
-    if event.start_date > today:
+    criteria = photo_service.build_search_criteria(event, date_only=True)
+    if criteria is None:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Date-based search is only available for past events",
         )
-
-    provider = get_immich_provider(db)
-    if not provider:
-        raise HTTPException(
-            status_code=400,
-            detail="Immich integration not configured",
-        )
-
-    try:
-        start_date = datetime.combine(event.start_date, datetime.min.time())
-        end_date = datetime.combine(event.end_date, datetime.max.time()) + timedelta(
-            days=1
-        )
-        assets = await provider.search_by_date_only(
-            start_date=start_date,
-            end_date=end_date,
-        )
-
-        # Get already-linked photo IDs
-        linked_ids = {
-            ref.immich_asset_id
-            for ref in db.query(PhotoReference.immich_asset_id)
-            .filter(PhotoReference.event_id == event_id)
-            .all()
-        }
-
-        # Convert to response schema
-        result = []
-        for asset in assets:
-            exif = asset.get("exifInfo", {})
-            result.append(
-                PhotoAsset(
-                    id=asset["id"],
-                    original_filename=asset.get("originalFileName"),
-                    thumbnail_url=f"/api/v1/events/{event_id}/photos/{asset['id']}/thumbnail",
-                    taken_at=exif.get("dateTimeOriginal"),
-                    latitude=exif.get("latitude"),
-                    longitude=exif.get("longitude"),
-                    city=exif.get("city"),
-                    country=exif.get("country"),
-                    distance_km=None,
-                    is_linked=asset["id"] in linked_ids,
-                )
-            )
-
-        return result
-    finally:
-        await provider.close()
+    async with _open_immich(db) as provider:
+        return await photo_service.search_photos(db, event, provider, criteria)
 
 
 @router.get(
     "/{event_id}/photos/references", response_model=list[PhotoReferenceResponse]
 )
 async def get_photo_references(
-    event_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> list[PhotoReferenceResponse]:
+    event: Event = Depends(read_event),
+) -> list[PhotoReference]:
     """Get saved photo references for an event."""
-    event = db.query(Event).filter(Event.id == event_id).first()
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    if event.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    references = (
-        db.query(PhotoReference)
-        .filter(PhotoReference.event_id == event_id)
-        .order_by(PhotoReference.taken_at)
-        .all()
-    )
-
-    return references
+    return photo_service.list_photo_references(db, event)
 
 
 @router.post("/{event_id}/photos", response_model=PhotoReferenceResponse)
 async def add_photo_reference(
-    event_id: uuid.UUID,
     photo: PhotoReferenceCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> PhotoReferenceResponse:
+    event: Event = Depends(write_event),
+) -> PhotoReference:
     """Add a photo reference to an event."""
-    event = db.query(Event).filter(Event.id == event_id).first()
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    if event.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    # Check if already linked
-    existing = (
-        db.query(PhotoReference)
-        .filter(
-            PhotoReference.event_id == event_id,
-            PhotoReference.immich_asset_id == photo.immich_asset_id,
-        )
-        .first()
-    )
-    if existing:
-        raise HTTPException(status_code=400, detail="Photo already linked to event")
-
-    # Create reference
-    reference = PhotoReference(
-        event_id=event_id,
-        immich_asset_id=photo.immich_asset_id,
-        caption=photo.caption,
-        include_in_report=photo.include_in_report,
-        thumbnail_url=photo.thumbnail_url,
-        taken_at=photo.taken_at,
-        latitude=photo.latitude,
-        longitude=photo.longitude,
-    )
-    db.add(reference)
-    db.commit()
-    db.refresh(reference)
-
-    return reference
+    try:
+        return photo_service.add_photo_reference(db, event, photo)
+    except photo_service.PhotoAlreadyLinkedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
 
 
 @router.put("/{event_id}/photos/{photo_id}", response_model=PhotoReferenceResponse)
 async def update_photo_reference(
-    event_id: uuid.UUID,
     photo_id: uuid.UUID,
     update: PhotoReferenceUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> PhotoReferenceResponse:
+    event: Event = Depends(write_event),
+) -> PhotoReference:
     """Update a photo reference caption or include_in_report flag."""
-    event = db.query(Event).filter(Event.id == event_id).first()
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    if event.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    reference = (
-        db.query(PhotoReference)
-        .filter(PhotoReference.id == photo_id, PhotoReference.event_id == event_id)
-        .first()
-    )
-    if not reference:
-        raise HTTPException(status_code=404, detail="Photo reference not found")
-
-    # Update fields
-    if update.caption is not None:
-        reference.caption = update.caption
-    if update.include_in_report is not None:
-        reference.include_in_report = update.include_in_report
-
-    db.commit()
-    db.refresh(reference)
-
-    return reference
+    reference = _get_reference_or_404(db, event, photo_id)
+    return photo_service.update_photo_reference(db, reference, update)
 
 
-@router.delete("/{event_id}/photos/{photo_id}")
+@router.delete("/{event_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_photo_reference(
-    event_id: uuid.UUID,
     photo_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
+    event: Event = Depends(write_event),
+) -> None:
     """Remove a photo reference from an event."""
-    event = db.query(Event).filter(Event.id == event_id).first()
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    if event.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    reference = (
-        db.query(PhotoReference)
-        .filter(PhotoReference.id == photo_id, PhotoReference.event_id == event_id)
-        .first()
-    )
-    if not reference:
-        raise HTTPException(status_code=404, detail="Photo reference not found")
-
-    db.delete(reference)
-    db.commit()
-
-    return {"message": "Photo reference deleted"}
+    reference = _get_reference_or_404(db, event, photo_id)
+    photo_service.delete_photo_reference(db, reference)
 
 
 @router.get("/{event_id}/photos/{asset_id}/thumbnail")
 async def proxy_photo_thumbnail(
-    event_id: uuid.UUID,
     asset_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    event: Event = Depends(read_event),
 ) -> Response:
-    """Proxy thumbnail from Immich.
+    """Proxy a thumbnail from Immich.
 
-    Browsers can't send API key headers on img tags,
-    so we proxy through the backend.
+    Browsers can't send API key headers on img tags, so we proxy through the
+    backend. Only assets linked to the event or found by its photo searches
+    are served; any other asset id is reported as not found.
     """
-    event = db.query(Event).filter(Event.id == event_id).first()
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    if event.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    provider = get_immich_provider(db)
-    if not provider:
-        raise HTTPException(
-            status_code=400,
-            detail="Immich integration not configured",
-        )
-
-    try:
-        content, content_type = await provider.get_asset_thumbnail(asset_id)
-        return Response(content=content, media_type=content_type)
-    except Exception as e:
-        raise HTTPException(
-            status_code=502, detail=f"Failed to fetch thumbnail: {e}"
-        ) from e
-    finally:
-        await provider.close()
+    async with _open_immich(db) as provider:
+        if not await photo_service.asset_belongs_to_event(
+            db, event, asset_id, provider
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Photo not found"
+            )
+        try:
+            content, content_type = await provider.get_asset_thumbnail(asset_id)
+        except httpx.HTTPError as e:
+            logger.error("Failed to fetch thumbnail %s: %s", asset_id, e)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to fetch thumbnail",
+            ) from e
+    return Response(content=content, media_type=content_type)
 
 
 @router.get("/{event_id}/location-image", response_model=LocationImageResponse | None)
 async def get_event_location_image(
-    event_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    event: Event = Depends(read_event),
 ) -> LocationImageResponse | None:
     """Get eyecandy image for event location.
 
     Returns None if no Unsplash API key is configured or location not set.
     """
-    event = db.query(Event).filter(Event.id == event_id).first()
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    if event.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
     # Need at least country
     if not event.country:
         return None

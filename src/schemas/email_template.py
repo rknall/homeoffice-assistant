@@ -91,3 +91,14 @@ class TemplatePreviewResponse(BaseModel):
     subject: str
     body_html: str
     body_text: str
+
+
+class DefaultTemplateContent(BaseModel):
+    """Default template content used to prefill a new template."""
+
+    name: str
+    reason: str
+    subject: str
+    body_html: str
+    body_text: str
+    is_default: bool

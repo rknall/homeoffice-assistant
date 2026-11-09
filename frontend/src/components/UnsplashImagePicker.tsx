@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { errorMessage } from '@/api/client'
 import { api } from '../api/client'
 import type { IntegrationConfig, UnsplashImage, UnsplashSearchResponse } from '../types'
 import { Button } from './ui/Button'
@@ -77,7 +78,7 @@ export function UnsplashImagePicker({
         setTotalPages(response.total_pages)
         setPage(pageNum)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to search images')
+        setError(errorMessage(err, 'Failed to search images'))
         setResults([])
       } finally {
         setIsLoading(false)
@@ -116,7 +117,7 @@ export function UnsplashImagePicker({
       })
       setIsOpen(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to select image')
+      setError(errorMessage(err, 'Failed to select image'))
     }
   }
 

@@ -38,8 +38,9 @@ class IntegrationProvider(ABC):
         """Check connectivity. Returns (success, message)."""
         ...
 
-    async def close(self) -> None:  # noqa: B027
+    async def close(self) -> None:
         """Clean up resources. Override in subclasses that need cleanup."""
+        return None
 
 
 class DocumentProvider(IntegrationProvider):
@@ -48,11 +49,6 @@ class DocumentProvider(IntegrationProvider):
     @abstractmethod
     async def list_storage_paths(self) -> list[dict[str, Any]]:
         """List available storage paths."""
-        ...
-
-    @abstractmethod
-    async def list_tags(self) -> list[dict[str, Any]]:
-        """List all tags."""
         ...
 
     @abstractmethod

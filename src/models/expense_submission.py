@@ -36,10 +36,11 @@ class ExpenseSubmission(Base, TimestampMixin):
         Uuid(as_uuid=True),
         ForeignKey("events.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
 
     # When/how submitted
-    submitted_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
     submission_method: Mapped[str] = mapped_column(
         String(50), nullable=False
     )  # email, download, portal
@@ -81,11 +82,13 @@ class ExpenseSubmissionItem(Base):
         Uuid(as_uuid=True),
         ForeignKey("expense_submissions.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     expense_id: Mapped[uuid_lib.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("expenses.id", ondelete="SET NULL"),
         nullable=True,  # Nullable in case expense is deleted
+        index=True,
     )
 
     # Snapshot at submission time

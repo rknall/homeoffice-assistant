@@ -7,7 +7,8 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_user, get_db
+from src.api.deps import require_permission
+from src.database import get_db
 from src.models import User
 from src.schemas.company_calendar import (
     CompanyCalendarCreate,
@@ -18,6 +19,10 @@ from src.services import company_calendar_service, company_service
 
 router = APIRouter()
 
+# Reads need company.view and writes company.manage for the company in the path.
+view_company = require_permission("company.view", company_id_param="company_id")
+manage_company = require_permission("company.manage", company_id_param="company_id")
+
 
 @router.get(
     "/{company_id}/calendars",
@@ -26,7 +31,7 @@ router = APIRouter()
 def list_company_calendars(
     company_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(view_company),
 ) -> list[CompanyCalendarResponse]:
     """List all calendar connections for a company."""
     company = company_service.get_company(db, company_id)
@@ -48,7 +53,7 @@ def get_company_calendar(
     company_id: uuid.UUID,
     calendar_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(view_company),
 ) -> CompanyCalendarResponse:
     """Get a specific calendar connection."""
     company = company_service.get_company(db, company_id)
@@ -79,7 +84,7 @@ def create_company_calendar(
     company_id: uuid.UUID,
     data: CompanyCalendarCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(manage_company),
 ) -> CompanyCalendarResponse:
     """Create a new calendar connection for a company."""
     company = company_service.get_company(db, company_id)
@@ -102,7 +107,7 @@ def update_company_calendar(
     calendar_id: uuid.UUID,
     data: CompanyCalendarUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(manage_company),
 ) -> CompanyCalendarResponse:
     """Update a calendar connection."""
     company = company_service.get_company(db, company_id)
@@ -133,7 +138,7 @@ def delete_company_calendar(
     company_id: uuid.UUID,
     calendar_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(manage_company),
 ) -> None:
     """Delete a calendar connection."""
     company = company_service.get_company(db, company_id)
@@ -163,7 +168,7 @@ def sync_company_calendar(
     company_id: uuid.UUID,
     calendar_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(manage_company),
 ) -> CompanyCalendarResponse:
     """Trigger a sync for a calendar connection.
 

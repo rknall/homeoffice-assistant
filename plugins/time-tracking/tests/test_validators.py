@@ -5,196 +5,17 @@
 These tests verify the Austrian compliance validation logic.
 """
 
-from dataclasses import dataclass
-from datetime import date, datetime, time
+import importlib
+from datetime import date, time
 from unittest.mock import MagicMock
 
-import holidays
 import pytest
 
-# --- Simplified implementations for testing ---
+from src.services.holiday_calendar_service import get_public_holidays
 
-
-@dataclass
-class ComplianceWarning:
-    """Schema for compliance warnings."""
-
-    level: str
-    code: str
-    message: str
-    requires_explanation: bool = False
-    law_reference: str | None = None
-
-
-class AustrianComplianceValidator:
-    """Austrian labor law (Arbeitszeitgesetz) validator."""
-
-    DAILY_NORMAL_HOURS = 8.0
-    DAILY_MAX_HOURS = 10.0
-    WEEKLY_NORMAL_HOURS = 40.0
-    WEEKLY_MAX_HOURS = 50.0
-    MIN_REST_HOURS = 11.0
-
-    def validate_daily_hours(self, record: MagicMock) -> list[ComplianceWarning]:
-        """Check daily hour limits per Austrian law."""
-        warnings: list[ComplianceWarning] = []
-
-        if record.net_hours is None:
-            return warnings
-
-        if record.net_hours > self.DAILY_MAX_HOURS:
-            warnings.append(
-                ComplianceWarning(
-                    level="error",
-                    code="EXCEEDS_DAILY_MAX",
-                    message=(
-                        f"Exceeds {self.DAILY_MAX_HOURS}h/day legal maximum "
-                        f"({record.net_hours:.1f}h worked)"
-                    ),
-                    requires_explanation=True,
-                    law_reference="Arbeitszeitgesetz §3",
-                )
-            )
-        elif record.net_hours > self.DAILY_NORMAL_HOURS:
-            warnings.append(
-                ComplianceWarning(
-                    level="info",
-                    code="OVERTIME",
-                    message=(
-                        f"Overtime: exceeds {self.DAILY_NORMAL_HOURS}h/day "
-                        f"normal hours ({record.net_hours:.1f}h worked)"
-                    ),
-                    requires_explanation=False,
-                    law_reference="Arbeitszeitgesetz §3",
-                )
-            )
-
-        return warnings
-
-    def validate_rest_period(
-        self,
-        current: MagicMock,
-        previous: MagicMock | None,
-    ) -> list[ComplianceWarning]:
-        """Check 11-hour rest requirement."""
-        warnings: list[ComplianceWarning] = []
-
-        if previous is None:
-            return warnings
-
-        if previous.check_out is None or current.check_in is None:
-            return warnings
-
-        rest_hours = self._calculate_rest_hours(previous, current)
-
-        if rest_hours < self.MIN_REST_HOURS:
-            warnings.append(
-                ComplianceWarning(
-                    level="warning",
-                    code="INSUFFICIENT_REST",
-                    message=(
-                        f"Only {rest_hours:.1f}h rest since last shift "
-                        f"({self.MIN_REST_HOURS}h required by law)"
-                    ),
-                    requires_explanation=True,
-                    law_reference="Arbeitszeitgesetz §12",
-                )
-            )
-
-        return warnings
-
-    def validate_weekly_hours(
-        self,
-        records: list,
-    ) -> list[ComplianceWarning]:
-        """Check weekly hour limits."""
-        warnings: list[ComplianceWarning] = []
-
-        total_hours = sum(
-            r.net_hours or 0.0
-            for r in records
-            if r.day_type in ["work", "doctor_visit"]
-        )
-
-        if total_hours > self.WEEKLY_MAX_HOURS:
-            warnings.append(
-                ComplianceWarning(
-                    level="error",
-                    code="EXCEEDS_WEEKLY_MAX",
-                    message=(
-                        f"Exceeds {self.WEEKLY_MAX_HOURS}h/week legal maximum "
-                        f"({total_hours:.1f}h worked)"
-                    ),
-                    requires_explanation=True,
-                    law_reference="Arbeitszeitgesetz §9",
-                )
-            )
-        elif total_hours > self.WEEKLY_NORMAL_HOURS:
-            warnings.append(
-                ComplianceWarning(
-                    level="info",
-                    code="WEEKLY_OVERTIME",
-                    message=(
-                        f"Weekly overtime: exceeds {self.WEEKLY_NORMAL_HOURS}h/week "
-                        f"normal hours ({total_hours:.1f}h worked)"
-                    ),
-                    requires_explanation=False,
-                    law_reference="Arbeitszeitgesetz §9",
-                )
-            )
-
-        return warnings
-
-    def get_public_holidays(
-        self,
-        year: int,
-        region: str | None = None,
-    ) -> dict[date, str]:
-        """Get Austrian public holidays for a year."""
-        at_holidays = holidays.Austria(years=year, subdiv=region)
-        return dict(at_holidays.items())
-
-    def is_public_holiday(
-        self,
-        check_date: date,
-        region: str | None = None,
-    ) -> bool:
-        """Check if a date is a public holiday."""
-        at_holidays = holidays.Austria(years=check_date.year, subdiv=region)
-        return check_date in at_holidays
-
-    def get_holiday_name(
-        self,
-        check_date: date,
-        region: str | None = None,
-    ) -> str | None:
-        """Get the name of a holiday on a date."""
-        at_holidays = holidays.Austria(years=check_date.year, subdiv=region)
-        return at_holidays.get(check_date)
-
-    def _calculate_rest_hours(self, previous: MagicMock, current: MagicMock) -> float:
-        """Calculate rest hours between two shifts."""
-        if previous.check_out is None or current.check_in is None:
-            return float("inf")
-
-        prev_end = datetime.combine(previous.date, previous.check_out)
-        curr_start = datetime.combine(current.date, current.check_in)
-
-        rest_delta = curr_start - prev_end
-        return rest_delta.total_seconds() / 3600
-
-
-def get_validator(country_code: str = "AT") -> AustrianComplianceValidator:
-    """Get the appropriate compliance validator for a country."""
-    validators = {
-        "AT": AustrianComplianceValidator,
-    }
-
-    validator_class = validators.get(country_code)
-    if validator_class is None:
-        raise ValueError(f"No compliance validator for country: {country_code}")
-
-    return validator_class()
+validators = importlib.import_module("plugins.time-tracking.backend.validators")
+AustrianComplianceValidator = validators.AustrianComplianceValidator
+get_validator = validators.get_validator
 
 
 # --- Tests ---
@@ -318,7 +139,7 @@ class TestAustrianComplianceValidator:
         records = []
         for _i in range(5):
             record = MagicMock()
-            record.day_type = "work"
+            record.entry_type = "work"
             record.net_hours = 8.0
             records.append(record)
 
@@ -332,7 +153,7 @@ class TestAustrianComplianceValidator:
         records = []
         for _i in range(5):
             record = MagicMock()
-            record.day_type = "work"
+            record.entry_type = "work"
             record.net_hours = 9.0  # 45h total
             records.append(record)
 
@@ -348,7 +169,7 @@ class TestAustrianComplianceValidator:
         records = []
         for _i in range(5):
             record = MagicMock()
-            record.day_type = "work"
+            record.entry_type = "work"
             record.net_hours = 11.0  # 55h total
             records.append(record)
 
@@ -401,3 +222,12 @@ class TestGetValidator:
         """Unknown country code raises ValueError."""
         with pytest.raises(ValueError, match="No compliance validator"):
             get_validator("XX")
+
+
+def test_plugin_validator_shares_core_holidays() -> None:
+    """The plugin's Austrian validator sees the same holidays as the core service."""
+    real = importlib.import_module("plugins.time-tracking.backend.validators")
+    expected = get_public_holidays("AT", 2025)
+
+    assert real.AustrianComplianceValidator().get_public_holidays(2025) == expected
+    assert real.get_validator("AT").is_public_holiday(date(2025, 12, 25)) is True

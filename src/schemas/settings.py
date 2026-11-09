@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from src.schemas.currency import CurrencyCode
+
 # Date format options
 DateFormatType = Literal["YYYY-MM-DD", "DD.MM.YYYY", "DD/MM/YYYY", "MM/DD/YYYY"]
 
@@ -38,6 +40,4 @@ class CurrencySettingsResponse(BaseModel):
 class CurrencySettingsUpdate(BaseModel):
     """Schema for updating currency settings."""
 
-    base_currency: str = Field(
-        ..., min_length=3, max_length=3, pattern=r"^[A-Za-z]{3}$"
-    )
+    base_currency: CurrencyCode

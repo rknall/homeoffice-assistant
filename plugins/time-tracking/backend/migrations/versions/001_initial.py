@@ -71,9 +71,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
-        sa.ForeignKeyConstraint(
-            ["company_id"], ["companies.id"], ondelete="SET NULL"
-        ),
+        sa.ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(
             ["submission_id"],
             ["tt_timesheet_submissions.id"],
@@ -81,15 +79,9 @@ def upgrade() -> None:
         ),
         sa.UniqueConstraint("user_id", "date", name="uq_tt_user_date"),
     )
-    op.create_index(
-        "idx_tt_user_date_range", "tt_time_records", ["user_id", "date"]
-    )
-    op.create_index(
-        "idx_tt_company_date", "tt_time_records", ["company_id", "date"]
-    )
-    op.create_index(
-        "idx_tt_submission", "tt_time_records", ["submission_id"]
-    )
+    op.create_index("idx_tt_user_date_range", "tt_time_records", ["user_id", "date"])
+    op.create_index("idx_tt_company_date", "tt_time_records", ["company_id", "date"])
+    op.create_index("idx_tt_submission", "tt_time_records", ["submission_id"])
 
     # Create tt_time_allocations
     op.create_table(
@@ -106,12 +98,8 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["time_record_id"], ["tt_time_records.id"], ondelete="CASCADE"
         ),
-        sa.ForeignKeyConstraint(
-            ["event_id"], ["events.id"], ondelete="SET NULL"
-        ),
-        sa.ForeignKeyConstraint(
-            ["company_id"], ["companies.id"], ondelete="SET NULL"
-        ),
+        sa.ForeignKeyConstraint(["event_id"], ["events.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="SET NULL"),
     )
 
     # Create tt_leave_balances
@@ -127,9 +115,7 @@ def upgrade() -> None:
         sa.Column(
             "vacation_carryover", sa.Float(), nullable=False, server_default="0.0"
         ),
-        sa.Column(
-            "vacation_taken", sa.Float(), nullable=False, server_default="0.0"
-        ),
+        sa.Column("vacation_taken", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column(
             "comp_time_balance", sa.Float(), nullable=False, server_default="0.0"
         ),
@@ -138,9 +124,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
-        sa.ForeignKeyConstraint(
-            ["company_id"], ["companies.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="CASCADE"),
         sa.UniqueConstraint(
             "user_id", "company_id", "year", name="uq_tt_user_company_year"
         ),
@@ -154,9 +138,7 @@ def upgrade() -> None:
         sa.Column(
             "timezone", sa.String(50), nullable=False, server_default="Europe/Vienna"
         ),
-        sa.Column(
-            "country_code", sa.String(2), nullable=False, server_default="AT"
-        ),
+        sa.Column("country_code", sa.String(2), nullable=False, server_default="AT"),
         sa.Column(
             "vacation_days_per_year",
             sa.Float(),
@@ -192,9 +174,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
-        sa.ForeignKeyConstraint(
-            ["company_id"], ["companies.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
             ["default_timesheet_contact_id"],
             ["company_contacts.id"],
@@ -231,9 +211,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
-        sa.ForeignKeyConstraint(
-            ["company_id"], ["companies.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="CASCADE"),
     )
 
     # Create tt_user_preferences

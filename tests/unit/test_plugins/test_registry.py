@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from src.plugins.base import BasePlugin, PluginConfig, PluginManifest
-from src.plugins.loader import PLUGIN_MANIFEST_FILE
+from src.plugins.manifest import PLUGIN_MANIFEST_FILE
 from src.plugins.registry import PluginRegistry
 
 
@@ -213,31 +213,26 @@ class TestPlugin(BasePlugin):
         assert registry.get_plugin("unregistered") is None
 
     @pytest.mark.asyncio
-    async def test_load_all_plugins_skips_disabled(
+    async def test_load_all_plugins_loads_registered(
         self, db_session, plugins_dir, monkeypatch
     ):
-        """Test that disabled plugins are skipped."""
+        """A registered plugin loads; there is no separate disabled state."""
         from src.models.plugin_config import PluginConfigModel
         from src.plugins.loader import PluginLoader
 
-        # Create plugin on disk
         self.create_plugin_structure(
             plugins_dir,
-            "disabled-plugin",
+            "registered-plugin",
             {
-                "id": "disabled-plugin",
-                "name": "Disabled",
+                "id": "registered-plugin",
+                "name": "Registered",
                 "version": "1.0.0",
-                "description": "Disabled plugin",
+                "description": "Registered plugin without lifecycle hooks",
             },
         )
-
-        # Register as disabled in database
-        db_config = PluginConfigModel(
-            plugin_id="disabled-plugin",
-            plugin_version="1.0.0",
+        db_session.add(
+            PluginConfigModel(plugin_id="registered-plugin", plugin_version="1.0.0")
         )
-        db_session.add(db_config)
         db_session.commit()
 
         original_init = PluginLoader.__init__
@@ -250,8 +245,61 @@ class TestPlugin(BasePlugin):
         registry = PluginRegistry.get_instance()
         await registry.load_all_plugins(db_session)
 
-        # Disabled plugin should not be loaded
-        assert registry.get_plugin("disabled-plugin") is None
+        assert registry.get_plugin("registered-plugin") is not None
+
+    @pytest.mark.asyncio
+    async def test_load_all_plugins_skips_plugin_that_fails_to_load(
+        self, db_session, plugins_dir, monkeypatch
+    ):
+        """A plugin whose on_enable raises is skipped; the others still load."""
+        from src.models.plugin_config import PluginConfigModel
+        from src.plugins.loader import PluginLoader
+
+        for plugin_id in ("broken-plugin", "good-plugin"):
+            self.create_plugin_structure(
+                plugins_dir,
+                plugin_id,
+                {
+                    "id": plugin_id,
+                    "name": plugin_id,
+                    "version": "1.0.0",
+                    "description": plugin_id,
+                },
+            )
+            db_session.add(
+                PluginConfigModel(plugin_id=plugin_id, plugin_version="1.0.0")
+            )
+        db_session.commit()
+        (plugins_dir / "broken-plugin" / "backend" / "plugin.py").write_text("""
+from src.plugins.base import BasePlugin
+
+class TestPlugin(BasePlugin):
+    @classmethod
+    def get_config_schema(cls):
+        return {}
+
+    def get_router(self):
+        return None
+
+    def get_models(self):
+        return []
+
+    async def on_enable(self):
+        raise RuntimeError("boom")
+""")
+
+        original_init = PluginLoader.__init__
+
+        def patched_init(self, plugins_dir_arg=None):
+            original_init(self, plugins_dir)
+
+        monkeypatch.setattr(PluginLoader, "__init__", patched_init)
+
+        registry = PluginRegistry.get_instance()
+        await registry.load_all_plugins(db_session)
+
+        assert registry.get_plugin("broken-plugin") is None
+        assert registry.get_plugin("good-plugin") is not None
 
     @pytest.mark.asyncio
     async def test_update_plugin_settings_not_found(self, db_session):

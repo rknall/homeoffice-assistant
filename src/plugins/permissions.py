@@ -7,7 +7,9 @@ from src.plugins.base import Permission
 # Permissions that require admin approval or special handling
 DANGEROUS_PERMISSIONS: set[Permission] = {
     Permission.USER_WRITE_ALL,
+    Permission.USER_MANAGE,
     Permission.INTEGRATION_CONFIG,
+    Permission.SYSTEM_ADMIN,
     Permission.SYSTEM_SETTINGS_WRITE,
 }
 
@@ -16,9 +18,8 @@ SAFE_PERMISSIONS: set[Permission] = {
     Permission.USER_READ,
     Permission.USER_WRITE_SELF,
     Permission.EVENT_READ,
-    Permission.COMPANY_READ,
-    Permission.EXPENSE_READ,
-    Permission.CALENDAR_READ,
+    Permission.COMPANY_VIEW,
+    Permission.EXPENSE_VIEW,
     Permission.INTEGRATION_USE,
     Permission.SYSTEM_SETTINGS_READ,
 }
@@ -124,9 +125,11 @@ class PermissionChecker:
         """
         result = []
         for perm in sorted(permissions, key=lambda p: p.value):
-            result.append({
-                "value": perm.value,
-                "label": perm.value.replace(".", " ").replace("_", " ").title(),
-                "dangerous": perm in DANGEROUS_PERMISSIONS,
-            })
+            result.append(
+                {
+                    "value": perm.value,
+                    "label": perm.value.replace(".", " ").replace("_", " ").title(),
+                    "dangerous": perm in DANGEROUS_PERMISSIONS,
+                }
+            )
         return result

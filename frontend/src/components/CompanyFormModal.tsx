@@ -6,17 +6,18 @@ import { Upload, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { api, getCompanyLogoUrl, uploadCompanyLogo } from '@/api/client'
+import { api, errorMessage, getCompanyLogoUrl, uploadCompanyLogo } from '@/api/client'
 import { CountryAutocomplete } from '@/components/CountryAutocomplete'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
 import type { Company, IntegrationConfig, StoragePath } from '@/types'
+import { companyTypeLabels, enumValues, labelOptions } from '@/utils/labels'
 
 const companySchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),
-  type: z.enum(['employer', 'third_party']),
+  type: z.enum(enumValues(companyTypeLabels)),
   webpage: z.string().url('Invalid URL').max(500).optional().or(z.literal('')),
   address: z.string().max(1000).optional(),
   country: z.string().max(100).optional(),
@@ -25,10 +26,7 @@ const companySchema = z.object({
 
 type CompanyFormData = z.infer<typeof companySchema>
 
-const typeOptions = [
-  { value: 'employer', label: 'Employer' },
-  { value: 'third_party', label: 'Third Party' },
-]
+const typeOptions = labelOptions(companyTypeLabels)
 
 interface CompanyFormModalProps {
   isOpen: boolean
@@ -46,6 +44,8 @@ export function CompanyFormModal({ isOpen, onClose, onSuccess, company }: Compan
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [isUploadingLogo, setIsUploadingLogo] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Set once the company is saved but its logo upload failed, so a retry does not save twice.
+  const savedCompanyRef = useRef<Company | null>(null)
 
   const {
     register,
@@ -106,6 +106,7 @@ export function CompanyFormModal({ isOpen, onClose, onSuccess, company }: Compan
   useEffect(() => {
     if (isOpen) {
       fetchStoragePaths()
+      savedCompanyRef.current = null
       setLogoFile(null)
 
       if (company) {
@@ -135,6 +136,8 @@ export function CompanyFormModal({ isOpen, onClose, onSuccess, company }: Compan
   }, [isOpen, company, reset, fetchStoragePaths, detectBrowserCountry])
 
   const handleClose = () => {
+    // The company exists already when only the logo upload failed; let the parent refresh.
+    if (savedCompanyRef.current) onSuccess(savedCompanyRef.current)
     onClose()
   }
 
@@ -162,8 +165,8 @@ export function CompanyFormModal({ isOpen, onClose, onSuccess, company }: Compan
     if (isEditMode && company?.logo_path) {
       try {
         await api.delete(`/companies/${company.id}/logo`)
-      } catch {
-        setError('Failed to remove logo')
+      } catch (e) {
+        setError(errorMessage(e, 'Failed to remove logo'))
         return
       }
     }
@@ -179,23 +182,25 @@ export function CompanyFormModal({ isOpen, onClose, onSuccess, company }: Compan
     setError(null)
 
     try {
-      const payload = {
-        name: data.name,
-        type: data.type,
-        webpage: data.webpage || null,
-        address: data.address || null,
-        country: data.country || null,
-        paperless_storage_path_id: data.paperless_storage_path_id
-          ? parseInt(data.paperless_storage_path_id, 10)
-          : null,
-      }
+      let savedCompany = savedCompanyRef.current
 
-      let savedCompany: Company
+      if (!savedCompany) {
+        const payload = {
+          name: data.name,
+          type: data.type,
+          webpage: data.webpage || null,
+          address: data.address || null,
+          country: data.country || null,
+          paperless_storage_path_id: data.paperless_storage_path_id
+            ? parseInt(data.paperless_storage_path_id, 10)
+            : null,
+        }
 
-      if (isEditMode && company) {
-        savedCompany = await api.put<Company>(`/companies/${company.id}`, payload)
-      } else {
-        savedCompany = await api.post<Company>('/companies', payload)
+        if (isEditMode && company) {
+          savedCompany = await api.put<Company>(`/companies/${company.id}`, payload)
+        } else {
+          savedCompany = await api.post<Company>('/companies', payload)
+        }
       }
 
       // Upload logo if a new file was selected
@@ -203,19 +208,23 @@ export function CompanyFormModal({ isOpen, onClose, onSuccess, company }: Compan
         setIsUploadingLogo(true)
         try {
           await uploadCompanyLogo(savedCompany.id, logoFile)
-        } catch {
-          // Don't fail the whole operation, just warn
-          console.error('Failed to upload logo')
+        } catch (e) {
+          // The company is saved; keep the form open so the user sees why the logo failed.
+          savedCompanyRef.current = savedCompany
+          setError(
+            `Company saved, but the logo was rejected: ${errorMessage(e, 'Failed to upload logo')}`,
+          )
+          return
+        } finally {
+          setIsUploadingLogo(false)
         }
-        setIsUploadingLogo(false)
       }
 
+      savedCompanyRef.current = null
       onSuccess(savedCompany)
-      handleClose()
+      onClose()
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : `Failed to ${isEditMode ? 'update' : 'create'} company`,
-      )
+      setError(errorMessage(e, `Failed to ${isEditMode ? 'update' : 'create'} company`))
     } finally {
       setIsSaving(false)
     }

@@ -5,7 +5,6 @@
 import importlib.util
 import json
 import logging
-import re
 import shutil
 import subprocess
 import sys
@@ -14,13 +13,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 
-from src.plugins.base import (
-    BasePlugin,
-    Permission,
-    PluginCapability,
-    PluginConfig,
-    PluginManifest,
-    ProvidedPermission,
+from src.plugins.base import BasePlugin, PluginConfig, PluginManifest
+from src.plugins.dependencies import unsatisfied_requirements
+from src.plugins.manifest import (
+    PLUGIN_MANIFEST_FILE,
+    PluginValidationError,
+    parse_manifest,
+    validate_dependency_format,
 )
 from src.plugins.permissions import PermissionChecker
 
@@ -31,172 +30,12 @@ logger = logging.getLogger(__name__)
 
 # Default plugins directory relative to project root
 PLUGINS_DIR = Path("./plugins")
-PLUGIN_MANIFEST_FILE = "plugin.manifest.json"
-
-# Regex for validating pip requirement specifiers (PEP 508 simplified)
-# Matches: package, package>=1.0, package[extra]>=1.0,<2.0, etc.
-# Note: PEP 508 requires package names to start with a letter
-DEPENDENCY_PATTERN = re.compile(
-    r"^[a-zA-Z]([a-zA-Z0-9._-]*[a-zA-Z0-9])?"  # Package name (must start with letter)
-    r"(\[[a-zA-Z0-9,._-]+\])?"  # Optional extras like [dev,test]
-    r"([<>=!~]+[\d.]+(\s*,\s*[<>=!~]+[\d.]+)*)?$"  # Version specifiers
-)
 
 
 class PluginLoadError(Exception):
     """Error loading a plugin module."""
 
     pass
-
-
-class PluginValidationError(Exception):
-    """Error validating a plugin manifest or structure."""
-
-    pass
-
-
-def parse_manifest(manifest_path: Path) -> PluginManifest:
-    """Parse and validate a plugin manifest file.
-
-    Args:
-        manifest_path: Path to the manifest JSON file
-
-    Returns:
-        Parsed PluginManifest dataclass
-
-    Raises:
-        PluginValidationError: If manifest is invalid
-    """
-    try:
-        with open(manifest_path, encoding="utf-8") as f:
-            data = json.load(f)
-    except json.JSONDecodeError as e:
-        raise PluginValidationError(f"Invalid JSON in manifest: {e}") from e
-    except OSError as e:
-        raise PluginValidationError(f"Could not read manifest: {e}") from e
-
-    # Validate required fields
-    required_fields = ["id", "name", "version", "description"]
-    for field in required_fields:
-        if field not in data:
-            raise PluginValidationError(f"Missing required field: {field}")
-
-    # Validate plugin ID format (alphanumeric, hyphens, underscores)
-    plugin_id = data["id"]
-    if not plugin_id:
-        raise PluginValidationError("Plugin ID cannot be empty")
-    if not all(c.isalnum() or c in "-_" for c in plugin_id):
-        raise PluginValidationError(
-            f"Invalid plugin ID: {plugin_id}. "
-            "Use only alphanumeric characters, hyphens, and underscores."
-        )
-
-    # Parse capabilities
-    capabilities: set[PluginCapability] = set()
-    caps_data = data.get("capabilities", {})
-
-    if isinstance(caps_data, dict):
-        # Handle object format: {"backend": true, "frontend": true}
-        for cap_name, enabled in caps_data.items():
-            if enabled:
-                try:
-                    capabilities.add(PluginCapability(cap_name))
-                except ValueError:
-                    logger.warning(f"Unknown capability: {cap_name}")
-    elif isinstance(caps_data, list):
-        # Handle array format: ["backend", "frontend"]
-        for cap_name in caps_data:
-            try:
-                capabilities.add(PluginCapability(cap_name))
-            except ValueError:
-                logger.warning(f"Unknown capability: {cap_name}")
-
-    # Parse permissions - support both old and new formats
-    required_permissions: set[Permission] = set()
-    provided_permissions: list[ProvidedPermission] = []
-    checker = PermissionChecker()
-
-    perms_data = data.get("permissions", {})
-
-    if isinstance(perms_data, list):
-        # OLD FORMAT: flat array, treat as required permissions
-        # Example: ["user.read", "event.read"]
-        valid_perms, invalid_perms = checker.parse_permissions(perms_data)
-        required_permissions = valid_perms
-        for invalid in invalid_perms:
-            logger.warning(f"Unknown permission: {invalid}")
-    elif isinstance(perms_data, dict):
-        # NEW FORMAT: object with required/provided sections
-        # Example: {"required": ["user.read"], "provided": [...]}
-
-        # Parse required permissions
-        required_list = perms_data.get("required", [])
-        if isinstance(required_list, list):
-            valid_perms, invalid_perms = checker.parse_permissions(required_list)
-            required_permissions = valid_perms
-            for invalid in invalid_perms:
-                logger.warning(f"Unknown required permission: {invalid}")
-
-        # Parse provided permissions
-        provided_list = perms_data.get("provided", [])
-        if isinstance(provided_list, list):
-            for item in provided_list:
-                if isinstance(item, dict):
-                    code = item.get("code", "")
-                    description = item.get("description", "")
-
-                    # Validate prefix requirement
-                    if not code.startswith(f"{plugin_id}."):
-                        raise PluginValidationError(
-                            f"Provided permission '{code}' must start with "
-                            f"'{plugin_id}.' prefix"
-                        )
-
-                    provided_permissions.append(
-                        ProvidedPermission(code=code, description=description)
-                    )
-                elif isinstance(item, str):
-                    # Allow simple string format for provided permissions
-                    if not item.startswith(f"{plugin_id}."):
-                        raise PluginValidationError(
-                            f"Provided permission '{item}' must start with "
-                            f"'{plugin_id}.' prefix"
-                        )
-                    provided_permissions.append(
-                        ProvidedPermission(code=item, description="")
-                    )
-
-    return PluginManifest(
-        id=data["id"],
-        name=data["name"],
-        version=data["version"],
-        description=data["description"],
-        author=data.get("author", ""),
-        homepage=data.get("homepage", ""),
-        license=data.get("license", ""),
-        min_host_version=data.get("min_host_version", "0.1.0"),
-        max_host_version=data.get("max_host_version"),
-        capabilities=capabilities,
-        required_permissions=required_permissions,
-        provided_permissions=provided_permissions,
-        dependencies=data.get("dependencies", []),
-        python_dependencies=data.get("python_dependencies", []),
-        table_prefix=data.get("table_prefix"),
-    )
-
-
-def validate_dependency_format(dependency: str) -> bool:
-    """Validate that a dependency string matches expected pip format.
-
-    This prevents potential security issues from malformed dependency strings.
-
-    Args:
-        dependency: A pip requirement specifier (e.g., "holidays>=0.62")
-
-    Returns:
-        True if valid, False otherwise
-    """
-    return DEPENDENCY_PATTERN.match(dependency) is not None
 
 
 def install_plugin_dependencies(
@@ -238,7 +77,7 @@ def install_plugin_dependencies(
             cmd.append("--quiet")
         cmd.extend(dependencies)
 
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
@@ -524,18 +363,45 @@ class PluginLoader:
         Raises:
             PluginLoadError: If dependencies cannot be installed or plugin fails to load
         """
-        # Install Python dependencies before loading the module
-        if manifest.python_dependencies:
-            success, msg = install_plugin_dependencies(
-                manifest.id, manifest.python_dependencies
-            )
-            if not success:
-                raise PluginLoadError(
-                    f"Failed to install dependencies for {manifest.id}: {msg}"
-                )
-
+        self._ensure_python_dependencies(manifest)
         plugin_class = load_plugin_class(plugin_path, manifest)
         return plugin_class(manifest, config, str(plugin_path))
+
+    def _ensure_python_dependencies(self, manifest: PluginManifest) -> None:
+        """Make sure the plugin's Python requirements are importable.
+
+        Requirements the environment already satisfies are not installed. The
+        application image has no pip (its venv is exactly the lockfile), so a
+        missing requirement there must be added to the image instead.
+
+        Args:
+            manifest: Parsed plugin manifest.
+
+        Raises:
+            PluginLoadError: If a requirement is malformed, missing without pip,
+                or fails to install.
+        """
+        requirements = manifest.python_dependencies
+        if not requirements:
+            return
+        invalid = [d for d in requirements if not validate_dependency_format(d)]
+        if invalid:
+            raise PluginLoadError(
+                f"Invalid dependency format for {manifest.id}: {', '.join(invalid)}"
+            )
+        missing = unsatisfied_requirements(requirements)
+        if not missing:
+            return
+        if importlib.util.find_spec("pip") is None:
+            raise PluginLoadError(
+                f"Plugin {manifest.id} requires {', '.join(missing)}, which are not "
+                "installed; add them to the application image"
+            )
+        success, msg = install_plugin_dependencies(manifest.id, missing)
+        if not success:
+            raise PluginLoadError(
+                f"Failed to install dependencies for {manifest.id}: {msg}"
+            )
 
     def has_frontend(self, plugin_id: str) -> bool:
         """Check if a plugin has frontend assets.

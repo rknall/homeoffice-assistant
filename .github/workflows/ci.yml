@@ -5,50 +5,46 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # The release workflow runs the same jobs before it builds an image
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # uv never re-resolves in CI: uv.lock is the source of truth
+  UV_FROZEN: "1"
+  UV_PYTHON: "3.14"
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: test-secret-key-for-ci-testing-only-32!
+      DATABASE_URL: sqlite:///./test.db
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: '3.14'
+          enable-cache: true
 
       - name: Install dependencies
-        run: |
-          pip install -e ".[dev]"
+        run: uv sync --extra dev --frozen
 
-      - name: Install plugin dependencies
-        run: |
-          for manifest in plugins/*/plugin.manifest.json; do
-            if [ -f "$manifest" ]; then
-              deps=$(python3 -c "import json; print(' '.join(json.load(open('$manifest')).get('python_dependencies', [])))" 2>/dev/null || echo "")
-              if [ -n "$deps" ]; then
-                echo "Installing dependencies for $manifest: $deps"
-                pip install $deps
-              fi
-            fi
-          done
+      - name: Check plugin dependencies
+        run: uv run python -m scripts.plugin_deps
 
       - name: Create static directory
         run: mkdir -p static/assets
 
-      - name: Run core tests
-        env:
-          SECRET_KEY: test-secret-key-for-ci-testing-only-32!
-          DATABASE_URL: sqlite:///./test.db
-        run: |
-          pytest tests/ --cov=src --cov-report=xml
-
-      - name: Run plugin tests
-        env:
-          SECRET_KEY: test-secret-key-for-ci-testing-only-32!
-          DATABASE_URL: sqlite:///./test.db
-        run: |
-          pytest plugins/*/tests/ --cov=src --cov-append --cov-report=xml
+      - name: Run tests
+        run: uv run --extra dev pytest --cov=src --cov-report=xml
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -61,30 +57,94 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: '3.14'
+          enable-cache: true
 
       - name: Install dependencies
-        run: pip install ruff
+        run: uv sync --extra dev --frozen
 
       - name: Run linter
-        run: ruff check src/
+        run: uv run --extra dev ruff check .
 
-  frontend-lint:
+      - name: Check formatting
+        run: uv run --extra dev ruff format --check .
+
+  migrations:
+    runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: test-secret-key-for-ci-testing-only-32!
+      DATABASE_URL: sqlite:///./alembic-check.db
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra dev --frozen
+
+      - name: Upgrade to head
+        run: uv run alembic upgrade head
+
+      - name: Check models match migrations
+        run: uv run alembic check
+
+      - name: Downgrade to base
+        run: uv run alembic downgrade base
+
+      - name: Upgrade to head again
+        run: uv run alembic upgrade head
+
+  frontend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Biome
-        uses: biomejs/setup-biome@v2
+      # The bun version is the packageManager field of package.json
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          # Keep in sync with @biomejs/biome in frontend/package.json
-          version: 2.5.2
+          bun-version-file: frontend/package.json
 
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+        working-directory: frontend
+
+      # The API types are generated from the backend schema: a diff means the
+      # committed file is stale (run `bun run gen:types` in frontend/)
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install backend dependencies
+        run: uv sync --extra dev --frozen
+
+      - name: Check generated API types
+        env:
+          SECRET_KEY: test-secret-key-for-ci-testing-only-32!
+          DATABASE_URL: sqlite:///./test.db
+        run: |
+          mkdir -p ../static/assets
+          bun run gen:types
+          git diff --exit-code src/types/api.generated.ts
+        working-directory: frontend
+
+      # Biome runs at the exact version pinned in package.json
       - name: Run Biome
-        run: biome check .
+        run: bun run lint
+        working-directory: frontend
+
+      - name: Build frontend
+        run: bun run build
+        working-directory: frontend
+
+      - name: Run tests
+        run: bun run test
         working-directory: frontend
 
   dockerfile-lint:
@@ -97,22 +157,45 @@ jobs:
         with:
           dockerfile: docker/Dockerfile
 
-  frontend-build:
+  shellcheck:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Lint shell scripts
+        run: shellcheck scripts/*.sh
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-        working-directory: frontend
+  # Builds the image without pushing when deployment inputs change in a PR
+  docker-build:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Build frontend
-        run: bun run build
-        working-directory: frontend
+      - name: Detect deployment input changes
+        id: changed
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -qE '^(docker/|pyproject\.toml$|uv\.lock$|frontend/package\.json$|frontend/bun\.lock$|alembic/)'; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Run tests
-        run: bun test
-        working-directory: frontend
+      - name: Set up Docker Buildx
+        if: steps.changed.outputs.build == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        if: steps.changed.outputs.build == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

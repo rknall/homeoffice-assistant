@@ -2,78 +2,81 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Authentication API endpoints."""
 
-import os
-import uuid
-
 from fastapi import (
     APIRouter,
     Cookie,
     Depends,
     HTTPException,
+    Request,
     Response,
     UploadFile,
     status,
 )
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_user, get_db
+from src.api.deps import get_current_user
+from src.database import get_db
 from src.models import User
 from src.schemas.auth import (
     AuthResponse,
     AuthStatusResponse,
     LoginRequest,
     RegisterRequest,
+    UsernameAvailabilityResponse,
 )
-from src.schemas.user import UserProfileUpdate, UserResponse
-from src.security import get_password_hash, verify_password
-from src.services import auth_service, rbac_service
+from src.schemas.user import UserProfileUpdate
+from src.services import auth_service, file_storage_service, user_service
+from src.services.user_service import build_user_response
 
-
-def build_user_response(db: Session, user: User) -> UserResponse:
-    """Build UserResponse with permissions from RBAC."""
-    perms = rbac_service.get_user_all_permissions(db, user)
-    return UserResponse(
-        id=str(user.id),
-        username=user.username,
-        email=user.email,
-        is_active=user.is_active,
-        full_name=user.full_name,
-        avatar_url=user.avatar_url,
-        use_gravatar=user.use_gravatar,
-        created_at=user.created_at,
-        updated_at=user.updated_at,
-        permissions=perms["global_permissions"],
-        company_permissions=perms["company_permissions"],
-    )
-
-AVATAR_DIR = "static/avatars"
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
-MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+SESSION_MAX_AGE = 86400 * auth_service.SESSION_EXPIRY_DAYS
 
 router = APIRouter()
+
+
+def _set_session_cookie(response: Response, request: Request, token: str) -> None:
+    """Set the session cookie, marked secure when the request came over HTTPS.
+
+    Args:
+        response: The response that carries the cookie.
+        request: The incoming request; its scheme decides the secure flag.
+        token: The session token.
+    """
+    response.set_cookie(
+        key="session",
+        value=token,
+        httponly=True,
+        secure=request.url.scheme == "https",
+        samesite="lax",
+        max_age=SESSION_MAX_AGE,
+    )
 
 
 @router.get("/status", response_model=AuthStatusResponse)
 def get_auth_status(db: Session = Depends(get_db)) -> AuthStatusResponse:
     """Get authentication status (first run check)."""
-    first_run = auth_service.is_first_run(db)
-    registration_enabled = (
-        auth_service.is_registration_enabled(db) if not first_run else True
-    )
     return AuthStatusResponse(
-        first_run=first_run,
-        registration_enabled=registration_enabled,
+        first_run=auth_service.is_first_run(db),
+        registration_enabled=auth_service.is_registration_open(db),
     )
 
 
-@router.get("/check-username/{username}")
+@router.get("/check-username/{username}", response_model=UsernameAvailabilityResponse)
 def check_username_availability(
     username: str,
     db: Session = Depends(get_db),
-) -> dict:
-    """Check if a username is available."""
+) -> UsernameAvailabilityResponse:
+    """Check if a username is available.
+
+    Only answered while registration is possible (first run or registration
+    enabled); otherwise it would let anyone enumerate the existing accounts.
+    """
+    if not auth_service.is_registration_open(db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Registration is disabled",
+        )
     existing = auth_service.get_user_by_username(db, username)
-    return {"available": existing is None, "username": username}
+    return UsernameAvailabilityResponse(available=existing is None, username=username)
 
 
 @router.post(
@@ -81,6 +84,7 @@ def check_username_availability(
 )
 def register(
     data: RegisterRequest,
+    request: Request,
     response: Response,
     db: Session = Depends(get_db),
 ) -> AuthResponse:
@@ -88,9 +92,7 @@ def register(
 
     Only works during first run or if admin enables registration.
     """
-    first_run = auth_service.is_first_run(db)
-
-    if not first_run and not auth_service.is_registration_enabled(db):
+    if not auth_service.is_registration_open(db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Registration is disabled",
@@ -114,14 +116,7 @@ def register(
     user_id = user.id
     token = auth_service.create_session(db, user_id)
 
-    response.set_cookie(
-        key="session",
-        value=token,
-        httponly=True,
-        secure=False,  # Set to True in production
-        samesite="lax",
-        max_age=86400 * 7,  # 7 days
-    )
+    _set_session_cookie(response, request, token)
 
     # Re-query user after session creation commit to avoid expired object error
     user = auth_service.get_user_by_id(db, user_id)
@@ -137,6 +132,7 @@ def register(
 @router.post("/login", response_model=AuthResponse)
 def login(
     data: LoginRequest,
+    request: Request,
     response: Response,
     db: Session = Depends(get_db),
 ) -> AuthResponse:
@@ -152,14 +148,7 @@ def login(
     user_id = user.id
     token = auth_service.create_session(db, user_id)
 
-    response.set_cookie(
-        key="session",
-        value=token,
-        httponly=True,
-        secure=False,  # Set to True in production
-        samesite="lax",
-        max_age=86400 * 7,  # 7 days
-    )
+    _set_session_cookie(response, request, token)
 
     # Re-query user after session creation commit to avoid expired object error
     user = auth_service.get_user_by_id(db, user_id)
@@ -201,30 +190,13 @@ def update_current_user_profile(
     current_user: User = Depends(get_current_user),
 ) -> AuthResponse:
     """Update current user's profile."""
-    # If changing password, verify current password first
-    if data.new_password:
-        if not data.current_password:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Current password is required to change password",
-            )
-        if not verify_password(data.current_password, current_user.hashed_password):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Current password is incorrect",
-            )
-        current_user.hashed_password = get_password_hash(data.new_password)
-
-    # Update other fields
-    if data.full_name is not None:
-        current_user.full_name = data.full_name or None
-    if data.use_gravatar is not None:
-        current_user.use_gravatar = data.use_gravatar
-
-    db.commit()
-    db.refresh(current_user)
-
-    return AuthResponse(user=build_user_response(db, current_user))
+    try:
+        user = user_service.update_profile(db, current_user, data)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
+    return AuthResponse(user=build_user_response(db, user))
 
 
 @router.post("/me/avatar", response_model=AuthResponse)
@@ -234,53 +206,14 @@ async def upload_avatar(
     current_user: User = Depends(get_current_user),
 ) -> AuthResponse:
     """Upload a new avatar for the current user."""
-    # Validate file extension
-    if not file.filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No file provided",
-        )
-
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"File type not allowed. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
-            ),
-        )
-
-    # Read file content
     content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
+    try:
+        user = user_service.set_avatar(db, current_user, file.filename, content)
+    except file_storage_service.FileValidationError as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File too large. Max size: {MAX_FILE_SIZE // (1024 * 1024)}MB",
-        )
-
-    # Ensure avatar directory exists
-    os.makedirs(AVATAR_DIR, exist_ok=True)
-
-    # Delete old avatar if exists
-    if current_user.avatar_url:
-        old_path = current_user.avatar_url.lstrip("/")
-        if os.path.exists(old_path):
-            os.remove(old_path)
-
-    # Save new avatar with unique filename
-    filename = f"{current_user.id}_{uuid.uuid4().hex[:8]}{ext}"
-    filepath = os.path.join(AVATAR_DIR, filename)
-
-    with open(filepath, "wb") as f:
-        f.write(content)
-
-    # Update user
-    current_user.avatar_url = f"/{filepath}"
-    current_user.use_gravatar = False
-    db.commit()
-    db.refresh(current_user)
-
-    return AuthResponse(user=build_user_response(db, current_user))
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
+    return AuthResponse(user=build_user_response(db, user))
 
 
 @router.delete("/me/avatar", response_model=AuthResponse)
@@ -289,14 +222,5 @@ def delete_avatar(
     current_user: User = Depends(get_current_user),
 ) -> AuthResponse:
     """Delete the current user's avatar and revert to Gravatar."""
-    if current_user.avatar_url:
-        old_path = current_user.avatar_url.lstrip("/")
-        if os.path.exists(old_path):
-            os.remove(old_path)
-
-    current_user.avatar_url = None
-    current_user.use_gravatar = True
-    db.commit()
-    db.refresh(current_user)
-
-    return AuthResponse(user=build_user_response(db, current_user))
+    user = user_service.clear_avatar(db, current_user)
+    return AuthResponse(user=build_user_response(db, user))

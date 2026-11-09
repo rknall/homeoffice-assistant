@@ -12,20 +12,32 @@ export class ApiError extends Error {
   }
 }
 
+/** Return the server error message of an ApiError, else the fallback. */
+export function errorMessage(e: unknown, fallback: string): string {
+  return e instanceof ApiError && e.message ? e.message : fallback
+}
+
+/** Fetch with credentials and throw an ApiError carrying the server detail on failure. */
+async function send(path: string, options?: RequestInit, fallback = 'Request failed') {
+  const response = await fetch(`${API_BASE}${path}`, { ...options, credentials: 'include' })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    const detail = typeof error.detail === 'string' && error.detail ? error.detail : fallback
+    throw new ApiError(response.status, detail)
+  }
+
+  return response
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await send(path, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
       ...options?.headers,
     },
-    credentials: 'include',
   })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new ApiError(response.status, error.detail || 'Request failed')
-  }
 
   if (response.status === 204) {
     return undefined as T
@@ -41,21 +53,19 @@ export const api = {
   put: <T>(path: string, data: unknown) =>
     request<T>(path, { method: 'PUT', body: JSON.stringify(data) }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  /** POST multipart form data; the browser sets the Content-Type boundary. */
+  upload: async <T>(path: string, formData: FormData): Promise<T> => {
+    const response = await send(path, { method: 'POST', body: formData }, 'Upload failed')
+    return response.json()
+  },
+  /** Fetch a binary response (GET unless options say otherwise). */
+  blob: async (path: string, options?: RequestInit): Promise<Blob> => {
+    const response = await send(path, options, 'Download failed')
+    return response.blob()
+  },
 }
 
-export async function downloadFile(path: string, filename: string, options?: RequestInit) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    credentials: 'include',
-    ...options,
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new ApiError(response.status, error.detail || 'Download failed')
-  }
-
-  const blob = await response.blob()
+function saveBlob(blob: Blob, filename: string) {
   const url = window.URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -66,95 +76,50 @@ export async function downloadFile(path: string, filename: string, options?: Req
   window.URL.revokeObjectURL(url)
 }
 
-export async function downloadBackup(password: string) {
-  const response = await fetch(`${API_BASE}/backup/create`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ password }),
-    credentials: 'include',
-  })
+export async function downloadFile(path: string, filename: string, options?: RequestInit) {
+  saveBlob(await api.blob(path, { method: 'POST', ...options }), filename)
+}
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new ApiError(response.status, error.detail || 'Backup failed')
-  }
+export async function downloadBackup(password: string) {
+  const response = await send(
+    '/backup/create',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    },
+    'Backup failed',
+  )
 
   const blob = await response.blob()
   const contentDisposition = response.headers.get('content-disposition')
   const filename =
     contentDisposition?.match(/filename="(.+)"/)?.[1] ||
     `homeoffice_assistant_backup_${Date.now()}.tar.gz.enc`
-
-  const url = window.URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  window.URL.revokeObjectURL(url)
+  saveBlob(blob, filename)
 }
 
-export async function uploadBackupForValidation(file: File, password?: string) {
+function backupForm(file: File, password?: string): FormData {
   const formData = new FormData()
   formData.append('file', file)
   if (password) {
     formData.append('password', password)
   }
-
-  const response = await fetch(`${API_BASE}/backup/validate`, {
-    method: 'POST',
-    body: formData,
-    credentials: 'include',
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new ApiError(response.status, error.detail || 'Validation failed')
-  }
-
-  return response.json()
+  return formData
 }
 
-export async function performRestore(file: File, password?: string) {
-  const formData = new FormData()
-  formData.append('file', file)
-  if (password) {
-    formData.append('password', password)
-  }
-
-  const response = await fetch(`${API_BASE}/backup/restore`, {
-    method: 'POST',
-    body: formData,
-    credentials: 'include',
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new ApiError(response.status, error.detail || 'Restore failed')
-  }
-
-  return response.json()
+export function uploadBackupForValidation(file: File, password?: string) {
+  return api.upload<RestoreValidationResponse>('/backup/validate', backupForm(file, password))
 }
 
-export async function uploadCompanyLogo(companyId: string, file: File) {
+export function performRestore(file: File, password?: string) {
+  return api.upload<RestoreResponse>('/backup/restore', backupForm(file, password))
+}
+
+export function uploadCompanyLogo(companyId: string, file: File) {
   const formData = new FormData()
   formData.append('file', file)
-
-  const response = await fetch(`${API_BASE}/companies/${companyId}/logo`, {
-    method: 'POST',
-    body: formData,
-    credentials: 'include',
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new ApiError(response.status, error.detail || 'Logo upload failed')
-  }
-
-  return response.json()
+  return api.upload(`/companies/${companyId}/logo`, formData)
 }
 
 export function getCompanyLogoUrl(companyId: string): string {
@@ -172,6 +137,8 @@ import type {
   HolidayCalendarCreate,
   HolidayCalendarUpdate,
   HolidayEntry,
+  RestoreResponse,
+  RestoreValidationResponse,
   SupportedCountriesResponse,
   TemplateSet,
   TemplateSetWithComputedDates,

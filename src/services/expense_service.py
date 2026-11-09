@@ -5,15 +5,74 @@
 import logging
 import uuid
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy.orm import Session
 
 from src.models import Expense
-from src.models.enums import ExpenseStatus, PaymentType
+from src.models.enums import ExpenseStatus
 from src.plugins.events import AppEvent, event_bus
 from src.schemas.expense import ExpenseCreate, ExpenseUpdate
+from src.utils.time import utc_now
+
+if TYPE_CHECKING:
+    from src.services.currency_service import CurrencyService
 
 logger = logging.getLogger(__name__)
+
+
+async def convert_expense(
+    db: Session,
+    expense: Expense,
+    base_currency: str,
+    service: CurrencyService | None = None,
+) -> bool:
+    """Convert one expense to the base currency, in place, without committing.
+
+    Same-currency expenses get a 1:1 conversion. When the rate lookup fails,
+    any earlier conversion is cleared, so a stale converted amount is never
+    kept after the amount, currency or date changed.
+
+    Args:
+        db: Database session (used to create a currency service if none given).
+        expense: Expense to convert.
+        base_currency: Target currency for conversion.
+        service: Optional shared currency service; the caller closes it.
+
+    Returns:
+        True when the expense now holds a conversion, False when it failed.
+    """
+    from src.services.currency_service import CurrencyService, CurrencyServiceError
+
+    if expense.currency.upper() == base_currency.upper():
+        expense.converted_amount = expense.amount
+        expense.exchange_rate = Decimal("1.0")
+        expense.rate_date = expense.date
+        return True
+
+    owns_service = service is None
+    currency_service = service or CurrencyService(db)
+    try:
+        result = await currency_service.convert(
+            expense.amount,
+            expense.currency,
+            base_currency,
+            expense.date,
+        )
+    except CurrencyServiceError as e:
+        logger.warning(f"Failed to convert expense {expense.id}: {e}")
+        expense.converted_amount = None
+        expense.exchange_rate = None
+        expense.rate_date = None
+        return False
+    finally:
+        if owns_service:
+            await currency_service.close()
+
+    expense.converted_amount = result.converted_amount
+    expense.exchange_rate = result.exchange_rate
+    expense.rate_date = result.rate_date
+    return True
 
 
 async def ensure_expense_conversions(
@@ -34,9 +93,8 @@ async def ensure_expense_conversions(
     Returns:
         The same list of expenses, now with conversion data populated.
     """
-    from src.services.currency_service import CurrencyService, CurrencyServiceError
+    from src.services.currency_service import CurrencyService
 
-    # Filter to expenses needing conversion
     needs_conversion = [e for e in expenses if e.converted_amount is None]
     if not needs_conversion:
         return expenses
@@ -44,30 +102,7 @@ async def ensure_expense_conversions(
     service = CurrencyService(db)
     try:
         for expense in needs_conversion:
-            if expense.currency.upper() == base_currency.upper():
-                # Same currency - no conversion needed
-                expense.converted_amount = expense.amount
-                expense.exchange_rate = Decimal("1.0")
-                expense.rate_date = expense.date
-            else:
-                # Different currency - fetch rate and convert
-                try:
-                    result = await service.convert(
-                        expense.amount,
-                        expense.currency,
-                        base_currency,
-                        expense.date,
-                    )
-                    expense.converted_amount = result.converted_amount
-                    expense.exchange_rate = result.exchange_rate
-                    expense.rate_date = result.rate_date
-                except CurrencyServiceError as e:
-                    logger.warning(
-                        f"Failed to convert expense {expense.id}: {e}"
-                    )
-                    # Skip this expense, leave converted_amount as None
-                    continue
-
+            await convert_expense(db, expense, base_currency, service)
         db.commit()
     finally:
         await service.close()
@@ -181,35 +216,28 @@ def update_expense(db: Session, expense: Expense, data: ExpenseUpdate) -> Expens
 
 def delete_expense(db: Session, expense: Expense) -> None:
     """Delete an expense."""
+    payload = {"expense_id": str(expense.id), "event_id": str(expense.event_id)}
     db.delete(expense)
     db.commit()
 
-
-def bulk_update_payment_type(
-    db: Session,
-    expense_ids: list[uuid.UUID],
-    payment_type: PaymentType,
-) -> int:
-    """Bulk update payment type for multiple expenses. Returns count updated."""
-    count = (
-        db.query(Expense)
-        .filter(Expense.id.in_(expense_ids))
-        .update({"payment_type": payment_type}, synchronize_session=False)
-    )
-    db.commit()
-    return count
+    event_bus.publish_sync(AppEvent.EXPENSE_DELETED, payload)
 
 
 def bulk_update_status(
     db: Session,
+    event_id: uuid.UUID,
     expense_ids: list[uuid.UUID],
     status: ExpenseStatus,
     rejection_reason: str | None = None,
 ) -> int:
-    """Bulk update status for multiple expenses.
+    """Bulk update status for multiple expenses of one event.
+
+    Ids that belong to another event are ignored, so a caller allowed to
+    manage one event cannot change expenses elsewhere.
 
     Args:
         db: Database session
+        event_id: Event the expenses must belong to
         expense_ids: List of expense IDs to update
         status: New status to set
         rejection_reason: Required if status is REJECTED
@@ -217,13 +245,11 @@ def bulk_update_status(
     Returns:
         Count of updated expenses
     """
-    from datetime import datetime
-
     update_values: dict = {"status": status}
 
     # Set submitted_at when marking as submitted
     if status == ExpenseStatus.SUBMITTED:
-        update_values["submitted_at"] = datetime.utcnow()
+        update_values["submitted_at"] = utc_now()
         update_values["rejection_reason"] = None  # Clear any previous rejection
 
     # Set rejection reason when marking as rejected
@@ -236,7 +262,7 @@ def bulk_update_status(
 
     count = (
         db.query(Expense)
-        .filter(Expense.id.in_(expense_ids))
+        .filter(Expense.id.in_(expense_ids), Expense.event_id == event_id)
         .update(update_values, synchronize_session=False)
     )
     db.commit()
@@ -249,68 +275,3 @@ def get_expenses_by_ids(
 ) -> list[Expense]:
     """Get expenses by a list of IDs."""
     return db.query(Expense).filter(Expense.id.in_(expense_ids)).all()
-
-
-def get_pending_expenses(db: Session, event_id: uuid.UUID) -> list[Expense]:
-    """Get all pending expenses for an event."""
-    return (
-        db.query(Expense)
-        .filter(
-            Expense.event_id == event_id,
-            Expense.status == ExpenseStatus.PENDING,
-        )
-        .order_by(Expense.date)
-        .all()
-    )
-
-
-def get_expense_summary(db: Session, event_id: uuid.UUID) -> dict:
-    """Get expense summary for an event.
-
-    Uses converted_amount for proper multi-currency totals.
-    Returns the system base currency and conversion info.
-    """
-    from src.services import settings_service
-
-    expenses = get_expenses(db, event_id)
-    base_currency = settings_service.get_base_currency(db)
-
-    # Sum converted amounts (or raw amount if no conversion yet)
-    total = sum(
-        e.converted_amount if e.converted_amount is not None else e.amount
-        for e in expenses
-    )
-    by_category = {}
-    by_payment_type = {}
-
-    # Track currencies that were converted
-    converted_currencies: set[str] = set()
-
-    for expense in expenses:
-        # Use converted amount for aggregations
-        amount = float(
-            expense.converted_amount
-            if expense.converted_amount is not None
-            else expense.amount
-        )
-
-        cat = expense.category.value
-        by_category[cat] = by_category.get(cat, 0) + amount
-
-        pt = expense.payment_type.value
-        by_payment_type[pt] = by_payment_type.get(pt, 0) + amount
-
-        # Track if this expense was converted from a different currency
-        if expense.currency.upper() != base_currency.upper():
-            converted_currencies.add(expense.currency.upper())
-
-    return {
-        "total": float(total),
-        "count": len(expenses),
-        "by_category": by_category,
-        "by_payment_type": by_payment_type,
-        "currency": base_currency,
-        "converted_from": (
-            sorted(converted_currencies) if converted_currencies else None
-        ),
-    }

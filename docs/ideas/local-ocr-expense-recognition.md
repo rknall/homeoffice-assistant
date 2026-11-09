@@ -1,7 +1,9 @@
 # Local OCR for Expense Recognition
 
 ## Status
-Idea - Not Started
+Partially implemented in v0.5.0
+
+AI expense scanning shipped through the OpenAI-compatible LLM integration: the LLM reads the OCR text that Paperless provides and fills the expense fields. Still open: vision models on the receipt image (local OCR, Ollama) as described below.
 
 ## Problem
 Paperless-ngx provides general OCR, but expense receipts need specialized parsing to extract structured data: amount, currency, vendor, date, and category hints. A more specialized local OCR model could pre-populate expense form fields.

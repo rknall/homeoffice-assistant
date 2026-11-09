@@ -6,24 +6,19 @@ services:
     container_name: homeoffice-assistant
     ports:
       - "8123:8000"
+    # The container runs as uid 1000: `chown -R 1000:1000 ./data` on the host
     volumes:
       - ./data:/app/data
-      - ./plugins:/app/plugins  # Plugin directory for development
-    #  - homeoffice_assistant_avatars:/app/static/avatars
+      - ./data/avatars:/app/static/avatars
     environment:
       # Only these two env vars are needed - everything else is configured via UI
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
       - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/homeoffice_assistant.db}
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
   # Optional: PostgreSQL for production
-  # Uncomment and set DATABASE_URL=postgresql://homeoffice_assistant:${POSTGRES_PASSWORD}@db:5432/homeoffice_assistant
+  # Uncomment, add a `volumes: postgres_data:` entry and set
+  # DATABASE_URL=postgresql://homeoffice_assistant:${POSTGRES_PASSWORD}@db:5432/homeoffice_assistant
   # db:
   #   image: postgres:16-alpine
   #   volumes:
@@ -38,9 +33,3 @@ services:
   #     interval: 10s
   #     timeout: 5s
   #     retries: 5
-
-#volumes:
-#   postgres_data:
-
-#  homeoffice_assistant_data:
-#  homeoffice_assistant_avatars:

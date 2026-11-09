@@ -119,18 +119,7 @@ export function ProfileEditModal({ isOpen, onClose, user, onUpdate }: ProfileEdi
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch('/api/v1/auth/me/avatar', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      })
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}))
-        throw new Error(err.detail || 'Failed to upload avatar')
-      }
-
-      const result: AuthResponse = await response.json()
+      const result = await api.upload<AuthResponse>('/auth/me/avatar', formData)
       onUpdate(result.user)
       setValue('use_gravatar', false)
     } catch (e) {

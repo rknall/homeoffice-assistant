@@ -28,13 +28,3 @@ def encrypt_config(config: dict[str, Any]) -> str:
 def decrypt_config(encrypted: str) -> dict[str, Any]:
     """Decrypt a configuration string to a dictionary."""
     return json.loads(get_fernet().decrypt(encrypted.encode()).decode())
-
-
-def encrypt_value(value: str) -> str:
-    """Encrypt a single string value."""
-    return get_fernet().encrypt(value.encode()).decode()
-
-
-def decrypt_value(encrypted: str) -> str:
-    """Decrypt a single string value."""
-    return get_fernet().decrypt(encrypted.encode()).decode()

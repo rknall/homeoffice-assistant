@@ -5,13 +5,14 @@ import { ChevronRight, Plus, Shield, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { api } from '@/api/client'
+import { api, errorMessage } from '@/api/client'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
 import { useBreadcrumb } from '@/stores/breadcrumb'
+import { confirmAction } from '@/stores/confirm'
 import type { Role, RoleWithPermissions } from '@/types'
 
 export function Roles() {
@@ -29,8 +30,8 @@ export function Roles() {
         rolesData.map((role) => api.get<RoleWithPermissions>(`/rbac/roles/${role.id}`)),
       )
       setRoles(rolesWithPermissions)
-    } catch {
-      setError('Failed to load roles')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to load roles'))
     } finally {
       setIsLoading(false)
     }
@@ -46,13 +47,20 @@ export function Roles() {
 
   const deleteRole = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
-    if (!confirm('Are you sure you want to delete this role?')) return
+    if (
+      !(await confirmAction({
+        title: 'Delete role',
+        message: 'Are you sure you want to delete this role?',
+        confirmLabel: 'Delete',
+      }))
+    )
+      return
     try {
       await api.delete(`/rbac/roles/${id}`)
       toast.success('Role deleted successfully')
       await fetchRoles()
-    } catch {
-      toast.error('Failed to delete role')
+    } catch (e) {
+      toast.error(errorMessage(e, 'Failed to delete role'))
     }
   }
 

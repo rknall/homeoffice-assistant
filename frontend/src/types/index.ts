@@ -1,5 +1,9 @@
 // SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
 // SPDX-License-Identifier: GPL-2.0-only
+import type { components } from './api.generated'
+
+type Schemas = components['schemas']
+
 export type Uuid = string
 
 // User types
@@ -33,18 +37,10 @@ export interface Currency {
 }
 
 // Company types
-export type CompanyType = 'employer' | 'third_party'
+export type CompanyType = Schemas['CompanyType']
 
 // Contact type enumeration for company contacts
-export type ContactType =
-  | 'billing'
-  | 'hr'
-  | 'technical'
-  | 'support'
-  | 'office'
-  | 'sales'
-  | 'management'
-  | 'other'
+export type ContactType = Schemas['ContactType']
 
 export const CONTACT_TYPE_LABELS: Record<ContactType, string> = {
   billing: 'Billing',
@@ -96,7 +92,7 @@ export interface CompanyContactUpdate {
 }
 
 // Calendar type enumeration for external calendar connections
-export type CalendarType = 'google' | 'outlook' | 'ical'
+export type CalendarType = Schemas['CalendarType']
 
 export const CALENDAR_TYPE_LABELS: Record<CalendarType, string> = {
   google: 'Google Calendar',
@@ -173,7 +169,7 @@ export interface CompanyUpdate {
 
 // Event types
 // Note: status is computed from dates on the backend, not manually set
-export type EventStatus = 'upcoming' | 'active' | 'past'
+export type EventStatus = Schemas['EventStatus']
 
 export interface Event {
   id: Uuid
@@ -184,6 +180,7 @@ export interface Event {
   start_date: string
   end_date: string
   status: EventStatus
+  report_sent_at: string | null
   external_tag: string | null
   paperless_custom_field_value: string | null
   // Location fields
@@ -209,7 +206,6 @@ export interface EventCreate {
   company_id: Uuid
   start_date: string
   end_date: string
-  status?: EventStatus
   paperless_custom_field_value?: string | null
   // Location fields
   city?: string | null
@@ -226,23 +222,9 @@ export interface EventCreate {
 }
 
 // Expense types
-export type PaymentType =
-  | 'cash'
-  | 'credit_card'
-  | 'debit_card'
-  | 'company_card'
-  | 'prepaid'
-  | 'invoice'
-  | 'other'
-export type ExpenseCategory =
-  | 'travel'
-  | 'accommodation'
-  | 'meals'
-  | 'transport'
-  | 'equipment'
-  | 'communication'
-  | 'other'
-export type ExpenseStatus = 'pending' | 'submitted' | 'reimbursed' | 'rejected'
+export type PaymentType = Schemas['PaymentType']
+export type ExpenseCategory = Schemas['ExpenseCategory']
+export type ExpenseStatus = Schemas['ExpenseStatus']
 
 export interface Expense {
   id: Uuid
@@ -340,7 +322,7 @@ export interface ExpenseCreate {
 }
 
 // Integration types
-export type IntegrationType = 'paperless' | 'immich' | 'smtp' | 'unsplash'
+export type IntegrationType = Schemas['IntegrationType']
 
 export interface IntegrationConfig {
   id: Uuid
@@ -419,7 +401,7 @@ export interface Contact {
 }
 
 // Note types
-export type NoteType = 'observation' | 'todo' | 'report_section'
+export type NoteType = Schemas['NoteType']
 
 export interface Note {
   id: Uuid
@@ -431,14 +413,7 @@ export interface Note {
 }
 
 // Todo types
-export type TodoCategory =
-  | 'travel'
-  | 'accommodation'
-  | 'preparation'
-  | 'equipment'
-  | 'contacts'
-  | 'followup'
-  | 'other'
+export type TodoCategory = Schemas['TodoCategory']
 
 export const TODO_CATEGORY_LABELS: Record<TodoCategory, string> = {
   travel: 'Travel',
@@ -531,14 +506,6 @@ export interface EmailTemplateUpdate {
   body_text?: string
   is_default?: boolean
   contact_types?: ContactType[]
-}
-
-// Template contact validation types
-export interface TemplateContactValidation {
-  is_valid: boolean
-  missing_types: ContactType[]
-  available_contacts: CompanyContact[]
-  message: string
 }
 
 export interface TemplateVariableInfo {
@@ -860,7 +827,7 @@ export interface EventWithSummary extends Event {
 }
 
 // Todo Template types
-export type OffsetReference = 'start_date' | 'end_date'
+export type OffsetReference = Schemas['OffsetReference']
 
 export const OFFSET_REFERENCE_LABELS: Record<OffsetReference, string> = {
   start_date: 'Start Date',

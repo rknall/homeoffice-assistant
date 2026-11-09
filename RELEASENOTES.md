@@ -1,6 +1,6 @@
 # Release Notes
 
-## Version 0.5.0 (in development)
+## Version 0.6.0 (in development)
 
 ### Major Features
 
@@ -44,6 +44,48 @@
 - Fixed report ZIP attachments being unopenable when a Paperless document was scanned from an image: Paperless serves the archived PDF, but the file was named with the original image extension
 - Fixed the submitted total counting an expense once per submission, so emailing a report and then downloading it doubled the amount
 - Logout now invalidates the server-side session, not just the browser cookie (a leaked session token could previously stay valid until expiry)
+- Fixed backup restore: restoring a backup through Settings > Backup now works end to end (the staged database is migrated before it replaces the live one); pre-restore safety backups are kept under `data/backups/pre_restore` and survive container recreation
+- In-app backups now include company logos (`data/logos`); archives without logos still restore and leave the current logos alone
+- Fixed the calendar not loading events, holidays, todos and company calendars (it called a non-existent endpoint), and holidays being shown one day off; todos now load with one range request (`GET /api/v1/todos?due_from=&due_to=`, requires `event.read`)
+- Fixed avatar images being broken (served now at `/avatars/...`) and company logos not showing in the company list after upload; deleting a company removes its logo file
+- A rejected logo upload now shows the server's message instead of closing the company form silently; Escape closes modals; company rows no longer contain nested buttons
+- Fixed a failed plugin install leaving a half-installed plugin listed; time-tracking planned-vacation calculation now covers future years; time-tracking holiday lookups with an unknown region return 422 instead of 500
+- Fixed the Setup page calling `navigate()` during render, a failed login clearing the username field, and the LLM edit form for users without permission showing a blank form
+- Fixed the expense report preview total including private and reimbursed expenses
+
+### Security
+- Stored XSS via SVG logos closed: SVG logos stay allowed but are content-checked on upload and served with a restrictive Content-Security-Policy
+- Bulk expense status changes can no longer touch expenses outside the event (cross-user status change)
+- Every route now checks permissions, company-scoped where a company is involved (including time-tracking plugin routes); previously many permissions were seeded but not enforced
+- Plugin settings of a plugin that is registered but not loaded are returned masked and cannot be overwritten blind (fail closed)
+- Secrets are never returned by the API: integration and plugin config responses carry an empty value plus `secrets_set` (names of stored secrets); the settings forms show "Stored, leave blank to keep" for Paperless token, Immich API key, Unsplash access key and LLM API key, and a blank field keeps the stored value on edit
+- Unsplash key moved from plaintext into the encrypted integration; `/integrations/llm/models` is admin-only, `/locations/autocomplete` requires login, `check-username` is restricted after setup
+- Error messages for SMTP, LLM, report sending, document scanning and plugin/backup errors no longer contain raw exception text; they show a category (server unreachable, authentication failed, unexpected response)
+- LLM input is capped at 20000 characters
+
+### Permissions and Roles
+- New built-in **Member** role holds the standard user permissions (including all time-tracking codes); new and self-registered users get it, and users without any role are migrated to it
+- Custom roles holding `system.admin` are protected like Global Admin
+- Users with only company-scoped roles can still open the event pages (locale, currency and custom-field reads only need a login)
+
+### UI
+- Browser `confirm()` dialogs replaced by an in-app overlay dialog that dims the background (Cancel/Escape/Tab handled); plugin frontends can use `window.hoaHost.confirmAction`
+- Removed the timesheet "submission" panels of the Time Tracking plugin, which called an endpoint that never existed
+- Time Tracking company settings widget now appears on the company detail page
+- Label and status names come from one shared source; date formats follow the configured locale in emails and report previews
+
+### Breaking Changes
+- Users who hold only company-scoped roles lose access they previously had by accident (event, time-tracking and other routes now require the matching permission); grant roles where needed
+- `SECRET_KEY` must be at least 32 characters, otherwise the app refuses to start. Do not change an existing key: it would break stored secrets
+- Removed unused endpoints: currencies rate/backfill, email-template variables/validate-contacts, contacts by-type, events sync-paperless, integration tags/custom-fields, and further endpoints with no caller (see the OpenAPI schema); the `is_admin` and `is_encrypted` columns are dropped
+- `POST /users` returns 201 and photo `DELETE` returns 204 (previously 200)
+- Plugins no longer install Python dependencies at runtime: an external plugin whose `python_dependencies` are not in the image fails to load with a clear log line
+- Docker: the container runs as uid 1000; the host `data/` directory must be writable by uid 1000 (`chown -R 1000:1000 data`); the plugins bind mount and the compose healthcheck were removed; avatars are stored under `data/avatars`
+- Set `FORWARDED_ALLOW_IPS` (default `127.0.0.1`) to your reverse proxy address when running behind a TLS proxy so secure cookies work
+- Scripts: `docker-backup.sh` replaced by `backup.sh --docker`; `restore.sh` requires `--force`; the application version has a single source (`src/version.py`)
+
+### Upgrade Notes
+- Five new database migrations run at container start: `3f8b2c61d9a4` (INCLUDED expense status becomes SUBMITTED), `5b2d9f3e6a18` (Member role), `9d4e7a15c0b2` (aligns the schema with the models, rebuilds most tables on SQLite), `c61a0e5f8b37` (drops `system_settings.is_encrypted`), `e8c47b2a1f05` (drops `users.is_admin`). **Back up `data/` first** (Settings > Backup or `scripts/backup.sh`); downgrade is supported but rebuilds tables again
 
 ### Maintenance
 - All frontend dependencies upgraded to latest (React 19.2.7, Tailwind 4.3.2, Biome 2.5.2, lucide-react 1.x, ...)

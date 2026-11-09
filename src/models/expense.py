@@ -18,8 +18,11 @@ from sqlalchemy import (
     String,
     Text,
     Uuid,
+    func,
 )
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql.elements import ColumnElement
 
 from src.models.base import Base, TimestampMixin
 from src.models.enums import ExpenseCategory, ExpenseStatus, PaymentType
@@ -68,9 +71,7 @@ class Expense(Base, TimestampMixin):
     converted_amount: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 2), nullable=True
     )
-    exchange_rate: Mapped[Decimal | None] = mapped_column(
-        Numeric(12, 6), nullable=True
-    )
+    exchange_rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
     rate_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # Submission tracking fields
@@ -79,6 +80,19 @@ class Expense(Base, TimestampMixin):
 
     # Private expense flag - excluded from reports but visible for tracking
     is_private: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    @hybrid_property
+    def effective_amount(self) -> Decimal:
+        """Amount in the base currency, or the raw amount if not converted."""
+        if self.converted_amount is not None:
+            return self.converted_amount
+        return self.amount
+
+    @effective_amount.inplace.expression
+    @classmethod
+    def _effective_amount_expression(cls) -> ColumnElement[Decimal]:
+        """SQL form of effective_amount (coalesce of converted and raw)."""
+        return func.coalesce(cls.converted_amount, cls.amount)
 
     # Relationships
     event: Mapped[Event] = relationship("Event", back_populates="expenses")

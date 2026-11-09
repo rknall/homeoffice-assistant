@@ -5,10 +5,12 @@
 import datetime
 import uuid
 from decimal import Decimal
+from enum import StrEnum
 
 from pydantic import BaseModel, Field, field_validator
 
 from src.models.enums import ExpenseCategory, ExpenseStatus, PaymentType
+from src.schemas.currency import CurrencyCode
 
 
 class ExpenseBase(BaseModel):
@@ -16,7 +18,7 @@ class ExpenseBase(BaseModel):
 
     date: datetime.date
     amount: Decimal = Field(..., ge=0, decimal_places=2)
-    currency: str = Field(default="EUR", min_length=3, max_length=3)
+    currency: CurrencyCode = "EUR"
     payment_type: PaymentType
     category: ExpenseCategory
     description: str | None = None
@@ -46,7 +48,7 @@ class ExpenseScanResult(BaseModel):
 
     date: datetime.date | None = None
     amount: Decimal | None = None
-    currency: str | None = Field(None, min_length=3, max_length=3)
+    currency: CurrencyCode | None = None
     category: ExpenseCategory | None = None
     payment_type: PaymentType | None = None
     description: str | None = None
@@ -58,7 +60,7 @@ class ExpenseUpdate(BaseModel):
 
     date: datetime.date | None = None
     amount: Decimal | None = Field(None, ge=0, decimal_places=2)
-    currency: str | None = Field(None, min_length=3, max_length=3)
+    currency: CurrencyCode | None = None
     payment_type: PaymentType | None = None
     category: ExpenseCategory | None = None
     description: str | None = None
@@ -106,11 +108,10 @@ class ExpenseResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class ExpenseBulkUpdate(BaseModel):
-    """Schema for bulk updating expense payment types."""
+class ExpenseBulkStatusResult(BaseModel):
+    """Schema for the bulk status update result."""
 
-    expense_ids: list[uuid.UUID]
-    payment_type: PaymentType
+    updated: int
 
 
 class ExpenseBulkStatusUpdate(BaseModel):
@@ -121,21 +122,22 @@ class ExpenseBulkStatusUpdate(BaseModel):
     rejection_reason: str | None = None
 
 
-class ExpenseStatusUpdate(BaseModel):
-    """Schema for updating a single expense status."""
-
-    status: ExpenseStatus
-    rejection_reason: str | None = None
-
-
 # Submission schemas
+
+
+class SubmissionMethod(StrEnum):
+    """How an expense report is submitted."""
+
+    DOWNLOAD = "download"
+    EMAIL = "email"
+    PORTAL = "portal"
 
 
 class ExpenseSubmissionCreate(BaseModel):
     """Schema for creating an expense submission."""
 
     expense_ids: list[uuid.UUID]
-    submission_method: str = "download"
+    submission_method: SubmissionMethod = SubmissionMethod.DOWNLOAD
     notes: str | None = None
     mark_as_submitted: bool = True
 

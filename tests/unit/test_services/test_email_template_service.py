@@ -6,10 +6,11 @@ from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
 
-from src.models import Company, CompanyContact
+from src.models import Company, Expense
 from src.models.enums import CompanyType, ContactType
 from src.schemas.email_template import EmailTemplateCreate, EmailTemplateUpdate
 from src.services import email_template_service
+from src.services.email_template_constants import TEMPLATE_REASONS
 
 
 def create_company(db_session, name: str = "Acme") -> Company:
@@ -92,9 +93,7 @@ def test_get_default_template_prioritizes_company_specific(db_session):
         == company_template
     )
     assert (
-        email_template_service.get_default_template(
-            db_session, None, "expense_report"
-        )
+        email_template_service.get_default_template(db_session, None, "expense_report")
         == global_template
     )
 
@@ -176,17 +175,15 @@ def test_build_expense_report_context():
     contact = SimpleNamespace(name="Main", is_main_contact=True)
     company = SimpleNamespace(name="Acme", contacts=[contact])
     expenses = [
-        SimpleNamespace(
+        Expense(
             amount=Decimal("10.00"), currency="EUR", converted_amount=Decimal("10.00")
         ),
         # Foreign-currency expense: converted amount must be used for the total
-        SimpleNamespace(
+        Expense(
             amount=Decimal("100.00"), currency="USD", converted_amount=Decimal("5.50")
         ),
         # Not yet converted: falls back to raw amount
-        SimpleNamespace(
-            amount=Decimal("2.00"), currency="EUR", converted_amount=None
-        ),
+        Expense(amount=Decimal("2.00"), currency="EUR", converted_amount=None),
     ]
     user = SimpleNamespace(username="john", email="john@example.com")
 
@@ -206,6 +203,49 @@ def test_get_sample_context_returns_defaults():
     assert email_template_service.get_sample_context("other") == {}
 
 
+def test_sample_context_has_one_key_per_variable_with_example():
+    variables = TEMPLATE_REASONS["expense_report"].variables
+    context = email_template_service.get_sample_context("expense_report")
+
+    flattened = {
+        f"{{{{{group}.{key}}}}}": value
+        for group, values in context.items()
+        for key, value in values.items()
+    }
+    assert set(flattened) == {v.variable for v in variables}
+    for info in variables:
+        assert flattened[info.variable] == info.example
+
+
+def test_sample_context_dates_follow_date_format():
+    context = email_template_service.get_sample_context(
+        "expense_report", date_format="DD.MM.YYYY"
+    )
+    assert context["event"]["start_date"] == "25.11.2025"
+    assert context["event"]["end_date"] == "27.11.2025"
+
+
+def test_expense_context_dates_follow_date_format():
+    event = SimpleNamespace(
+        name="Expo",
+        start_date=date(2025, 5, 1),
+        end_date=date(2025, 5, 5),
+        description=None,
+    )
+    company = SimpleNamespace(name="Acme", contacts=[])
+    user = SimpleNamespace(username="john", email=None)
+
+    us = email_template_service.build_expense_report_context(
+        event, company, [], user, date_format="MM/DD/YYYY"
+    )
+    default = email_template_service.build_expense_report_context(
+        event, company, [], user
+    )
+
+    assert us["event"]["start_date"] == "05/01/2025"
+    assert default["event"]["end_date"] == "2025-05-05"
+
+
 def test_ensure_default_template_exists(db_session):
     first = email_template_service.ensure_default_template_exists(db_session)
     second = email_template_service.ensure_default_template_exists(db_session)
@@ -221,32 +261,17 @@ def test_contact_type_helpers(db_session):
     assert response_dict["contact_types"][0] == ContactType.BILLING
 
 
-def test_validate_template_contacts(db_session):
-    company = create_company(db_session)
-    contact = CompanyContact(
-        company_id=company.id,
-        name="Billing",
-        email="billing@example.com",
-        contact_types='["billing"]',
-        is_main_contact=True,
+def test_render_template_escapes_html_body_only(db_session):
+    template = create_template(db_session, is_default=False)
+    template.subject = "{{event.name}}"
+    template.body_html = "<p>{{event.name}}</p>"
+    template.body_text = "{{event.name}}"
+    name = "<script>alert(1)</script>"
+    subject, body_html, body_text = email_template_service.render_template(
+        template, {"event": {"name": name}}
     )
-    db_session.add(contact)
-    db_session.commit()
-
-    template = create_template(db_session, company_id=company.id, is_default=False)
-
-    valid, missing, available = email_template_service.validate_template_contacts(
-        db_session, template, company.id
-    )
-    assert valid is True
-    assert missing == []
-    assert len(available) == 1
-
-    template.contact_types = '["support"]'
-    db_session.commit()
-
-    valid, missing, available = email_template_service.validate_template_contacts(
-        db_session, template, company.id
-    )
-    assert valid is False
-    assert missing == [ContactType.SUPPORT]
+    assert "<script>" not in body_html
+    assert "&lt;script&gt;" in body_html
+    assert body_html.startswith("<p>")
+    assert subject == name
+    assert body_text == name

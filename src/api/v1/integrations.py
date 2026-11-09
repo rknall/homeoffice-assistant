@@ -2,25 +2,23 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Integration API endpoints."""
 
+import logging
+import smtplib
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_admin, get_current_user, get_db, require_permission
-from src.integrations.base import (
-    DocumentProvider,
-    EmailProvider,
-    ImageSearchProvider,
-    LlmProvider,
-)
+from src.api.deps import get_current_user, require_permission
+from src.api.provider_errors import provider_errors
+from src.database import get_db
+from src.integrations.base import LlmProvider
+from src.integrations.failure import failure_category
+from src.integrations.llm import LlmError
 from src.integrations.registry import IntegrationRegistry
 from src.models import User
 from src.models.enums import IntegrationType
 from src.schemas.integration import (
-    AddChoiceRequest,
-    CustomFieldChoicesResponse,
-    CustomFieldResponse,
     EventCustomFieldChoicesResponse,
     IntegrationConfigCreate,
     IntegrationConfigDetailResponse,
@@ -30,14 +28,22 @@ from src.schemas.integration import (
     IntegrationTypeInfo,
     LlmModelsRequest,
     StoragePathResponse,
-    TagResponse,
     TestEmailRequest,
     TestEmailResponse,
+    UnsplashDownloadResponse,
     UnsplashSearchResponse,
 )
 from src.services import integration_service
+from src.services.integration_service import ProviderError
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+# Integrations are system-wide, so both checks use global roles only.
+# integration.use covers reading the configured integrations and calling a
+# provider; integration.config covers creating, editing and deleting them.
+use_integrations = require_permission("integration.use")
+configure_integrations = require_permission("integration.config")
 
 
 @router.get(
@@ -47,55 +53,46 @@ async def get_event_custom_field_choices(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> EventCustomFieldChoicesResponse:
-    """Get available choices for the event custom field from Paperless."""
-    # Get active Paperless integration
-    paperless_config = integration_service.get_active_document_provider(db)
-    if not paperless_config:
-        return EventCustomFieldChoicesResponse(
-            available=False,
-            custom_field_name="",
-            choices=[],
-        )
+    """Get available choices for the event custom field from Paperless.
 
-    provider = integration_service.create_provider_instance(paperless_config)
-    if not provider or not isinstance(provider, DocumentProvider):
-        return EventCustomFieldChoicesResponse(
-            available=False,
-            custom_field_name="",
-            choices=[],
-        )
-
+    The event pages need these choices, so any logged-in user may read them;
+    the response holds only the field name and its choice labels.
+    """
+    unavailable = EventCustomFieldChoicesResponse(
+        available=False, custom_field_name="", choices=[]
+    )
+    config = integration_service.get_active_document_provider(db)
+    if config is None:
+        return unavailable
+    custom_field_name = integration_service.get_decrypted_config(config).get(
+        "custom_field_name", "Trip"
+    )
     try:
-        # Get the configured custom field name
-        decrypted_config = integration_service.get_decrypted_config(paperless_config)
-        custom_field_name = decrypted_config.get("custom_field_name", "Trip")
-
-        # Find the custom field and get its choices
-        custom_field = await provider.get_custom_field_by_name(custom_field_name)
-        if not custom_field:
-            return EventCustomFieldChoicesResponse(
-                available=False,
-                custom_field_name=custom_field_name,
-                choices=[],
+        async with integration_service.open_provider(
+            db, config.id, IntegrationType.PAPERLESS
+        ) as provider:
+            custom_field = await provider.get_custom_field_by_name(custom_field_name)
+            if not custom_field:
+                return EventCustomFieldChoicesResponse(
+                    available=False,
+                    custom_field_name=custom_field_name,
+                    choices=[],
+                )
+            choices = await provider.get_custom_field_choices_with_values(
+                custom_field["id"]
             )
-
-        choices = await provider.get_custom_field_choices_with_values(
-            custom_field["id"]
-        )
-        # Sort by label
-        choices_sorted = sorted(choices, key=lambda c: c["label"])
-        return EventCustomFieldChoicesResponse(
-            available=True,
-            custom_field_name=custom_field_name,
-            choices=choices_sorted,
-        )
-    finally:
-        await provider.close()
+            return EventCustomFieldChoicesResponse(
+                available=True,
+                custom_field_name=custom_field_name,
+                choices=sorted(choices, key=lambda c: c["label"]),
+            )
+    except ProviderError:
+        return unavailable
 
 
 @router.get("/types", response_model=list[IntegrationTypeInfo])
 def list_integration_types(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(use_integrations),
 ) -> list[IntegrationTypeInfo]:
     """List all available integration types with their config schemas."""
     types = integration_service.list_integration_types()
@@ -106,18 +103,11 @@ def list_integration_types(
 async def list_llm_models(
     data: LlmModelsRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(configure_integrations),
 ) -> list[str]:
     """List the models an OpenAI-compatible LLM endpoint offers."""
-    config = data.model_dump(exclude={"config_id"})
-    if data.config_id:
-        # The edit form blanks out saved secrets, so fill them back in
-        stored = integration_service.get_integration_config(db, data.config_id)
-        if stored and stored.integration_type == IntegrationType.LLM:
-            saved = integration_service.get_decrypted_config(stored)
-            config = {key: value or saved.get(key, "") for key, value in config.items()}
-
-    provider = IntegrationRegistry.create_provider("llm", config)
+    config = integration_service.resolve_llm_models_config(db, data)
+    provider = IntegrationRegistry.create_provider(IntegrationType.LLM.value, config)
     if not isinstance(provider, LlmProvider):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -125,10 +115,11 @@ async def list_llm_models(
         )
     try:
         return await provider.list_models()
-    except Exception as e:
+    except LlmError as e:
+        logger.error("Could not list LLM models: %s", e)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(e),
+            detail=f"Could not list models: {failure_category(e)}",
         ) from e
     finally:
         await provider.close()
@@ -138,7 +129,7 @@ async def list_llm_models(
 def list_integrations(
     integration_type: IntegrationType | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(use_integrations),
 ) -> list[IntegrationConfigResponse]:
     """List all configured integrations."""
     configs = integration_service.get_integration_configs(db, integration_type)
@@ -151,9 +142,9 @@ def list_integrations(
 def create_integration(
     data: IntegrationConfigCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin),
+    current_user: User = Depends(configure_integrations),
 ) -> IntegrationConfigResponse:
-    """Create a new integration configuration. Admin only."""
+    """Create a new integration configuration."""
     config = integration_service.create_integration_config(db, data, current_user.id)
     return IntegrationConfigResponse.model_validate(config)
 
@@ -162,7 +153,7 @@ def create_integration(
 def get_integration(
     config_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(use_integrations),
 ) -> IntegrationConfigResponse:
     """Get a single integration configuration."""
     config = integration_service.get_integration_config(db, config_id)
@@ -178,9 +169,9 @@ def get_integration(
 def get_integration_config_detail(
     config_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin),
+    current_user: User = Depends(configure_integrations),
 ) -> IntegrationConfigDetailResponse:
-    """Get integration configuration with masked secrets for editing. Admin only."""
+    """Get integration configuration with masked secrets for editing."""
     config = integration_service.get_integration_config(db, config_id)
     if not config:
         raise HTTPException(
@@ -197,6 +188,7 @@ def get_integration_config_detail(
         created_at=config.created_at,
         updated_at=config.updated_at,
         config=masked_config,
+        secrets_set=integration_service.get_secrets_set(config),
     )
 
 
@@ -205,9 +197,9 @@ def update_integration(
     config_id: uuid.UUID,
     data: IntegrationConfigUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin),
+    current_user: User = Depends(configure_integrations),
 ) -> IntegrationConfigResponse:
-    """Update an integration configuration. Admin only."""
+    """Update an integration configuration."""
     config = integration_service.get_integration_config(db, config_id)
     if not config:
         raise HTTPException(
@@ -222,9 +214,9 @@ def update_integration(
 def delete_integration(
     config_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("integration.config")),
+    current_user: User = Depends(configure_integrations),
 ) -> None:
-    """Delete an integration configuration. Admin only."""
+    """Delete an integration configuration."""
     config = integration_service.get_integration_config(db, config_id)
     if not config:
         raise HTTPException(
@@ -238,7 +230,7 @@ def delete_integration(
 async def test_integration(
     config_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(use_integrations),
 ) -> IntegrationTestResult:
     """Test connectivity for an integration."""
     config = integration_service.get_integration_config(db, config_id)
@@ -256,334 +248,80 @@ async def send_test_email(
     config_id: uuid.UUID,
     data: TestEmailRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(use_integrations),
 ) -> TestEmailResponse:
     """Send a test email via an SMTP integration."""
-    config = integration_service.get_integration_config(db, config_id)
-    if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Integration not found",
-        )
-    if config.integration_type != IntegrationType.SMTP:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This endpoint is only available for SMTP integrations",
-        )
-
-    provider = integration_service.create_provider_instance(config)
-    if not provider or not isinstance(provider, EmailProvider):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create provider instance",
-        )
-
-    try:
-        success = await provider.send_email(
-            to=[data.to_email],
-            subject="Test Email from HomeOffice Assistant",
-            body=(
-                "This is a test email from HomeOffice Assistant.\n\n"
-                "If you received this, your SMTP configuration is working."
-            ),
-        )
-        if success:
-            return TestEmailResponse(
-                success=True, message="Test email sent successfully"
-            )
-        return TestEmailResponse(success=False, message="Failed to send test email")
-    except Exception as e:
-        return TestEmailResponse(success=False, message=str(e))
-    finally:
-        await provider.close()
+    with provider_errors():
+        async with integration_service.open_provider(
+            db, config_id, IntegrationType.SMTP
+        ) as provider:
+            try:
+                success = await provider.send_email(
+                    to=[data.to_email],
+                    subject="Test Email from HomeOffice Assistant",
+                    body=(
+                        "This is a test email from HomeOffice Assistant.\n\n"
+                        "If you received this, your SMTP configuration is working."
+                    ),
+                )
+            except (smtplib.SMTPException, OSError, ValueError) as e:
+                logger.error("Test email failed: %s", e)
+                return TestEmailResponse(
+                    success=False,
+                    message=f"Failed to send test email: {failure_category(e)}",
+                )
+    if success:
+        return TestEmailResponse(success=True, message="Test email sent successfully")
+    return TestEmailResponse(success=False, message="Failed to send test email")
 
 
 @router.get("/{config_id}/storage-paths", response_model=list[StoragePathResponse])
 async def list_storage_paths(
     config_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(use_integrations),
 ) -> list[StoragePathResponse]:
     """List storage paths from a Paperless integration."""
-    config = integration_service.get_integration_config(db, config_id)
-    if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Integration not found",
-        )
-    if config.integration_type != IntegrationType.PAPERLESS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This endpoint is only available for Paperless integrations",
-        )
-
-    provider = integration_service.create_provider_instance(config)
-    if not provider or not isinstance(provider, DocumentProvider):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create provider instance",
-        )
-
-    try:
-        paths = await provider.list_storage_paths()
-        return [StoragePathResponse(**p) for p in paths]
-    finally:
-        await provider.close()
-
-
-@router.get("/{config_id}/tags", response_model=list[TagResponse])
-async def list_tags(
-    config_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> list[TagResponse]:
-    """List tags from a Paperless integration."""
-    config = integration_service.get_integration_config(db, config_id)
-    if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Integration not found",
-        )
-    if config.integration_type != IntegrationType.PAPERLESS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This endpoint is only available for Paperless integrations",
-        )
-
-    provider = integration_service.create_provider_instance(config)
-    if not provider or not isinstance(provider, DocumentProvider):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create provider instance",
-        )
-
-    try:
-        tags = await provider.list_tags()
-        return [TagResponse(**t) for t in tags]
-    finally:
-        await provider.close()
-
-
-@router.get("/{config_id}/custom-fields", response_model=list[CustomFieldResponse])
-async def list_custom_fields(
-    config_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> list[CustomFieldResponse]:
-    """List custom fields from a Paperless integration."""
-    config = integration_service.get_integration_config(db, config_id)
-    if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Integration not found",
-        )
-    if config.integration_type != IntegrationType.PAPERLESS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This endpoint is only available for Paperless integrations",
-        )
-
-    provider = integration_service.create_provider_instance(config)
-    if not provider or not isinstance(provider, DocumentProvider):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create provider instance",
-        )
-
-    try:
-        fields = await provider.list_custom_fields()
-        return [CustomFieldResponse(**f) for f in fields]
-    finally:
-        await provider.close()
-
-
-@router.get("/{config_id}/custom-fields/{field_id}", response_model=CustomFieldResponse)
-async def get_custom_field(
-    config_id: uuid.UUID,
-    field_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> CustomFieldResponse:
-    """Get a custom field by ID from a Paperless integration."""
-    config = integration_service.get_integration_config(db, config_id)
-    if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Integration not found",
-        )
-    if config.integration_type != IntegrationType.PAPERLESS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This endpoint is only available for Paperless integrations",
-        )
-
-    provider = integration_service.create_provider_instance(config)
-    if not provider or not isinstance(provider, DocumentProvider):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create provider instance",
-        )
-
-    try:
-        field = await provider.get_custom_field(field_id)
-        if not field:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Custom field not found",
-            )
-        return CustomFieldResponse(**field)
-    finally:
-        await provider.close()
-
-
-@router.get(
-    "/{config_id}/custom-fields/{field_id}/choices",
-    response_model=CustomFieldChoicesResponse,
-)
-async def get_custom_field_choices(
-    config_id: uuid.UUID,
-    field_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> CustomFieldChoicesResponse:
-    """Get choices for a select-type custom field from a Paperless integration."""
-    config = integration_service.get_integration_config(db, config_id)
-    if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Integration not found",
-        )
-    if config.integration_type != IntegrationType.PAPERLESS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This endpoint is only available for Paperless integrations",
-        )
-
-    provider = integration_service.create_provider_instance(config)
-    if not provider or not isinstance(provider, DocumentProvider):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create provider instance",
-        )
-
-    try:
-        choices = await provider.get_custom_field_choices(field_id)
-        return CustomFieldChoicesResponse(choices=choices)
-    finally:
-        await provider.close()
-
-
-@router.post(
-    "/{config_id}/custom-fields/{field_id}/choices",
-    response_model=CustomFieldChoicesResponse,
-)
-async def add_custom_field_choice(
-    config_id: uuid.UUID,
-    field_id: int,
-    data: AddChoiceRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> CustomFieldChoicesResponse:
-    """Add a choice to a select-type custom field in a Paperless integration."""
-    config = integration_service.get_integration_config(db, config_id)
-    if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Integration not found",
-        )
-    if config.integration_type != IntegrationType.PAPERLESS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This endpoint is only available for Paperless integrations",
-        )
-
-    provider = integration_service.create_provider_instance(config)
-    if not provider or not isinstance(provider, DocumentProvider):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create provider instance",
-        )
-
-    try:
-        try:
-            await provider.add_custom_field_choice(field_id, data.choice)
-        except ValueError as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(e),
-            ) from e
-        # Return updated choices
-        choices = await provider.get_custom_field_choices(field_id)
-        return CustomFieldChoicesResponse(choices=choices)
-    finally:
-        await provider.close()
+    with provider_errors():
+        async with integration_service.open_provider(
+            db, config_id, IntegrationType.PAPERLESS
+        ) as provider:
+            paths = await provider.list_storage_paths()
+    return [StoragePathResponse(**p) for p in paths]
 
 
 @router.get("/{config_id}/unsplash/search", response_model=UnsplashSearchResponse)
 async def search_unsplash_images(
     config_id: uuid.UUID,
     query: str,
-    page: int = 1,
-    per_page: int = 20,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=30),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(use_integrations),
 ) -> UnsplashSearchResponse:
     """Search for images on Unsplash."""
-    config = integration_service.get_integration_config(db, config_id)
-    if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Integration not found",
-        )
-    if config.integration_type != IntegrationType.UNSPLASH:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This endpoint is only available for Unsplash integrations",
-        )
-
-    provider = integration_service.create_provider_instance(config)
-    if not provider or not isinstance(provider, ImageSearchProvider):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create provider instance",
-        )
-
-    try:
-        result = await provider.search_images(query, page=page, per_page=per_page)
-        return UnsplashSearchResponse(**result)
-    finally:
-        await provider.close()
+    with provider_errors():
+        async with integration_service.open_provider(
+            db, config_id, IntegrationType.UNSPLASH
+        ) as provider:
+            result = await provider.search_images(query, page=page, per_page=per_page)
+    return UnsplashSearchResponse(**result)
 
 
-@router.post("/{config_id}/unsplash/download/{image_id}")
+@router.post(
+    "/{config_id}/unsplash/download/{image_id}",
+    response_model=UnsplashDownloadResponse,
+)
 async def trigger_unsplash_download(
     config_id: uuid.UUID,
     image_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict[str, str]:
+    current_user: User = Depends(use_integrations),
+) -> UnsplashDownloadResponse:
     """Trigger download tracking for an Unsplash image (required by API guidelines)."""
-    config = integration_service.get_integration_config(db, config_id)
-    if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Integration not found",
-        )
-    if config.integration_type != IntegrationType.UNSPLASH:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This endpoint is only available for Unsplash integrations",
-        )
-
-    provider = integration_service.create_provider_instance(config)
-    if not provider or not isinstance(provider, ImageSearchProvider):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create provider instance",
-        )
-
-    try:
-        download_url = await provider.trigger_download(image_id)
-        return {"download_url": download_url}
-    finally:
-        await provider.close()
+    with provider_errors():
+        async with integration_service.open_provider(
+            db, config_id, IntegrationType.UNSPLASH
+        ) as provider:
+            download_url = await provider.trigger_download(image_id)
+    return UnsplashDownloadResponse(download_url=download_url)

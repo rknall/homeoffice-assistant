@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: GPL-2.0-only
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { useLocale } from '../stores/locale'
 import type { PhotoAsset, PhotoReference } from '../types'
+import { AvailablePhotoCard } from './photos/AvailablePhotoCard'
+import { LinkedPhotoCard } from './photos/LinkedPhotoCard'
 
 interface PhotoGalleryProps {
   eventId: string
@@ -165,17 +168,11 @@ export function PhotoGallery({
     setCaptionText(photo.caption || '')
   }
 
-  // Format distance
-  const formatDistance = (km: number | null) => {
-    if (km === null) return null
-    if (km < 1) return `${Math.round(km * 1000)}m`
-    return `${km.toFixed(1)}km`
-  }
-
   // Format date
+  const formatLocaleDate = useLocale((state) => state.formatDate)
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return null
-    return new Date(dateStr).toLocaleDateString()
+    return formatLocaleDate(dateStr)
   }
 
   if (!hasLocation && linkedPhotos.length === 0) {
@@ -269,37 +266,12 @@ export function PhotoGallery({
             {availablePhotos
               .filter((p) => !p.is_linked)
               .map((photo) => (
-                <div
+                <AvailablePhotoCard
                   key={photo.id}
-                  className="group relative overflow-hidden rounded-lg border border-gray-200 bg-white"
-                >
-                  <div className="aspect-square">
-                    <img
-                      src={photo.thumbnail_url || ''}
-                      alt={photo.original_filename || 'Photo'}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  </div>
-                  <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/40" />
-                  <button
-                    type="button"
-                    onClick={() => handleAddPhoto(photo)}
-                    className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
-                  >
-                    <span className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white">
-                      Add
-                    </span>
-                  </button>
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
-                    <div className="text-xs text-white">
-                      {formatDate(photo.taken_at)}
-                      {photo.distance_km !== null && (
-                        <span className="ml-2">{formatDistance(photo.distance_km)} away</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                  photo={photo}
+                  formatDate={formatDate}
+                  onAdd={handleAddPhoto}
+                />
               ))}
           </div>
         ))}
@@ -311,85 +283,20 @@ export function PhotoGallery({
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {linkedPhotos.map((photo) => (
-              <div
+              <LinkedPhotoCard
                 key={photo.id}
-                className="flex gap-3 rounded-lg border border-gray-200 bg-white p-3"
-              >
-                <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-md">
-                  <img
-                    src={`/api/v1/events/${eventId}/photos/${photo.immich_asset_id}/thumbnail`}
-                    alt={photo.caption || 'Photo'}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-                <div className="flex flex-1 flex-col">
-                  {/* Caption editing */}
-                  {editingCaption === photo.id ? (
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={captionText}
-                        onChange={(e) => setCaptionText(e.target.value)}
-                        placeholder="Add caption..."
-                        className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSaveCaption(photo.id)
-                          if (e.key === 'Escape') setEditingCaption(null)
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleSaveCaption(photo.id)}
-                        className="rounded bg-blue-600 px-2 py-1 text-xs text-white"
-                      >
-                        Save
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => startEditingCaption(photo)}
-                      className="text-left text-sm text-gray-700 hover:text-gray-900"
-                    >
-                      {photo.caption || (
-                        <span className="italic text-gray-400">Click to add caption...</span>
-                      )}
-                    </button>
-                  )}
-
-                  {/* Date and location */}
-                  <div className="mt-1 text-xs text-gray-500">
-                    {formatDate(photo.taken_at)}
-                    {photo.latitude && photo.longitude && (
-                      <span className="ml-2">
-                        {photo.latitude.toFixed(4)}, {photo.longitude.toFixed(4)}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="mt-auto flex items-center justify-between pt-2">
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={photo.include_in_report}
-                        onChange={() =>
-                          handleToggleIncludeInReport(photo.id, photo.include_in_report)
-                        }
-                        className="h-4 w-4 rounded border-gray-300"
-                      />
-                      Include in report
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => handleRemovePhoto(photo.id)}
-                      className="text-sm text-red-600 hover:text-red-700"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              </div>
+                eventId={eventId}
+                photo={photo}
+                isEditingCaption={editingCaption === photo.id}
+                captionText={captionText}
+                formatDate={formatDate}
+                onCaptionTextChange={setCaptionText}
+                onStartEditCaption={startEditingCaption}
+                onSaveCaption={handleSaveCaption}
+                onCancelEditCaption={() => setEditingCaption(null)}
+                onToggleIncludeInReport={handleToggleIncludeInReport}
+                onRemove={handleRemovePhoto}
+              />
             ))}
           </div>
         ))}

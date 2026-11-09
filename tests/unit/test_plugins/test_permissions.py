@@ -24,8 +24,8 @@ class TestPermissionConstants:
         """Test that safe permissions includes read-only permissions."""
         assert Permission.USER_READ in SAFE_PERMISSIONS
         assert Permission.EVENT_READ in SAFE_PERMISSIONS
-        assert Permission.COMPANY_READ in SAFE_PERMISSIONS
-        assert Permission.EXPENSE_READ in SAFE_PERMISSIONS
+        assert Permission.COMPANY_VIEW in SAFE_PERMISSIONS
+        assert Permission.EXPENSE_VIEW in SAFE_PERMISSIONS
 
     def test_no_overlap_between_dangerous_and_safe(self):
         """Test that dangerous and safe permissions don't overlap."""
@@ -43,23 +43,27 @@ class TestPermissionChecker:
 
     def test_parse_valid_permissions(self, checker):
         """Test parsing valid permission strings."""
-        valid, invalid = checker.parse_permissions([
-            "user.read",
-            "event.write",
-            "company.read",
-        ])
+        valid, invalid = checker.parse_permissions(
+            [
+                "user.read",
+                "event.write",
+                "company.view",
+            ]
+        )
         assert Permission.USER_READ in valid
         assert Permission.EVENT_WRITE in valid
-        assert Permission.COMPANY_READ in valid
+        assert Permission.COMPANY_VIEW in valid
         assert len(invalid) == 0
 
     def test_parse_invalid_permissions(self, checker):
         """Test parsing invalid permission strings."""
-        valid, invalid = checker.parse_permissions([
-            "user.read",
-            "invalid.permission",
-            "another.invalid",
-        ])
+        valid, invalid = checker.parse_permissions(
+            [
+                "user.read",
+                "invalid.permission",
+                "another.invalid",
+            ]
+        )
         assert Permission.USER_READ in valid
         assert len(valid) == 1
         assert "invalid.permission" in invalid
@@ -73,10 +77,12 @@ class TestPermissionChecker:
 
     def test_parse_all_invalid(self, checker):
         """Test parsing list with all invalid permissions."""
-        valid, invalid = checker.parse_permissions([
-            "not.a.permission",
-            "fake.perm",
-        ])
+        valid, invalid = checker.parse_permissions(
+            [
+                "not.a.permission",
+                "fake.perm",
+            ]
+        )
         assert len(valid) == 0
         assert len(invalid) == 2
 
@@ -123,7 +129,7 @@ class TestPermissionChecker:
     def test_check_permissions_subset_all_granted(self, checker):
         """Test checking permissions subset when all granted."""
         required = {Permission.USER_READ, Permission.EVENT_READ}
-        granted = {Permission.USER_READ, Permission.EVENT_READ, Permission.EXPENSE_READ}
+        granted = {Permission.USER_READ, Permission.EVENT_READ, Permission.EXPENSE_VIEW}
 
         all_granted, missing = checker.check_permissions_subset(required, granted)
 
@@ -133,7 +139,9 @@ class TestPermissionChecker:
     def test_check_permissions_subset_missing(self, checker):
         """Test checking permissions subset with missing permissions."""
         required = {
-            Permission.USER_READ, Permission.EVENT_WRITE, Permission.EXPENSE_WRITE
+            Permission.USER_READ,
+            Permission.EVENT_WRITE,
+            Permission.EXPENSE_MANAGE,
         }
         granted = {Permission.USER_READ}
 
@@ -141,7 +149,7 @@ class TestPermissionChecker:
 
         assert all_granted is False
         assert Permission.EVENT_WRITE in missing
-        assert Permission.EXPENSE_WRITE in missing
+        assert Permission.EXPENSE_MANAGE in missing
         assert Permission.USER_READ not in missing
 
     def test_format_permissions_for_display(self, checker):
@@ -158,8 +166,6 @@ class TestPermissionChecker:
         assert dangerous_entry is not None
         assert dangerous_entry["dangerous"] is True
 
-        safe_entry = next(
-            (p for p in formatted if p["value"] == "user.read"), None
-        )
+        safe_entry = next((p for p in formatted if p["value"] == "user.read"), None)
         assert safe_entry is not None
         assert safe_entry["dangerous"] is False

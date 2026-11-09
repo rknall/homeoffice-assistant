@@ -10,6 +10,7 @@ from sqlalchemy import Date, DateTime, Numeric, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base
+from src.utils.time import utc_now
 
 
 class CurrencyCache(Base):
@@ -32,5 +33,5 @@ class CurrencyCache(Base):
     rate: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
     rate_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     fetched_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime, nullable=False, default=utc_now
     )

@@ -7,7 +7,9 @@ from typing import Any
 import httpx
 
 from src.integrations.base import ImageSearchProvider
+from src.integrations.failure import failure_category
 from src.integrations.registry import IntegrationRegistry
+from src.models.enums import IntegrationType
 
 
 @IntegrationRegistry.register
@@ -19,7 +21,7 @@ class UnsplashProvider(ImageSearchProvider):
     @classmethod
     def get_type(cls) -> str:
         """Return the unique identifier for this integration type."""
-        return "unsplash"
+        return IntegrationType.UNSPLASH.value
 
     @classmethod
     def get_display_name(cls) -> str:
@@ -79,9 +81,9 @@ class UnsplashProvider(ImageSearchProvider):
                 return True, f"Connected (API calls remaining: {remaining})"
             if resp.status_code == 401:
                 return False, "Invalid Access Key"
-            return False, f"HTTP {resp.status_code}: {resp.text}"
+            return False, f"HTTP {resp.status_code}"
         except Exception as e:
-            return False, str(e)
+            return False, failure_category(e)
 
     async def search_images(
         self,

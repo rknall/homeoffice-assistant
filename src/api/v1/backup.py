@@ -2,10 +2,14 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Backup and restore API endpoints."""
 
+import logging
+import sqlite3
+
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
 
-from src.api.deps import get_current_admin, require_permission
+from src.api.deps import get_current_admin
+from src.api.v1._http import content_disposition
 from src.models import User
 from src.schemas.backup import (
     BackupCreateRequest,
@@ -17,6 +21,7 @@ from src.schemas.backup import (
 from src.services import backup_service
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 MAX_UPLOAD_SIZE = 500 * 1024 * 1024  # 500MB
 
@@ -48,13 +53,14 @@ def create_backup(
             content=backup_bytes,
             media_type="application/octet-stream",
             headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Disposition": content_disposition(filename),
             },
         )
-    except Exception as e:
+    except (OSError, ValueError, sqlite3.Error) as e:
+        logger.error("Failed to create backup: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create backup: {e!s}",
+            detail="Failed to create backup",
         ) from e
 
 
@@ -108,7 +114,7 @@ async def validate_backup(
 async def restore_backup(
     file: UploadFile,
     password: str | None = Form(default=None),
-    current_user: User = Depends(require_permission("system.admin")),
+    current_user: User = Depends(get_current_admin),
 ) -> RestoreResponse:
     """Restore from an uploaded backup file.
 

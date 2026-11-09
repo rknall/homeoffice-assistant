@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 import { useCallback, useEffect, useState } from "react";
-import { leaveBalanceApi } from "../api";
+import { errorMessage, leaveBalanceApi } from "../api";
 import type { LeaveBalanceResponse } from "../types";
 
 interface LeaveBalanceCardProps {
@@ -29,8 +29,7 @@ export function LeaveBalanceCard({ currentDate }: LeaveBalanceCardProps) {
 			const data = await leaveBalanceApi.get(year);
 			setBalance(data);
 		} catch (err) {
-			console.error("Failed to load leave balance:", err);
-			setError("Failed to load");
+			setError(errorMessage(err, "Failed to load"));
 		} finally {
 			setIsLoading(false);
 		}

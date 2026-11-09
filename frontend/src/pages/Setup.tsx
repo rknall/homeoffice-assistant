@@ -4,7 +4,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 import { api } from '@/api/client'
 import { Alert } from '@/components/ui/Alert'
@@ -198,8 +198,7 @@ export function Setup() {
   }
 
   if (isFirstRun === false) {
-    navigate('/login', { replace: true })
-    return null
+    return <Navigate to="/login" replace />
   }
 
   return (

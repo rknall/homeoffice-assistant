@@ -2,8 +2,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Company schemas."""
 
-from __future__ import annotations
-
 import datetime
 import uuid
 from typing import Any
@@ -59,3 +57,10 @@ class CompanyResponse(BaseModel):
     updated_at: datetime.datetime
 
     model_config = {"from_attributes": True}
+
+
+class LogoUploadResponse(BaseModel):
+    """Schema for the company logo upload response."""
+
+    message: str
+    logo_path: str

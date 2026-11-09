@@ -1,7 +1,7 @@
 # OAuth2/OIDC Authentication
 
 ## Status
-Idea - Planned for v0.3+
+Idea - Not scheduled
 
 ## Problem
 Currently using simple username/password authentication. Enterprise users and those with existing identity providers (Keycloak, Authentik, etc.) want single sign-on capabilities.

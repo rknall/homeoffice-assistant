@@ -2,9 +2,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Location schemas for geocoding and images."""
 
-import datetime
-import uuid
-
 from pydantic import BaseModel
 
 
@@ -28,20 +25,3 @@ class LocationImageResponse(BaseModel):
     photographer_url: str | None = None
     # Unsplash requires attribution
     attribution_html: str | None = None
-
-
-class LocationImageCacheResponse(BaseModel):
-    """Full location image cache response."""
-
-    id: uuid.UUID
-    city: str | None
-    country: str
-    unsplash_id: str
-    image_url: str
-    thumbnail_url: str
-    photographer_name: str | None
-    photographer_url: str | None
-    fetched_at: datetime.datetime
-    expires_at: datetime.datetime
-
-    model_config = {"from_attributes": True}

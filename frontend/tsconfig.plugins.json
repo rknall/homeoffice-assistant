@@ -1,0 +1,18 @@
+{
+  // Type-checks the plugin frontends under ../plugins/*/frontend. They sit
+  // outside this package, so bare imports are pointed at its node_modules.
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.plugins.tsbuildinfo",
+    "paths": {
+      "@/*": ["./src/*"],
+      "react": ["./node_modules/@types/react"],
+      "react/*": ["./node_modules/@types/react/*"],
+      "react-dom": ["./node_modules/@types/react-dom"],
+      "react-dom/*": ["./node_modules/@types/react-dom/*"],
+      "chai": ["./node_modules/@types/chai"],
+      "*": ["./node_modules/*", "./node_modules/@types/*"]
+    }
+  },
+  "include": ["../plugins/*/frontend", "src/plugins/hostApi.ts", "src/vite-env.d.ts"]
+}

@@ -2,55 +2,33 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Location image service for fetching eyecandy images from Unsplash."""
 
+import html
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
-import httpx
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from src.models import LocationImage, SystemSettings
+from src.integrations.base import ImageSearchProvider
+from src.models import LocationImage
+from src.models.enums import IntegrationType
+from src.services.integration_service import (
+    NoActiveIntegrationError,
+    ProviderUnavailableError,
+    open_active_provider,
+)
+from src.utils.time import utc_now
 
 # Cache TTL in days
 CACHE_TTL_DAYS = 7
-
-# Unsplash API base URL
-UNSPLASH_API_URL = "https://api.unsplash.com"
-
-
-def get_unsplash_api_key(db: Session) -> str | None:
-    """Get Unsplash API key from system settings."""
-    setting = (
-        db.query(SystemSettings)
-        .filter(SystemSettings.key == "unsplash_api_key")
-        .first()
-    )
-    return setting.value if setting else None
-
-
-def set_unsplash_api_key(db: Session, api_key: str) -> None:
-    """Set Unsplash API key in system settings."""
-    setting = (
-        db.query(SystemSettings)
-        .filter(SystemSettings.key == "unsplash_api_key")
-        .first()
-    )
-
-    if setting:
-        setting.value = api_key
-    else:
-        setting = SystemSettings(key="unsplash_api_key", value=api_key)
-        db.add(setting)
-
-    db.commit()
 
 
 def get_cached_image(
     db: Session, city: str | None, country: str
 ) -> LocationImage | None:
     """Get cached location image if it exists and hasn't expired."""
-    now = datetime.utcnow()
+    now = utc_now()
 
     query = db.query(LocationImage).filter(
         and_(
@@ -68,52 +46,36 @@ def get_cached_image(
 
 
 async def fetch_from_unsplash(
-    api_key: str, city: str | None, country: str
+    provider: ImageSearchProvider, city: str | None, country: str
 ) -> dict[str, Any] | None:
-    """Fetch location image from Unsplash API."""
-    # Build search query
-    query_parts = []
-    if city:
-        query_parts.append(city)
-    query_parts.append(country)
-    query_parts.append("landmark skyline")
-    search_query = " ".join(query_parts)
+    """Fetch a location image through the Unsplash provider.
 
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(
-                f"{UNSPLASH_API_URL}/search/photos",
-                headers={
-                    "Authorization": f"Client-ID {api_key}",
-                    "Accept-Version": "v1",
-                },
-                params={
-                    "query": search_query,
-                    "orientation": "landscape",
-                    "per_page": 1,
-                },
-                timeout=10.0,
-            )
+    Args:
+        provider: The opened image search provider.
+        city: Optional city name.
+        country: Country name.
 
-            if resp.status_code != 200:
-                return None
-
-            data = resp.json()
-            results = data.get("results", [])
-
-            if not results:
-                return None
-
-            photo = results[0]
-            return {
-                "unsplash_id": photo["id"],
-                "image_url": photo["urls"]["regular"],
-                "thumbnail_url": photo["urls"]["small"],
-                "photographer_name": photo["user"]["name"],
-                "photographer_url": photo["user"]["links"]["html"],
-            }
-        except Exception:
-            return None
+    Returns:
+        The image data to cache, or None if there is no result or the search fails.
+    """
+    query_parts = [city, country, "landmark skyline"]
+    search_query = " ".join(part for part in query_parts if part)
+    try:
+        data = await provider.search_images(search_query, per_page=1)
+    except Exception:
+        return None
+    results = data.get("results", [])
+    if not results:
+        return None
+    photo = results[0]
+    return {
+        "unsplash_id": photo["id"],
+        "image_url": photo["urls"]["regular"],
+        "thumbnail_url": photo["urls"]["small"],
+        "photographer_name": photo["user"]["name"],
+        "photographer_url": photo["user"].get("portfolio_url")
+        or f"https://unsplash.com/@{photo['user']['username']}",
+    }
 
 
 def cache_image(
@@ -123,7 +85,7 @@ def cache_image(
     image_data: dict[str, Any],
 ) -> LocationImage:
     """Cache location image in database."""
-    now = datetime.utcnow()
+    now = utc_now()
 
     # Check if there's an existing cache entry to update
     existing = (
@@ -173,31 +135,26 @@ async def get_location_image(
 ) -> LocationImage | None:
     """Get location image for a city/country.
 
-    First checks cache, then fetches from Unsplash if needed.
-    Returns None if no API key is configured or fetch fails.
+    First checks cache, then fetches through the active Unsplash integration.
+    Returns None if no active Unsplash integration exists or the fetch fails.
     """
-    # Check if Unsplash API key is configured
-    api_key = get_unsplash_api_key(db)
-    if not api_key:
+    try:
+        async with open_active_provider(db, IntegrationType.UNSPLASH) as provider:
+            cached = get_cached_image(db, city, country)
+            if cached:
+                return cached
+            image_data = await fetch_from_unsplash(provider, city, country)
+    except NoActiveIntegrationError, ProviderUnavailableError:
         return None  # Graceful fallback
-
-    # Check cache
-    cached = get_cached_image(db, city, country)
-    if cached:
-        return cached
-
-    # Fetch from Unsplash
-    image_data = await fetch_from_unsplash(api_key, city, country)
     if not image_data:
         return None
 
-    # Cache and return
     return cache_image(db, city, country, image_data)
 
 
 def clear_expired_cache(db: Session) -> int:
     """Clear expired cache entries. Returns number of entries deleted."""
-    now = datetime.utcnow()
+    now = utc_now()
     result = db.query(LocationImage).filter(LocationImage.expires_at < now).delete()
     db.commit()
     return result
@@ -207,10 +164,15 @@ def get_attribution_html(image: LocationImage) -> str:
     """Generate Unsplash attribution HTML (required by their API guidelines)."""
     utm = "homeoffice_assistant"
     if image.photographer_name and image.photographer_url:
-        photo_url = f"{image.photographer_url}?utm_source={utm}&utm_medium=referral"
-        unsplash_url = f"https://unsplash.com?utm_source={utm}&utm_medium=referral"
+        photo_url = html.escape(
+            f"{image.photographer_url}?utm_source={utm}&utm_medium=referral"
+        )
+        unsplash_url = html.escape(
+            f"https://unsplash.com?utm_source={utm}&utm_medium=referral"
+        )
+        name = html.escape(image.photographer_name)
         return (
-            f'Photo by <a href="{photo_url}">{image.photographer_name}</a> on '
+            f'Photo by <a href="{photo_url}">{name}</a> on '
             f'<a href="{unsplash_url}">Unsplash</a>'
         )
     return 'Photo from <a href="https://unsplash.com">Unsplash</a>'

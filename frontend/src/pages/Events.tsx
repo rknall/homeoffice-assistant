@@ -4,7 +4,7 @@
 import { Plus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { api } from '@/api/client'
+import { api, errorMessage } from '@/api/client'
 import { EventFormModal } from '@/components/EventFormModal'
 import { EventCard, EventFilters, type EventFiltersState, TimelineGroup } from '@/components/events'
 import { Alert } from '@/components/ui/Alert'
@@ -12,8 +12,9 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
 import { useBreadcrumb } from '@/stores/breadcrumb'
+import { useCompanies } from '@/stores/companies'
+import { confirmAction } from '@/stores/confirm'
 import type {
-  Company,
   Event,
   EventCustomFieldChoices as EventCustomFieldChoicesType,
   EventStatus,
@@ -40,7 +41,8 @@ export function Events() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { setItems: setBreadcrumb } = useBreadcrumb()
   const [events, setEvents] = useState<EventWithSummary[]>([])
-  const [companies, setCompanies] = useState<Company[]>([])
+  const companies = useCompanies((s) => s.companies)
+  const fetchCompanies = useCompanies((s) => s.fetchCompanies)
   const [customFieldChoices, setCustomFieldChoices] = useState<EventCustomFieldChoicesType | null>(
     null,
   )
@@ -58,20 +60,22 @@ export function Events() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [eventsData, companiesData, choicesData] = await Promise.all([
+      const [eventsData, , choicesData] = await Promise.all([
         api.get<EventWithSummary[]>('/events?include_summary=true'),
-        api.get<Company[]>('/companies'),
-        api.get<EventCustomFieldChoicesType>('/integrations/event-custom-field-choices'),
+        // Optional data: a failing call must not blank the page
+        fetchCompanies(),
+        api
+          .get<EventCustomFieldChoicesType>('/integrations/event-custom-field-choices')
+          .catch(() => null),
       ])
       setEvents(eventsData)
-      setCompanies(companiesData)
       setCustomFieldChoices(choicesData)
-    } catch {
-      setError('Failed to load data')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to load data'))
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [fetchCompanies])
 
   useEffect(() => {
     setBreadcrumb([{ label: 'Events' }])
@@ -170,17 +174,20 @@ export function Events() {
     e.preventDefault()
     e.stopPropagation()
     if (
-      !confirm(
-        'Are you sure you want to delete this event? This will also delete all associated expenses, contacts, notes, and todos.',
-      )
+      !(await confirmAction({
+        title: 'Delete event',
+        message:
+          'Are you sure you want to delete this event? This will also delete all associated expenses, contacts, notes, and todos.',
+        confirmLabel: 'Delete',
+      }))
     ) {
       return
     }
     try {
       await api.delete(`/events/${eventId}`)
       await fetchData()
-    } catch {
-      setError('Failed to delete event')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to delete event'))
     }
   }
 

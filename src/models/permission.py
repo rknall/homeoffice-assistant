@@ -1,4 +1,7 @@
-# src/models/permission.py
+# SPDX-FileCopyrightText: 2025 Roland Knall <rknall@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-only
+"""Permission model."""
+
 from sqlalchemy import Column, String, Text
 
 from src.models.base import Base, TimestampMixin

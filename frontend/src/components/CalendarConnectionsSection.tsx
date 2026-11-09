@@ -3,9 +3,10 @@
 
 import { Pencil, Play, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { companyCalendarsApi } from '@/api/client'
+import { companyCalendarsApi, errorMessage } from '@/api/client'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { confirmAction } from '@/stores/confirm'
 import type { CompanyCalendar } from '@/types'
 import { CALENDAR_TYPE_LABELS } from '@/types'
 import { CalendarFormModal } from './CalendarFormModal'
@@ -30,8 +31,8 @@ export function CalendarConnectionsSection({
     try {
       const data = await companyCalendarsApi.getCalendars(companyId)
       setCalendars(data)
-    } catch {
-      setError('Failed to load calendars')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to load calendars'))
     } finally {
       setIsLoading(false)
     }
@@ -58,13 +59,20 @@ export function CalendarConnectionsSection({
   }
 
   const deleteCalendar = async (calendarId: string) => {
-    if (!confirm('Are you sure you want to disconnect this calendar?')) return
+    if (
+      !(await confirmAction({
+        title: 'Disconnect calendar',
+        message: 'Are you sure you want to disconnect this calendar?',
+        confirmLabel: 'Disconnect',
+      }))
+    )
+      return
     try {
       await companyCalendarsApi.deleteCalendar(companyId, calendarId)
       fetchCalendars()
       onCalendarsChanged?.()
-    } catch {
-      setError('Failed to disconnect calendar')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to disconnect calendar'))
     }
   }
 
@@ -73,8 +81,8 @@ export function CalendarConnectionsSection({
     try {
       await companyCalendarsApi.syncCalendar(companyId, calendarId)
       await fetchCalendars()
-    } catch {
-      setError('Failed to sync calendar')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to sync calendar'))
     } finally {
       setSyncingCalendarId(null)
     }
@@ -87,8 +95,8 @@ export function CalendarConnectionsSection({
       })
       fetchCalendars()
       onCalendarsChanged?.()
-    } catch {
-      setError('Failed to update calendar')
+    } catch (e) {
+      setError(errorMessage(e, 'Failed to update calendar'))
     }
   }
 

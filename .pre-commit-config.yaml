@@ -1,6 +1,7 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.3
+    # Keep in sync with the ruff version locked in uv.lock
+    rev: v0.15.20
     hooks:
       - id: ruff
         args: [--fix]
@@ -8,8 +9,8 @@ repos:
 
   - repo: local
     hooks:
-      - id: eslint
-        name: eslint
+      - id: biome
+        name: biome
         entry: bash -c 'cd frontend && bun run lint'
         language: system
         files: ^frontend/.*\.(ts|tsx|js|jsx)$

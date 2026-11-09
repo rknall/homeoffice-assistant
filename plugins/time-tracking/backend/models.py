@@ -3,8 +3,7 @@
 """Time Tracking plugin database models."""
 
 import uuid
-from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from sqlalchemy import (
     Boolean,
@@ -23,9 +22,10 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 
 from src.models.base import Base
+from src.utils.time import utc_now
 
 
-class EntryType(str, Enum):
+class EntryType(StrEnum):
     """Types of time entries."""
 
     WORK = "work"
@@ -40,7 +40,7 @@ class EntryType(str, Enum):
     OTHER = "other"
 
 
-class WorkLocation(str, Enum):
+class WorkLocation(StrEnum):
     """Work location types."""
 
     OFFICE = "office"
@@ -100,10 +100,8 @@ class TimeEntry(Base):
     )
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     __table_args__ = (
         Index("idx_tt_entry_user_date", "user_id", "date"),
@@ -175,10 +173,8 @@ class LeaveBalance(Base):
     sick_days_taken = Column(Integer, default=0, nullable=False)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     __table_args__ = (
         UniqueConstraint(
@@ -202,9 +198,7 @@ class TimesheetSubmission(Base):
     __tablename__ = "tt_timesheet_submissions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    company_id = Column(
-        UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False
-    )
+    company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
 
     # Period
@@ -226,10 +220,8 @@ class TimesheetSubmission(Base):
     notes = Column(Text, nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     def __repr__(self) -> str:
         """Return string representation."""
@@ -274,10 +266,8 @@ class CompanyTimeSettings(Base):
     lock_period_days = Column(Integer, default=7, nullable=False)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     def __repr__(self) -> str:
         """Return string representation."""
@@ -301,10 +291,8 @@ class CustomHoliday(Base):
     name = Column(String(200), nullable=False)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     def __repr__(self) -> str:
         """Return string representation."""
@@ -331,10 +319,8 @@ class UserTimePreferences(Base):
     last_check_out = Column(Time, nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     def __repr__(self) -> str:
         """Return string representation."""

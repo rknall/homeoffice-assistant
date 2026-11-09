@@ -14,11 +14,8 @@ from src.plugins.base import (
     PluginManifest,
 )
 from src.plugins.events import AppEvent, EventPayload, event_bus
-from src.plugins.loader import (
-    PluginLoader,
-    PluginLoadError,
-    PluginValidationError,
-)
+from src.plugins.loader import PluginLoader, PluginLoadError
+from src.plugins.manifest import PluginValidationError
 from src.plugins.permissions import PermissionChecker
 from src.plugins.registry import PluginRegistry
 from src.plugins.router_proxy import (
@@ -27,27 +24,21 @@ from src.plugins.router_proxy import (
     reset_plugin_router_manager,
 )
 
-__all__ = [  # noqa: RUF022
-    # Base classes
-    "BasePlugin",
-    "PluginManifest",
-    "PluginConfig",
-    "PluginCapability",
-    "Permission",
-    # Events
+__all__ = [
     "AppEvent",
+    "BasePlugin",
     "EventPayload",
-    "event_bus",
-    # Loader
-    "PluginLoader",
-    "PluginLoadError",
-    "PluginValidationError",
-    # Registry
-    "PluginRegistry",
-    # Permissions
+    "Permission",
     "PermissionChecker",
-    # Router proxy
+    "PluginCapability",
+    "PluginConfig",
+    "PluginLoadError",
+    "PluginLoader",
+    "PluginManifest",
+    "PluginRegistry",
     "PluginRouterManager",
+    "PluginValidationError",
+    "event_bus",
     "get_plugin_router_manager",
     "reset_plugin_router_manager",
 ]

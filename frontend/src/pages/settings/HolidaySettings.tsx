@@ -3,7 +3,7 @@
 
 import { Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { holidayCalendarsApi } from '@/api/client'
+import { errorMessage, holidayCalendarsApi } from '@/api/client'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -44,7 +44,7 @@ export function HolidaySettings() {
       setCalendars(calendarsData)
       setCountries(countriesData.countries)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load holiday calendars')
+      setError(errorMessage(e, 'Failed to load holiday calendars'))
     } finally {
       setIsLoading(false)
     }
@@ -78,7 +78,7 @@ export function HolidaySettings() {
     }
   }
 
-  const loadPreview = async () => {
+  const loadPreview = useCallback(async () => {
     if (!selectedCountry) return
 
     setIsLoadingPreview(true)
@@ -93,13 +93,13 @@ export function HolidaySettings() {
     } finally {
       setIsLoadingPreview(false)
     }
-  }
+  }, [selectedCountry, selectedSubdivision])
 
   useEffect(() => {
     if (selectedCountry) {
       loadPreview()
     }
-  }, [selectedCountry, selectedSubdivision])
+  }, [selectedCountry, loadPreview])
 
   const handleAdd = async () => {
     if (!selectedCountry || !displayLabel.trim()) return
@@ -117,7 +117,7 @@ export function HolidaySettings() {
       resetModal()
       await fetchData()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to add holiday calendar')
+      setError(errorMessage(e, 'Failed to add holiday calendar'))
     } finally {
       setIsSaving(false)
     }
@@ -131,7 +131,7 @@ export function HolidaySettings() {
       setTimeout(() => setSuccess(null), 3000)
       await fetchData()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to remove holiday calendar')
+      setError(errorMessage(e, 'Failed to remove holiday calendar'))
     } finally {
       setDeletingId(null)
     }

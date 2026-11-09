@@ -1,7 +1,7 @@
 # Time / Working Hours Tracking
 
 ## Status
-Idea - Not Started (High Priority)
+Implemented as plugin (`plugins/time-tracking`) in v0.3.0
 
 ## Plugin Candidate
 Yes - **Must be a plugin**. Time tracking is optional and adds significant complexity. Core app should work without it.

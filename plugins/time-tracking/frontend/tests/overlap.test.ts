@@ -4,54 +4,12 @@
 /**
  * Tests for time overlap detection logic
  *
- * This tests the timesOverlap function used in UnifiedTimeTrackingPage
+ * This tests the timesOverlap function used by UnifiedTimeTrackingPage
  * to detect overlapping time entries across companies.
  */
 
 import { describe, expect, it } from 'vitest'
-
-/**
- * Check if two time ranges overlap.
- * Times are in HH:MM format.
- * Copied from UnifiedTimeTrackingPage for testing.
- */
-function timesOverlap(start1: string, end1: string, start2: string, end2: string): boolean {
-  const toMinutes = (time: string): number => {
-    const [h, m] = time.split(':').map(Number)
-    return h * 60 + m
-  }
-
-  let start1Mins = toMinutes(start1)
-  let end1Mins = toMinutes(end1)
-  let start2Mins = toMinutes(start2)
-  let end2Mins = toMinutes(end2)
-
-  // Handle overnight shifts
-  const range1Overnight = end1Mins < start1Mins
-  const range2Overnight = end2Mins < start2Mins
-
-  if (range1Overnight) end1Mins += 24 * 60
-  if (range2Overnight) end2Mins += 24 * 60
-
-  // Adjust for overnight comparisons
-  if (range1Overnight && !range2Overnight) {
-    const originalEnd1 = toMinutes(end1)
-    if (start2Mins < originalEnd1) {
-      start2Mins += 24 * 60
-      end2Mins += 24 * 60
-    }
-  }
-
-  if (range2Overnight && !range1Overnight) {
-    const originalEnd2 = toMinutes(end2)
-    if (start1Mins < originalEnd2) {
-      start1Mins += 24 * 60
-      end1Mins += 24 * 60
-    }
-  }
-
-  return start1Mins < end2Mins && start2Mins < end1Mins
-}
+import { timesOverlap } from '../components/entryGrouping'
 
 describe('Time Overlap Detection', () => {
   describe('Basic overlaps', () => {

@@ -8,10 +8,11 @@ from src.services import settings_service
 
 def test_get_and_set_setting(db_session):
     assert settings_service.get_setting(db_session, "missing") is None
-    settings_service.set_setting(db_session, "key", "value", is_encrypted=True)
+    settings_service.set_setting(db_session, "key", "value")
     assert settings_service.get_setting(db_session, "key") == "value"
+    settings_service.set_setting(db_session, "key", "other")
     setting = db_session.query(SystemSettings).filter_by(key="key").first()
-    assert setting.is_encrypted is True
+    assert setting.value == "other"
 
 
 def test_locale_settings_defaults(db_session):

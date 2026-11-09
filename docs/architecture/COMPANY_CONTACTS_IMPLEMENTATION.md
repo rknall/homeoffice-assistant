@@ -1,5 +1,7 @@
 # Company Contacts & Email Template Enhancement
 
+> Status: implemented (`src/models/company_contact.py`, `src/api/v1/company_contacts.py`). Kept as design record; the "Current State" section describes the state before implementation.
+
 ## Overview
 
 This document outlines the implementation plan for extending the company and email template system to support multiple contacts per company with a tagging system, and linking email templates to specific contact types.

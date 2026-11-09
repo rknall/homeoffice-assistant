@@ -3,7 +3,6 @@
 """Company calendar service for managing external calendar connections."""
 
 import uuid
-from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -12,6 +11,7 @@ from src.schemas.company_calendar import (
     CompanyCalendarCreate,
     CompanyCalendarUpdate,
 )
+from src.utils.time import utc_now
 
 
 def get_calendars(db: Session, company_id: uuid.UUID) -> list[CompanyCalendar]:
@@ -22,24 +22,6 @@ def get_calendars(db: Session, company_id: uuid.UUID) -> list[CompanyCalendar]:
         .order_by(CompanyCalendar.name)
         .all()
     )
-
-
-def get_active_calendars(db: Session, company_id: uuid.UUID) -> list[CompanyCalendar]:
-    """Get all active calendar connections for a company."""
-    return (
-        db.query(CompanyCalendar)
-        .filter(
-            CompanyCalendar.company_id == company_id,
-            CompanyCalendar.is_active,
-        )
-        .order_by(CompanyCalendar.name)
-        .all()
-    )
-
-
-def get_calendar(db: Session, calendar_id: uuid.UUID) -> CompanyCalendar | None:
-    """Get a single calendar connection by ID."""
-    return db.query(CompanyCalendar).filter(CompanyCalendar.id == calendar_id).first()
 
 
 def get_calendar_by_company(
@@ -103,16 +85,7 @@ def delete_calendar(db: Session, calendar: CompanyCalendar) -> None:
 
 def update_last_synced(db: Session, calendar: CompanyCalendar) -> CompanyCalendar:
     """Update the last_synced_at timestamp for a calendar."""
-    calendar.last_synced_at = datetime.now(UTC)
+    calendar.last_synced_at = utc_now()
     db.commit()
     db.refresh(calendar)
     return calendar
-
-
-def count_calendars(db: Session, company_id: uuid.UUID) -> int:
-    """Count the number of calendar connections for a company."""
-    return (
-        db.query(CompanyCalendar)
-        .filter(CompanyCalendar.company_id == company_id)
-        .count()
-    )

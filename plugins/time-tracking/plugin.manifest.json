@@ -13,31 +13,37 @@
 		"config": true
 	},
 	"permissions": {
-		"required": ["user.read", "company.read", "event.read", "integration.use"],
+		"required": ["user.read", "company.view", "event.read", "integration.use"],
 		"provided": [
 			{
 				"code": "time-tracking.records.read",
-				"description": "View time records"
+				"description": "View time records",
+				"member_default": true
 			},
 			{
 				"code": "time-tracking.records.write",
-				"description": "Create and edit time records"
+				"description": "Create and edit time records",
+				"member_default": true
 			},
 			{
 				"code": "time-tracking.records.delete",
-				"description": "Delete time records"
+				"description": "Delete time records",
+				"member_default": true
 			},
 			{
 				"code": "time-tracking.reports.read",
-				"description": "View time tracking reports"
+				"description": "View time tracking reports",
+				"member_default": true
 			},
 			{
 				"code": "time-tracking.reports.submit",
-				"description": "Submit timesheets to employers"
+				"description": "Submit timesheets to employers",
+				"member_default": true
 			},
 			{
 				"code": "time-tracking.settings.write",
-				"description": "Manage company time settings"
+				"description": "Manage company time settings",
+				"member_default": true
 			}
 		]
 	},
@@ -55,12 +61,6 @@
 				"title": "Default Break Minutes",
 				"description": "Default break duration in minutes",
 				"default": 30
-			},
-			"enable_project_allocation": {
-				"type": "boolean",
-				"title": "Enable Project Allocation",
-				"description": "Allow splitting hours across projects",
-				"default": true
 			},
 			"default_country": {
 				"type": "string",

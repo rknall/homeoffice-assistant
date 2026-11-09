@@ -2,8 +2,10 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Example plugin main class."""
 
+import json
 import logging
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter
@@ -16,6 +18,8 @@ from .models import ExampleNote
 from .routes import router as example_router
 
 logger = logging.getLogger(__name__)
+
+MANIFEST_PATH = Path(__file__).resolve().parents[1] / "plugin.manifest.json"
 
 
 class ExamplePlugin(BasePlugin):
@@ -38,26 +42,12 @@ class ExamplePlugin(BasePlugin):
 
     @classmethod
     def get_config_schema(cls) -> dict[str, Any]:
-        """Return JSON Schema for plugin configuration."""
-        return {
-            "type": "object",
-            "properties": {
-                "greeting_message": {
-                    "type": "string",
-                    "title": "Greeting Message",
-                    "description": (
-                        "Custom greeting message displayed on the plugin page"
-                    ),
-                    "default": "Hello from the Example Plugin!",
-                },
-                "enable_notifications": {
-                    "type": "boolean",
-                    "title": "Enable Notifications",
-                    "description": "Log events to console when they occur",
-                    "default": True,
-                },
-            },
-        }
+        """Return JSON Schema for plugin configuration.
+
+        The manifest is the single source of the schema.
+        """
+        manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+        return manifest.get("config_schema", {})
 
     def get_router(self) -> APIRouter | None:
         """Return FastAPI router with plugin endpoints."""

@@ -69,6 +69,7 @@ export interface PluginInfo {
   manifest: PluginManifest | null
   config_schema: Record<string, unknown>
   settings: Record<string, unknown>
+  secrets_set: string[]
   migration_version: string | null
   has_frontend: boolean
   has_backend: boolean
@@ -102,15 +103,6 @@ export interface PluginUninstallResponse {
   plugin_id: string
   tables_dropped: boolean
   permissions_removed?: boolean
-  message: string
-}
-
-/**
- * Plugin enable/disable API response
- */
-export interface PluginEnableResponse {
-  success: boolean
-  plugin_id: string
   message: string
 }
 

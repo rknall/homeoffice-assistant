@@ -12,9 +12,7 @@ SQLAlchemy model registration conflicts with the main app.
 from datetime import time
 
 
-def times_overlap(
-    start1: time, end1: time, start2: time, end2: time
-) -> bool:
+def times_overlap(start1: time, end1: time, start2: time, end2: time) -> bool:
     """Check if two time ranges overlap.
 
     This is a copy of the function from services.py for isolated testing.
@@ -64,16 +62,12 @@ class TestTimesOverlap:
     def test_no_overlap_sequential(self) -> None:
         """Times that don't overlap (sequential)."""
         # 08:00-12:00 and 13:00-17:00
-        assert not times_overlap(
-            time(8, 0), time(12, 0), time(13, 0), time(17, 0)
-        )
+        assert not times_overlap(time(8, 0), time(12, 0), time(13, 0), time(17, 0))
 
     def test_no_overlap_exact_boundary(self) -> None:
         """Times that touch exactly at the boundary."""
         # 08:00-12:00 and 12:00-17:00
-        assert not times_overlap(
-            time(8, 0), time(12, 0), time(12, 0), time(17, 0)
-        )
+        assert not times_overlap(time(8, 0), time(12, 0), time(12, 0), time(17, 0))
 
     def test_overlap_partial(self) -> None:
         """Times that partially overlap."""
@@ -98,9 +92,7 @@ class TestTimesOverlap:
     def test_overnight_shift_no_overlap(self) -> None:
         """Overnight shift that doesn't overlap with day shift."""
         # 22:00-06:00 and 08:00-17:00
-        assert not times_overlap(
-            time(22, 0), time(6, 0), time(8, 0), time(17, 0)
-        )
+        assert not times_overlap(time(22, 0), time(6, 0), time(8, 0), time(17, 0))
 
     def test_overnight_shift_with_overlap(self) -> None:
         """Overnight shift that overlaps with early morning shift."""
@@ -110,9 +102,7 @@ class TestTimesOverlap:
     def test_no_overlap_before(self) -> None:
         """Second range is completely before first."""
         # 13:00-17:00 and 08:00-12:00
-        assert not times_overlap(
-            time(13, 0), time(17, 0), time(8, 0), time(12, 0)
-        )
+        assert not times_overlap(time(13, 0), time(17, 0), time(8, 0), time(12, 0))
 
     def test_overlap_one_minute(self) -> None:
         """Ranges that overlap by one minute."""
@@ -122,16 +112,12 @@ class TestTimesOverlap:
     def test_short_ranges_no_overlap(self) -> None:
         """Short time ranges with gap between."""
         # 08:00-08:30 and 09:00-09:30
-        assert not times_overlap(
-            time(8, 0), time(8, 30), time(9, 0), time(9, 30)
-        )
+        assert not times_overlap(time(8, 0), time(8, 30), time(9, 0), time(9, 30))
 
     def test_short_ranges_with_overlap(self) -> None:
         """Short time ranges that overlap."""
         # 08:00-09:00 and 08:30-09:30
-        assert times_overlap(
-            time(8, 0), time(9, 0), time(8, 30), time(9, 30)
-        )
+        assert times_overlap(time(8, 0), time(9, 0), time(8, 30), time(9, 30))
 
     def test_two_overnight_shifts_overlap(self) -> None:
         """Two overnight shifts that overlap."""
@@ -141,20 +127,14 @@ class TestTimesOverlap:
     def test_two_overnight_shifts_no_overlap(self) -> None:
         """Two overnight shifts on different nights."""
         # 22:00-02:00 and 03:00-06:00
-        assert not times_overlap(
-            time(22, 0), time(2, 0), time(3, 0), time(6, 0)
-        )
+        assert not times_overlap(time(22, 0), time(2, 0), time(3, 0), time(6, 0))
 
     def test_lunch_break_pattern(self) -> None:
         """Typical morning/afternoon split with lunch break."""
         # Morning: 08:00-12:00, Afternoon: 13:00-17:00
-        assert not times_overlap(
-            time(8, 0), time(12, 0), time(13, 0), time(17, 0)
-        )
+        assert not times_overlap(time(8, 0), time(12, 0), time(13, 0), time(17, 0))
 
     def test_half_day_overlap(self) -> None:
         """Half day at one company overlapping with full day at another."""
         # 08:00-12:00 (half day) and 09:00-17:00 (full day)
-        assert times_overlap(
-            time(8, 0), time(12, 0), time(9, 0), time(17, 0)
-        )
+        assert times_overlap(time(8, 0), time(12, 0), time(9, 0), time(17, 0))

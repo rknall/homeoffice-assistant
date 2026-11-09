@@ -75,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SECRET_KEY: test-secret-key-for-ci-testing-only-32!
-      DATABASE_URL: sqlite:///${{ runner.temp }}/alembic-check.db
+      DATABASE_URL: sqlite:///./alembic-check.db
     steps:
       - uses: actions/checkout@v4
 

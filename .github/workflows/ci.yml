@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -58,7 +58,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -80,7 +80,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -117,7 +117,7 @@ jobs:
       # The API types are generated from the backend schema: a diff means the
       # committed file is stale (run `bun run gen:types` in frontend/)
       - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 

@@ -38,7 +38,7 @@ jobs:
       # Manual test runs use an arbitrary tag, so only real tags are compared
       - name: Set up uv
         if: github.event_name == 'push'
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
 
       - name: Check tag against version files
         if: github.event_name == 'push'

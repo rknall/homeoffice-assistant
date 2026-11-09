@@ -1,6 +1,6 @@
 # Multi-stage build for HomeOffice Assistant
 # Stage 1: Build frontend and plugin bundles
-FROM oven/bun:1.3.14-alpine AS frontend-builder
+FROM oven/bun:1.4.4-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 

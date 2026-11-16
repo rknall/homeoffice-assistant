@@ -27,7 +27,7 @@ RUN bun run build:all \
 
 # Stage 2: Install locked Python dependencies (no compilers needed: every
 # locked package ships a wheel)
-FROM python:3.14-slim AS python-builder
+FROM python:3.15-slim AS python-builder
 
 COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /usr/local/bin/uv
 
@@ -42,7 +42,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 
 # Stage 3: Production image
-FROM python:3.14-slim
+FROM python:3.15-slim
 
 WORKDIR /app
 
